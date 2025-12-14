@@ -1,15 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
-import { useMutation, gql } from '@apollo/client';
+import { useMutation } from '@apollo/client';
+import { REQUEST_MAGIC_LINK } from '@/lib/graphql/mutations';
 import styles from './InviteModal.module.css';
-
-const REQUEST_MAGIC_LINK = gql`
-  mutation RequestMagicLink($email: String!) {
-    requestMagicLink(email: $email) {
-      success
-      message
-    }
-  }
-`;
 
 interface InviteModalProps {
   pageId: string;

@@ -10,8 +10,3 @@ export function createApolloServer() {
     introspection: process.env.NODE_ENV !== 'production',
   });
 }
-
-export { typeDefs, resolvers };
-export { store } from './store';
-export type { GraphQLContext };
-

@@ -11,7 +11,7 @@ import { PageFlipExplore } from './PageFlipExplore';
 import { BackgroundPanel } from './BackgroundPanel';
 import styles from './Editor.module.css';
 
-import { IMAGE_EXTENSIONS, isImageUrl } from '@/shared/utils/blockStyles';
+import { isImageUrl } from '@/shared/utils/blockStyles';
 
 
 interface EditorProps {
@@ -71,10 +71,10 @@ export function Editor({ pageId, initialBlocks, initialTitle, initialBackground,
     onSave: handleSave,
   });
 
-  // Trigger autosave when blocks or title change
+  // Trigger autosave when blocks, title, or background change
   useEffect(() => {
     triggerAutosave();
-  }, [blocks, title, triggerAutosave]);
+  }, [blocks, title, background, triggerAutosave]);
 
   // Add starter block for empty new pages (only once)
   useEffect(() => {
@@ -370,13 +370,23 @@ export function Editor({ pageId, initialBlocks, initialTitle, initialBackground,
     <div className={styles.editor}>
       {/* Top right controls */}
       <div className={styles.topRightControls}>
-        <button
-          className={`${styles.backgroundBtn} ${showBackgroundPanel ? styles.backgroundBtnActive : ''}`}
-          onClick={() => setShowBackgroundPanel(!showBackgroundPanel)}
-          title="Background settings"
-        >
-          ■
-        </button>
+        <div className={styles.backgroundBtnWrapper}>
+          <button
+            className={`${styles.backgroundBtn} ${showBackgroundPanel ? styles.backgroundBtnActive : ''}`}
+            onClick={() => setShowBackgroundPanel(!showBackgroundPanel)}
+            data-background-btn
+            title="Background"
+          >
+            <span className={styles.backgroundIcon} />
+          </button>
+          {showBackgroundPanel && (
+            <BackgroundPanel
+              background={background}
+              onChange={setBackground}
+              onClose={() => setShowBackgroundPanel(false)}
+            />
+          )}
+        </div>
         <button
           className={styles.inviteBtn}
           onClick={handleInvite}
@@ -434,13 +444,6 @@ export function Editor({ pageId, initialBlocks, initialTitle, initialBackground,
         publishError={publishError}
       />
 
-      {showBackgroundPanel && (
-        <BackgroundPanel
-          background={background}
-          onChange={setBackground}
-          onClose={() => setShowBackgroundPanel(false)}
-        />
-      )}
     </div>
   );
 }

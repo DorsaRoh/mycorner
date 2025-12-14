@@ -2,49 +2,20 @@
   position: relative;
   flex: 1;
   height: 100%;
-  background: var(--color-canvas);
+  background: var(--color-bg-pure);
   overflow: hidden;
 }
 
-/* Subtle paper texture overlay using CSS noise */
-.canvas::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  opacity: 0.03;
-  pointer-events: none;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
-  z-index: 0;
-}
-
-/* Gentle gradient overlay for warmth */
-.canvas::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    145deg,
-    rgba(255, 252, 245, 0.4) 0%,
-    transparent 40%,
-    rgba(245, 240, 232, 0.2) 100%
-  );
-  pointer-events: none;
-  z-index: 0;
-}
-
-/* Subtle paper/page boundary sheet - very soft, almost invisible */
+/* Full canvas area - edge to edge for maximum creative freedom */
 .paperSheet {
   position: absolute;
-  top: 28px;
-  left: 28px;
-  right: 28px;
-  bottom: 28px;
-  background: rgba(255, 255, 255, 0.25);
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: transparent;
   border: none;
-  border-radius: 16px;
-  box-shadow: 
-    inset 0 0 0 1px rgba(0, 0, 0, 0.02),
-    inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  border-radius: 0;
   pointer-events: auto;
   z-index: 0;
 }
@@ -132,13 +103,7 @@
   }
 }
 
-/* Responsive paper sheet */
+/* Responsive adjustments */
 @media (max-width: 640px) {
-  .paperSheet {
-    top: 16px;
-    left: 16px;
-    right: 16px;
-    bottom: 16px;
-    border-radius: var(--radius);
-  }
+  /* Paper sheet is now edge-to-edge, no responsive insets needed */
 }

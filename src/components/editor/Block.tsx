@@ -133,26 +133,10 @@ export const Block = memo(function Block({
 
   // Handle style update
   const handleStyleChange = useCallback((newStyle: BlockStyle) => {
-    if ((block.type === 'TEXT' || block.type === 'LINK') && newStyle.fontSize) {
-      const oldFontSize = block.style?.fontSize || DEFAULT_STYLE.fontSize || 16;
-      const newFontSize = newStyle.fontSize;
-
-      if (oldFontSize !== newFontSize) {
-        const scale = newFontSize / oldFontSize;
-        const newWidth = Math.max(100, Math.round(block.width * scale));
-        const newHeight = Math.max(40, Math.round(block.height * scale));
-
-        onUpdate({
-          style: newStyle,
-          width: newWidth,
-          height: newHeight,
-        });
-        return;
-      }
-    }
-
+    // Don't auto-resize block when user manually adjusts font size through controls
+    // Let the text measurement handle sizing only when content changes
     onUpdate({ style: newStyle });
-  }, [onUpdate, block.type, block.style?.fontSize, block.width, block.height]);
+  }, [onUpdate]);
 
   // Calculate inline styles
   const blockStyles = useMemo(() => {

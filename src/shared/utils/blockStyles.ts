@@ -106,7 +106,7 @@ export function serializeLinkContent(name: string, url: string): string {
 }
 
 // Image extensions for URL detection
-export const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.webp', '.gif'];
+const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.webp', '.gif'];
 
 /**
  * Check if a URL points to an image based on extension

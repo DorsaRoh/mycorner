@@ -10,7 +10,7 @@ export interface UploadResult {
   originalName: string;
 }
 
-export interface UploadError {
+interface UploadError {
   error: string;
   code: string;
 }

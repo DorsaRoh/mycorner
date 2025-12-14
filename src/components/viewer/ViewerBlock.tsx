@@ -1,7 +1,7 @@
 import { useMemo, memo } from 'react';
 import type { Block as BlockType, BlockStyle, BlockEffects } from '@/shared/types';
 import { getBlockStyles, getTextStyles, parseLinkContent } from '@/shared/utils/blockStyles';
-import { EffectsRenderer } from '@/components/effects';
+import { EffectsRenderer } from '@/components/effects/EffectsRenderer';
 import styles from './ViewerBlock.module.css';
 
 interface ViewerBlockProps {

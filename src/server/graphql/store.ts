@@ -65,7 +65,6 @@ export interface StoredBackgroundAudio {
 
 export interface StoredBackgroundSolid {
   color: string;
-  opacity: number;
 }
 
 export interface StoredBackgroundGradient {
@@ -73,34 +72,12 @@ export interface StoredBackgroundGradient {
   colorA: string;
   colorB: string;
   angle: number;
-  opacity: number;
-}
-
-export interface StoredBackgroundTexture {
-  type: "noise" | "paper" | "grain" | "none";
-  intensity: number;
-  scale: number;
-  opacity: number;
-}
-
-export interface StoredBackgroundLighting {
-  vignette: number;
-  brightness: number;
-  contrast: number;
-}
-
-export interface StoredBackgroundMotion {
-  enabled: boolean;
-  speed: "slow" | "slower" | "slowest";
 }
 
 export interface StoredBackgroundConfig {
   mode: "solid" | "gradient";
   solid?: StoredBackgroundSolid;
   gradient?: StoredBackgroundGradient;
-  texture?: StoredBackgroundTexture;
-  lighting?: StoredBackgroundLighting;
-  motion?: StoredBackgroundMotion;
 }
 
 export interface StoredPage {
@@ -246,13 +223,6 @@ class Store {
     }
   }
 
-  /**
-   * Check if owner is anonymous (session-based) vs authenticated user
-   */
-  isAnonymousOwner(ownerId: string): boolean {
-    return ownerId.startsWith('anon_');
-  }
-
   // Feedback operations
   addFeedback(pageId: string, message: string, email?: string): StoredFeedback {
     const id = this.generateId('feedback');
@@ -269,10 +239,6 @@ class Store {
     this.feedback.set(pageId, existing);
 
     return feedbackItem;
-  }
-
-  getFeedbackForPage(pageId: string): StoredFeedback[] {
-    return this.feedback.get(pageId) || [];
   }
 
   /**

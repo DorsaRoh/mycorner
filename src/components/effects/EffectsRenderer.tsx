@@ -8,29 +8,6 @@ interface EffectsRendererProps {
   className?: string;
 }
 
-/**
- * Check if effects are neutral (no visual change)
- */
-export function hasActiveEffects(effects?: BlockEffects): boolean {
-  if (!effects) return false;
-  
-  return (
-    (effects.brightness !== undefined && effects.brightness !== 0) ||
-    (effects.contrast !== undefined && effects.contrast !== 0) ||
-    (effects.saturation !== undefined && effects.saturation !== 0) ||
-    (effects.hueShift !== undefined && effects.hueShift !== 0) ||
-    (effects.blur !== undefined && effects.blur !== 0) ||
-    (effects.pixelate !== undefined && effects.pixelate !== 0) ||
-    (effects.dither !== undefined && effects.dither !== 0) ||
-    (effects.noise !== undefined && effects.noise !== 0) ||
-    (effects.gradientOverlay?.strength !== undefined && effects.gradientOverlay.strength !== 0)
-  );
-}
-
-/**
- * Renders children with visual effects applied
- * Uses CSS filters for basic effects and SVG filters for advanced effects
- */
 export function EffectsRenderer({ effects, children, className }: EffectsRendererProps) {
   const filterId = useId();
   

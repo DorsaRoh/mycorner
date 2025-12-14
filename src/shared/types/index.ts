@@ -38,7 +38,6 @@ export const DEFAULT_STYLE: BlockStyle = {
   shadowSoftness: 0.5,
   shadowOffsetX: 0,
   shadowOffsetY: 0.2,
-  // Text defaults
   fontFamily: 'system-ui, -apple-system, sans-serif',
   fontSize: 16,
   fontWeight: 400,
@@ -46,22 +45,6 @@ export const DEFAULT_STYLE: BlockStyle = {
   textOpacity: 1,
   textAlign: 'left',
 };
-
-// Check if any style properties are non-default
-export function hasActiveStyle(style?: BlockStyle): boolean {
-  if (!style) return false;
-  return (
-    style.borderRadius > 0 ||
-    style.shadowStrength > 0 ||
-    // Text styling checks
-    style.fontFamily !== DEFAULT_STYLE.fontFamily ||
-    style.fontSize !== DEFAULT_STYLE.fontSize ||
-    style.fontWeight !== DEFAULT_STYLE.fontWeight ||
-    style.color !== DEFAULT_STYLE.color ||
-    style.textOpacity !== DEFAULT_STYLE.textOpacity ||
-    style.textAlign !== DEFAULT_STYLE.textAlign
-  );
-}
 
 // Gradient overlay settings for effects
 export interface GradientOverlay {
@@ -89,24 +72,6 @@ export interface BlockEffects {
   gradientOverlay?: GradientOverlay;
 }
 
-// Default/neutral effects values
-export const DEFAULT_EFFECTS: BlockEffects = {
-  brightness: 0,
-  contrast: 0,
-  saturation: 0,
-  hueShift: 0,
-  pixelate: 0,
-  dither: 0,
-  noise: 0,
-  grainSize: 0.5,
-  blur: 0,
-  gradientOverlay: {
-    strength: 0,
-    angle: 45,
-    colors: ['#000000', '#ffffff'],
-  },
-};
-
 export interface Block {
   id: string;
   type: BlockType;
@@ -130,28 +95,12 @@ export interface BackgroundAudio {
 // Background decoration settings for a page
 export interface BackgroundConfig {
   mode: "solid" | "gradient";
-  solid?: { color: string; opacity: number };
+  solid?: { color: string };
   gradient?: {
     type: "linear" | "radial";
     colorA: string;
     colorB: string;
     angle: number; // only used for linear
-    opacity: number;
-  };
-  texture?: {
-    type: "noise" | "paper" | "grain" | "none";
-    intensity: number; // clamp 0..0.2
-    scale: number; // clamp 0.5..2
-    opacity: number; // 0..1
-  };
-  lighting?: {
-    vignette: number; // clamp 0..0.3
-    brightness: number; // clamp -0.1..0.1
-    contrast: number; // clamp -0.1..0.1
-  };
-  motion?: {
-    enabled: boolean;
-    speed: "slow" | "slower" | "slowest";
   };
 }
 

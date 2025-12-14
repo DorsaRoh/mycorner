@@ -57,7 +57,6 @@ interface BackgroundAudioInput {
 
 interface BackgroundSolidInput {
   color: string;
-  opacity: number;
 }
 
 interface BackgroundGradientInput {
@@ -65,34 +64,12 @@ interface BackgroundGradientInput {
   colorA: string;
   colorB: string;
   angle: number;
-  opacity: number;
-}
-
-interface BackgroundTextureInput {
-  type: "noise" | "paper" | "grain" | "none";
-  intensity: number;
-  scale: number;
-  opacity: number;
-}
-
-interface BackgroundLightingInput {
-  vignette: number;
-  brightness: number;
-  contrast: number;
-}
-
-interface BackgroundMotionInput {
-  enabled: boolean;
-  speed: "slow" | "slower" | "slowest";
 }
 
 interface BackgroundConfigInput {
   mode: "solid" | "gradient";
   solid?: BackgroundSolidInput;
   gradient?: BackgroundGradientInput;
-  texture?: BackgroundTextureInput;
-  lighting?: BackgroundLightingInput;
-  motion?: BackgroundMotionInput;
 }
 
 interface CreatePageInput {

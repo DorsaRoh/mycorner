@@ -70,14 +70,10 @@ export const typeDefs = gql`
     mode: String!
     solid: BackgroundSolid
     gradient: BackgroundGradient
-    texture: BackgroundTexture
-    lighting: BackgroundLighting
-    motion: BackgroundMotion
   }
 
   type BackgroundSolid {
     color: String!
-    opacity: Float!
   }
 
   type BackgroundGradient {
@@ -85,25 +81,6 @@ export const typeDefs = gql`
     colorA: String!
     colorB: String!
     angle: Float!
-    opacity: Float!
-  }
-
-  type BackgroundTexture {
-    type: String!
-    intensity: Float!
-    scale: Float!
-    opacity: Float!
-  }
-
-  type BackgroundLighting {
-    vignette: Float!
-    brightness: Float!
-    contrast: Float!
-  }
-
-  type BackgroundMotion {
-    enabled: Boolean!
-    speed: String!
   }
 
   type Page {
@@ -186,7 +163,6 @@ export const typeDefs = gql`
 
   input BackgroundSolidInput {
     color: String!
-    opacity: Float!
   }
 
   input BackgroundGradientInput {
@@ -194,34 +170,12 @@ export const typeDefs = gql`
     colorA: String!
     colorB: String!
     angle: Float!
-    opacity: Float!
-  }
-
-  input BackgroundTextureInput {
-    type: String!
-    intensity: Float!
-    scale: Float!
-    opacity: Float!
-  }
-
-  input BackgroundLightingInput {
-    vignette: Float!
-    brightness: Float!
-    contrast: Float!
-  }
-
-  input BackgroundMotionInput {
-    enabled: Boolean!
-    speed: String!
   }
 
   input BackgroundConfigInput {
     mode: String!
     solid: BackgroundSolidInput
     gradient: BackgroundGradientInput
-    texture: BackgroundTextureInput
-    lighting: BackgroundLightingInput
-    motion: BackgroundMotionInput
   }
 
   input CreatePageInput {

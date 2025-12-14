@@ -42,29 +42,12 @@ const BACKGROUND_FRAGMENT = `
     mode
     solid {
       color
-      opacity
     }
     gradient {
       type
       colorA
       colorB
       angle
-      opacity
-    }
-    texture {
-      type
-      intensity
-      scale
-      opacity
-    }
-    lighting {
-      vignette
-      brightness
-      contrast
-    }
-    motion {
-      enabled
-      speed
     }
   }
 `;

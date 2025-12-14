@@ -3,7 +3,7 @@ import { GetServerSideProps } from 'next';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import { useMutation } from '@apollo/client';
-import { initializeApollo } from '@/lib/apollo';
+import { initializeApollo } from '@/lib/apollo/client';
 import { GET_PUBLIC_PAGE, FORK_PAGE, REQUEST_MAGIC_LINK } from '@/lib/graphql/mutations';
 import { ViewerCanvas, FloatingAction, FeedbackModal } from '@/components/viewer';
 import { PageFlipExplore } from '@/components/editor';

@@ -57,6 +57,11 @@
   cursor: not-allowed;
 }
 
+/* Background button wrapper for positioning panel */
+.backgroundBtnWrapper {
+  position: relative;
+}
+
 /* Background button - subtle square icon */
 .backgroundBtn {
   width: 36px;
@@ -83,6 +88,13 @@
     0 1px 3px rgba(60, 50, 40, 0.04);
 }
 
+.backgroundIcon {
+  width: 14px;
+  height: 14px;
+  background: currentColor;
+  border-radius: 2px;
+}
+
 .backgroundBtn:hover {
   background: rgba(255, 255, 255, 0.95);
   color: var(--color-text);
@@ -100,6 +112,10 @@
   background: var(--color-accent);
   color: white;
   border-color: var(--color-accent);
+}
+
+.backgroundBtnActive .backgroundIcon {
+  background: white;
 }
 
 /* Floating save indicator - top left, very subtle, almost invisible */

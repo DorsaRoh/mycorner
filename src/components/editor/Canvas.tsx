@@ -1,8 +1,7 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import type { Block as BlockType, BlockType as BlockTypeEnum, BackgroundConfig } from '@/shared/types';
 import { Block } from './Block';
 import { CreationPalette } from './CreationPalette';
-import { BackgroundLayer } from '../BackgroundLayer';
 import { uploadAsset, isAcceptedImageType } from '@/lib/upload';
 import { isImageUrl } from '@/shared/utils/blockStyles';
 import styles from './Canvas.module.css';
@@ -251,17 +250,36 @@ export function Canvas({
   const marqueeRect = getMarqueeRect();
   const isMarqueeVisible = marqueeRect && (marqueeRect.width > 5 || marqueeRect.height > 5);
 
+  // Compute canvas background styles from config
+  const canvasStyle = useMemo(() => {
+    const style: React.CSSProperties = {};
+    
+    if (!background) return style;
+
+    if (background.mode === 'solid' && background.solid) {
+      style.background = background.solid.color;
+    } else if (background.mode === 'gradient' && background.gradient) {
+      const { type, colorA, colorB, angle } = background.gradient;
+      if (type === 'radial') {
+        style.background = `radial-gradient(circle, ${colorA} 0%, ${colorB} 100%)`;
+      } else {
+        style.background = `linear-gradient(${angle}deg, ${colorA} 0%, ${colorB} 100%)`;
+      }
+    }
+
+    return style;
+  }, [background]);
+
   return (
     <div
       ref={canvasRef}
       className={styles.canvas}
+      style={canvasStyle}
       onMouseDown={handleCanvasMouseDown}
       onClick={handleCanvasClick}
       onDrop={handleDrop}
       onDragOver={handleDragOver}
     >
-      {/* Background layer */}
-      <BackgroundLayer config={background} />
 
       {/* Subtle paper boundary */}
       <div className={styles.paperSheet} />
