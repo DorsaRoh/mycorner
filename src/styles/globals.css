@@ -1,0 +1,92 @@
+:root {
+  /* ===========================================
+     SIGNATURE ACCENT COLOR - Soft sage green
+     Change this ONE variable to update all accent colors
+     =========================================== */
+  --color-accent: #6a9a84;
+  
+  /* Derived accent colors */
+  --color-accent-light: rgba(106, 154, 132, 0.12);
+  --color-accent-hover: #5a8a74;
+  
+  /* ===========================================
+     BACKGROUND & SURFACE COLORS - Warm, organic
+     =========================================== */
+  --color-bg: #faf9f6;
+  --color-bg-pure: #ffffff;
+  --color-canvas: #fbfaf7;
+  --color-surface: #f6f5f2;
+  
+  /* ===========================================
+     BORDER & DIVIDER COLORS - Very subtle
+     =========================================== */
+  --color-border: #e8e6e0;
+  --color-border-light: rgba(0, 0, 0, 0.03);
+  
+  /* ===========================================
+     TEXT COLORS - Warm, not harsh black
+     =========================================== */
+  --color-text: #3a3632;
+  --color-text-muted: #9b9590;
+  --color-text-light: #bab5af;
+  --color-text-inverse: #ffffff;
+  
+  /* ===========================================
+     SEMANTIC COLORS
+     =========================================== */
+  --color-success: #6b9a7c;
+  --color-error: #c47a7a;
+  
+  /* ===========================================
+     SHADOW COLORS - Warm, diffuse
+     =========================================== */
+  --shadow-color: 60, 50, 40;
+  --shadow-sm: 0 1px 3px rgba(var(--shadow-color), 0.04);
+  --shadow-md: 0 4px 12px -2px rgba(var(--shadow-color), 0.06), 0 2px 4px -1px rgba(var(--shadow-color), 0.03);
+  --shadow-lg: 0 12px 32px -4px rgba(var(--shadow-color), 0.08), 0 4px 8px -2px rgba(var(--shadow-color), 0.03);
+  --shadow-soft: 0 2px 8px rgba(var(--shadow-color), 0.05);
+  
+  /* ===========================================
+     TYPOGRAPHY
+     =========================================== */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+  
+  /* ===========================================
+     TRANSITIONS - Organic easing
+     =========================================== */
+  --transition-fast: 0.15s cubic-bezier(0.23, 1, 0.32, 1);
+  --transition-normal: 0.25s cubic-bezier(0.23, 1, 0.32, 1);
+  
+  /* ===========================================
+     SIZING
+     =========================================== */
+  --radius: 12px;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}

@@ -1,0 +1,137 @@
+.editor {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: var(--color-canvas);
+  overflow: hidden;
+  position: relative;
+}
+
+/* Top right controls container */
+.topRightControls {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  z-index: 100;
+}
+
+/* Floating Invite button - top right, soft, organic */
+.inviteBtn {
+  padding: 9px 22px;
+  font-size: 0.8125rem;
+  font-family: var(--font-sans);
+  font-weight: 500;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: var(--color-text);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 20px;
+  cursor: pointer;
+  transition: 
+    transform 180ms cubic-bezier(0.23, 1, 0.32, 1),
+    background 150ms ease-out,
+    box-shadow 180ms ease-out;
+  box-shadow: 
+    0 2px 12px -2px rgba(60, 50, 40, 0.08),
+    0 1px 3px rgba(60, 50, 40, 0.04);
+}
+
+.inviteBtn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.95);
+  transform: scale(1.02);
+  box-shadow: 
+    0 4px 16px -2px rgba(60, 50, 40, 0.1),
+    0 2px 6px rgba(60, 50, 40, 0.05);
+}
+
+.inviteBtn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.inviteBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Floating save indicator - top left, very subtle, almost invisible */
+.saveIndicator {
+  position: fixed;
+  top: 20px;
+  left: 20px;
+  font-size: 0.6875rem;
+  font-family: var(--font-sans);
+  z-index: 100;
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: none;
+  border-radius: 14px;
+  box-shadow: 
+    0 2px 8px rgba(60, 50, 40, 0.05);
+}
+
+.saving {
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.saved {
+  color: var(--color-text-muted);
+}
+
+.saveError {
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  font-family: var(--font-sans);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transition: color var(--transition-fast);
+}
+
+.saveError:hover {
+  color: var(--color-text);
+}
+
+/* Main content area - full screen */
+.mainContent {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Responsive adjustments */
+@media (max-width: 640px) {
+  .topRightControls {
+    top: 16px;
+    right: 16px;
+    gap: 8px;
+  }
+
+  .soundBtn {
+    width: 32px;
+    height: 32px;
+    font-size: 0.875rem;
+  }
+
+  .inviteBtn {
+    padding: 6px 16px;
+    font-size: 0.8125rem;
+  }
+
+  .saveIndicator {
+    top: 16px;
+    left: 16px;
+    font-size: 0.6875rem;
+    padding: 5px 10px;
+  }
+}

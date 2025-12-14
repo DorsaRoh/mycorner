@@ -1,0 +1,202 @@
+/* ========================================
+   CREATION PALETTE - Ephemeral, pollen-like, organic
+   ======================================== */
+
+.container {
+  position: fixed;
+  pointer-events: none;
+  z-index: 1000;
+  transform: translate(-50%, -50%);
+  width: 220px;
+  height: 220px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  
+  /* Start invisible and slightly scaled down */
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.92);
+  transition: 
+    opacity 180ms cubic-bezier(0.23, 1, 0.32, 1),
+    transform 180ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.container.visible {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+  pointer-events: auto;
+}
+
+.container.fadeOut {
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.95);
+  transition: 
+    opacity 100ms ease-in,
+    transform 100ms ease-in;
+  pointer-events: none;
+}
+
+/* Subtle center dot - where the click happened, like a seed */
+.centerDot {
+  position: absolute;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--color-text);
+  opacity: 0.08;
+  animation: centerPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes centerPulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.08;
+  }
+  50% {
+    transform: scale(1.3);
+    opacity: 0.12;
+  }
+}
+
+/* Individual option buttons - pollen/bubble-like */
+.option {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 54px;
+  height: 54px;
+  border: 1px solid var(--color-border);
+  border-radius: 50%;
+  background: var(--color-bg-pure);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  cursor: pointer;
+  
+  /* Very soft shadow, almost ethereal */
+  box-shadow: 
+    0 4px 20px -4px rgba(0, 0, 0, 0.08),
+    0 2px 6px rgba(0, 0, 0, 0.04);
+  
+  /* Smooth organic transitions */
+  transition: 
+    transform 200ms cubic-bezier(0.23, 1, 0.32, 1),
+    background 150ms ease-out,
+    box-shadow 200ms ease-out,
+    opacity 150ms ease-out,
+    border-color 150ms ease-out;
+  
+  /* Position from center using custom properties */
+  transform: translate(var(--offset-x), var(--offset-y));
+  
+  /* Staggered entry animation - float in from center */
+  opacity: 0;
+  animation: optionFloat 220ms cubic-bezier(0.23, 1, 0.32, 1) forwards;
+  animation-delay: var(--delay);
+}
+
+@keyframes optionFloat {
+  from {
+    opacity: 0;
+    transform: translate(
+      calc(var(--offset-x) * 0.5),
+      calc(var(--offset-y) * 0.5)
+    ) scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: translate(var(--offset-x), var(--offset-y)) scale(1);
+  }
+}
+
+.option:hover {
+  background: var(--color-bg-pure);
+  border-color: var(--color-accent);
+  box-shadow: 
+    0 8px 28px -4px rgba(0, 0, 0, 0.1),
+    0 3px 10px rgba(0, 0, 0, 0.05);
+  transform: translate(var(--offset-x), var(--offset-y)) scale(1.1);
+}
+
+.option:active {
+  transform: translate(var(--offset-x), var(--offset-y)) scale(0.96);
+  background: var(--color-surface);
+  transition-duration: 80ms;
+}
+
+/* Icon styling - soft, organic */
+.optionIcon {
+  font-size: 18px;
+  line-height: 1;
+  color: var(--color-text);
+  opacity: 0.7;
+  transition: 
+    opacity 150ms ease-out,
+    transform 150ms ease-out,
+    color 150ms ease-out;
+}
+
+.option:hover .optionIcon {
+  opacity: 1;
+  color: var(--color-accent);
+  transform: scale(1.05);
+}
+
+/* Label styling - appears outside the circle */
+.optionLabel {
+  font-size: 10px;
+  font-weight: 500;
+  font-family: var(--font-sans);
+  letter-spacing: 0.02em;
+  color: var(--color-text);
+  background: var(--color-bg-pure);
+  padding: 4px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-sm);
+  opacity: 0;
+  text-transform: lowercase;
+  transition: opacity 150ms ease-out, transform 150ms ease-out;
+  position: absolute;
+  bottom: -28px;
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.option:hover .optionLabel {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* Container closing class - faster fade out */
+.container.fadeOut .option {
+  opacity: 0;
+  transition: opacity 80ms ease-in;
+}
+
+/* Responsive adjustments */
+@media (max-width: 640px) {
+  .container {
+    width: 180px;
+    height: 180px;
+  }
+  
+  .option {
+    width: 48px;
+    height: 48px;
+  }
+  
+  .optionIcon {
+    font-size: 16px;
+  }
+  
+  .optionLabel {
+    font-size: 9px;
+    bottom: -24px;
+    padding: 3px 8px;
+  }
+}
