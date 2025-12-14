@@ -25,9 +25,10 @@
   display: block;
 }
 
-/* Image block */
+/* Image block - no default styling, edge-to-edge */
 .image {
   background: transparent;
+  border-radius: 0;
   overflow: visible;
 }
 
@@ -51,19 +52,10 @@
   overflow: hidden;
 }
 
-/* Link block */
+/* Link block - transparent, inline text style */
 .link {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-  transition: border-color var(--transition-fast), transform var(--transition-fast), box-shadow var(--transition-fast);
-  box-shadow: var(--shadow-sm);
-}
-
-.link:hover {
-  border-color: var(--color-accent);
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
+  background: transparent;
+  overflow: visible;
 }
 
 .linkContent {
@@ -71,29 +63,31 @@
   height: 100%;
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 8px;
-  color: var(--color-accent);
+  gap: 4px;
+  color: var(--color-text);
   text-decoration: none;
-  padding: 12px 16px;
+  padding: 8px 12px;
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.5;
+  transition: opacity var(--transition-fast);
+}
+
+.linkContent:hover {
+  opacity: 0.8;
+}
+
+.linkText {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-thickness: 1px;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .linkIcon {
-  font-size: 1.125rem;
+  font-size: 0.75em;
+  opacity: 0.5;
   flex-shrink: 0;
-}
-
-.linkHost {
-  font-size: 1rem;
-  font-weight: 500;
-  font-family: var(--font-sans);
-  text-decoration: underline;
-  text-underline-offset: 3px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.link:hover .linkContent {
-  color: var(--color-accent-hover);
+  margin-left: 2px;
 }

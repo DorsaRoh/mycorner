@@ -102,19 +102,19 @@ export function EffectsRenderer({ effects, children, className }: EffectsRendere
 
   // Calculate noise/dither parameters for SVG filter
   const textureParams = useMemo(() => {
-    if (!effects) return { pixelSize: 1, noiseFreq: 0, ditherFreq: 0 };
-    
-    const grainSize = effects.grainSize ?? 0.5;
+    const grainSize = effects?.grainSize ?? 0.5;
+    const noiseAmount = effects?.noise ?? 0;
+    const ditherAmount = effects?.dither ?? 0;
     
     return {
       // Pixelation: 0..1 maps to 1..32 pixel size
-      pixelSize: effects.pixelate ? Math.max(1, Math.round(1 + effects.pixelate * 31)) : 1,
+      pixelSize: effects?.pixelate ? Math.max(1, Math.round(1 + effects.pixelate * 31)) : 1,
       // Noise frequency based on grain size
-      noiseFreq: effects.noise ? 0.5 + (1 - grainSize) * 1.5 : 0,
-      noiseAmount: effects.noise ?? 0,
+      noiseFreq: noiseAmount > 0 ? 0.5 + (1 - grainSize) * 1.5 : 0,
+      noiseAmount,
       // Dither frequency
-      ditherFreq: effects.dither ? 0.8 + (1 - grainSize) * 0.4 : 0,
-      ditherAmount: effects.dither ?? 0,
+      ditherFreq: ditherAmount > 0 ? 0.8 + (1 - grainSize) * 0.4 : 0,
+      ditherAmount,
     };
   }, [effects]);
 

@@ -1,12 +1,26 @@
 import type { GraphQLContext } from './context';
 import { getOwnerId, canModifyPage } from './context';
-import { store, StoredBlock, StoredBackgroundAudio, FrameStyle, StoredBlockEffects, StoredGradientOverlay } from './store';
+import { store, StoredBlock, StoredBackgroundAudio, StoredBlockStyle, StoredBlockEffects, StoredGradientOverlay } from './store';
 import { authStore } from '../auth/store';
 
 interface GradientOverlayInput {
   strength: number;
   angle: number;
   colors: [string, string];
+}
+
+interface BlockStyleInput {
+  borderRadius?: number;
+  shadowStrength?: number;
+  shadowSoftness?: number;
+  shadowOffsetX?: number;
+  shadowOffsetY?: number;
+  // Text styling
+  fontFamily?: string;
+  fontSize?: number;
+  fontWeight?: number;
+  color?: string;
+  textOpacity?: number;
 }
 
 interface BlockEffectsInput {
@@ -30,7 +44,7 @@ interface BlockInput {
   width: number;
   height: number;
   content: string;
-  frameStyle?: FrameStyle;
+  style?: BlockStyleInput;
   effects?: BlockEffectsInput;
 }
 
@@ -185,7 +199,7 @@ export const resolvers = {
         width: block.width,
         height: block.height,
         content: block.content,
-        frameStyle: block.frameStyle,
+        style: block.style,
         effects: block.effects,
       }));
 

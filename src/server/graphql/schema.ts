@@ -16,14 +16,16 @@ export const typeDefs = gql`
 
   type BlockStyle {
     borderRadius: Float!
-    borderWidth: Float!
-    borderSoftness: Float!
-    borderColor: String!
     shadowStrength: Float!
     shadowSoftness: Float!
     shadowOffsetX: Float!
     shadowOffsetY: Float!
-    opacity: Float!
+    # Text styling
+    fontFamily: String
+    fontSize: Float
+    fontWeight: Float
+    color: String
+    textOpacity: Float
   }
 
   type GradientOverlay {
@@ -109,15 +111,17 @@ export const typeDefs = gql`
   }
 
   input BlockStyleInput {
-    borderRadius: Float!
-    borderWidth: Float!
-    borderSoftness: Float!
-    borderColor: String!
-    shadowStrength: Float!
-    shadowSoftness: Float!
-    shadowOffsetX: Float!
-    shadowOffsetY: Float!
-    opacity: Float!
+    borderRadius: Float
+    shadowStrength: Float
+    shadowSoftness: Float
+    shadowOffsetX: Float
+    shadowOffsetY: Float
+    # Text styling
+    fontFamily: String
+    fontSize: Float
+    fontWeight: Float
+    color: String
+    textOpacity: Float
   }
 
   input BlockInput {

@@ -2,11 +2,9 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import type { Block as BlockType, BlockType as BlockTypeEnum } from '@/shared/types';
 import { Block } from './Block';
 import { CreationPalette } from './CreationPalette';
+import { uploadAsset, isAcceptedImageType } from '@/lib/upload';
+import { isImageUrl } from '@/shared/utils/blockStyles';
 import styles from './Canvas.module.css';
-
-// Accepted image types for validation
-const ACCEPTED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/gif'];
-const ACCEPTED_IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.webp', '.gif'];
 
 interface PaletteState {
   x: number;
@@ -27,11 +25,14 @@ interface CanvasProps {
   selectedId: string | null;
   selectedIds: Set<string>;
   newBlockIds?: Set<string>;
+  editingId?: string | null;
   onSelectBlock: (id: string | null) => void;
   onSelectMultiple: (ids: Set<string>) => void;
   onUpdateBlock: (id: string, updates: Partial<BlockType>) => void;
+  onUpdateMultipleBlocks: (ids: Set<string>, updates: Partial<BlockType>) => void;
   onDeleteBlock: (id: string) => void;
   onAddBlock: (type: BlockType['type'], x: number, y: number, content?: string) => void;
+  onSetEditing?: (id: string | null) => void;
 }
 
 export function Canvas({
@@ -39,11 +40,14 @@ export function Canvas({
   selectedId,
   selectedIds,
   newBlockIds = new Set(),
+  editingId = null,
   onSelectBlock,
   onSelectMultiple,
   onUpdateBlock,
   onDeleteBlock,
   onAddBlock,
+  onUpdateMultipleBlocks,
+  onSetEditing,
 }: CanvasProps) {
   const canvasRef = useRef<HTMLDivElement>(null);
   const [dropError, setDropError] = useState<string | null>(null);
@@ -187,40 +191,38 @@ export function Canvas({
     setPalette(null);
   }, []);
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
+  const handleDrop = useCallback(async (e: React.DragEvent) => {
     e.preventDefault();
     const rect = canvasRef.current!.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
-    // Handle image drop
+    // Handle image file drop
     const files = Array.from(e.dataTransfer.files);
     const imageFile = files.find(f => f.type.startsWith('image/'));
     
     if (imageFile) {
       // Validate image type
-      if (!ACCEPTED_IMAGE_TYPES.includes(imageFile.type)) {
+      if (!isAcceptedImageType(imageFile.type)) {
         showDropError('Please use PNG, JPG, WebP, or GIF images');
         return;
       }
       
-      const reader = new FileReader();
-      reader.onload = () => {
-        // Pass the image content directly when creating the block
-        onAddBlock('IMAGE', x, y, reader.result as string);
-      };
-      reader.readAsDataURL(imageFile);
+      // Upload file first, then create block with URL
+      const result = await uploadAsset(imageFile);
+      if (result.success) {
+        onAddBlock('IMAGE', x, y, result.data.url);
+      } else {
+        showDropError(result.error);
+      }
       return;
     }
 
-    // Handle URL drop - pass content directly
+    // Handle URL drop - pass content directly (no upload needed for external URLs)
     const url = e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain');
     if (url && url.startsWith('http')) {
       // Check if it's an image URL
-      const lowerUrl = url.toLowerCase();
-      const isImageUrl = ACCEPTED_IMAGE_EXTENSIONS.some(ext => lowerUrl.includes(ext));
-      
-      if (isImageUrl) {
+      if (isImageUrl(url)) {
         onAddBlock('IMAGE', x, y, url);
       } else {
         onAddBlock('LINK', x, y, url);
@@ -265,9 +267,13 @@ export function Canvas({
           selected={selectedId === block.id}
           multiSelected={selectedIds.has(block.id) && selectedId !== block.id}
           isNew={newBlockIds.has(block.id)}
+          isEditing={editingId === block.id}
           onSelect={() => onSelectBlock(block.id)}
           onUpdate={(updates) => onUpdateBlock(block.id, updates)}
+          onUpdateMultiple={onUpdateMultipleBlocks}
+          selectedIds={selectedIds}
           onDelete={() => onDeleteBlock(block.id)}
+          onSetEditing={(editing) => onSetEditing?.(editing ? block.id : null)}
         />
       ))}
       

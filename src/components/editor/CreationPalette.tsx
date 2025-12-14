@@ -1,9 +1,7 @@
 import { useRef, useEffect, useCallback, useState } from 'react';
 import type { BlockType } from '@/shared/types';
+import { uploadAsset, isAcceptedImageType } from '@/lib/upload';
 import styles from './CreationPalette.module.css';
-
-// Accepted image types for validation
-const ACCEPTED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/gif'];
 
 interface CreationPaletteProps {
   x: number;
@@ -14,20 +12,43 @@ interface CreationPaletteProps {
 
 interface PaletteOption {
   type: BlockType;
-  icon: string;
+  icon: React.ReactNode;
   label: string;
   angle: number;
 }
 
-// 3 options arranged in a triangle around the cursor (equilateral triangle)
-// Top, bottom-left, bottom-right positions
+// SVG icons for each block type
+const TextIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M4 7V4h16v3" />
+    <path d="M9 20h6" />
+    <path d="M12 4v16" />
+  </svg>
+);
+
+const ImageIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="3" width="18" height="18" rx="2" />
+    <circle cx="8.5" cy="8.5" r="1.5" />
+    <path d="M21 15l-5-5L5 21" />
+  </svg>
+);
+
+const LinkIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+  </svg>
+);
+
+// 3 options arranged around the cursor
 const OPTIONS: PaletteOption[] = [
-  { type: 'TEXT', icon: '✎', label: 'text', angle: -90 },      // Top
-  { type: 'IMAGE', icon: '◻', label: 'image', angle: 150 },    // Bottom-left
-  { type: 'LINK', icon: '↗', label: 'link', angle: 30 },       // Bottom-right
+  { type: 'TEXT', icon: <TextIcon />, label: 'text', angle: 270 },      // Top
+  { type: 'IMAGE', icon: <ImageIcon />, label: 'image', angle: 0 },     // Right
+  { type: 'LINK', icon: <LinkIcon />, label: 'link', angle: 180 },      // Left
 ];
 
-const PALETTE_RADIUS = 70;
+const PALETTE_RADIUS = 50;
 
 export function CreationPalette({ x, y, onSelect, onClose }: CreationPaletteProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -89,7 +110,7 @@ export function CreationPalette({ x, y, onSelect, onClose }: CreationPaletteProp
     }
   }, [onSelect]);
 
-  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     setIsFileDialogOpen(false);
     const file = e.target.files?.[0];
     if (!file) {
@@ -98,17 +119,21 @@ export function CreationPalette({ x, y, onSelect, onClose }: CreationPaletteProp
       return;
     }
 
-    if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
+    if (!isAcceptedImageType(file.type)) {
       e.target.value = '';
       onClose();
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      onSelect('IMAGE', reader.result as string);
-    };
-    reader.readAsDataURL(file);
+    // Upload file first, then pass URL to block
+    const result = await uploadAsset(file);
+    if (result.success) {
+      onSelect('IMAGE', result.data.url);
+    } else {
+      // Log error but still close - user can try again
+      console.error('Upload failed:', result.error);
+      onClose();
+    }
     e.target.value = '';
   }, [onSelect, onClose]);
   

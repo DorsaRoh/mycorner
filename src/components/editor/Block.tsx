@@ -1,69 +1,62 @@
-import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import type { Block as BlockType, BlockStyle, BlockEffects } from '@/shared/types';
-import { DEFAULT_STYLE, hasActiveStyle } from '@/shared/types';
-import { EffectsRenderer, hasActiveEffects } from '@/components/effects';
-import { EffectsPanel } from '@/components/effects';
-import { StylePanel } from './StylePanel';
+import { useState, useRef, useCallback, useEffect, useMemo, memo } from 'react';
+import type { Block as BlockType, BlockStyle } from '@/shared/types';
+import { DEFAULT_STYLE } from '@/shared/types';
+import { getBlockStyles, getTextStyles, parseLinkContent, serializeLinkContent } from '@/shared/utils/blockStyles';
+import { ObjectControls } from './ObjectControls';
 import styles from './Block.module.css';
 
-// Convert BlockStyle to inline CSS styles
-function getInlineStyles(style?: BlockStyle, blockWidth?: number, blockHeight?: number): React.CSSProperties {
-  if (!style) return {};
-  
-  const s = { ...DEFAULT_STYLE, ...style };
-  const size = Math.min(blockWidth || 200, blockHeight || 200);
-  
-  // Calculate actual values from normalized 0-1 ranges
-  const borderRadiusPx = s.borderRadius * (size / 2); // Max is half of smallest dimension (circle)
-  const borderWidthPx = s.borderWidth * 12; // Max 12px border
-  const borderSoftnessPx = s.borderSoftness * 8; // Max 8px blur for softness
-  
-  // Shadow calculations
-  const shadowBlurPx = s.shadowSoftness * 40; // Max 40px blur
-  const shadowOffsetXPx = s.shadowOffsetX * 30; // Max 30px offset
-  const shadowOffsetYPx = s.shadowOffsetY * 30;
-  const shadowOpacity = s.shadowStrength * 0.5; // Max 50% opacity
-  
-  const result: React.CSSProperties = {
-    opacity: s.opacity,
-  };
-  
-  // Border radius
-  if (s.borderRadius > 0) {
-    result.borderRadius = `${borderRadiusPx}px`;
+// Resize edge types
+type ResizeEdge = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw' | null;
+
+// Hit zone size for edge detection
+const EDGE_HIT_ZONE = 8;
+
+// Detect which edge/corner the mouse is near (uses cached rect for performance)
+function detectResizeEdgeFromRect(
+  clientX: number,
+  clientY: number,
+  rect: DOMRect
+): ResizeEdge {
+  const x = clientX - rect.left;
+  const y = clientY - rect.top;
+  const w = rect.width;
+  const h = rect.height;
+
+  const nearLeft = x < EDGE_HIT_ZONE;
+  const nearRight = x > w - EDGE_HIT_ZONE;
+  const nearTop = y < EDGE_HIT_ZONE;
+  const nearBottom = y > h - EDGE_HIT_ZONE;
+
+  if (nearTop && nearLeft) return 'nw';
+  if (nearTop && nearRight) return 'ne';
+  if (nearBottom && nearLeft) return 'sw';
+  if (nearBottom && nearRight) return 'se';
+  if (nearTop) return 'n';
+  if (nearBottom) return 's';
+  if (nearLeft) return 'w';
+  if (nearRight) return 'e';
+
+  return null;
+}
+
+// Get cursor style for resize edge
+function getResizeCursor(edge: ResizeEdge): string {
+  switch (edge) {
+    case 'n':
+    case 's':
+      return 'ns-resize';
+    case 'e':
+    case 'w':
+      return 'ew-resize';
+    case 'ne':
+    case 'sw':
+      return 'nesw-resize';
+    case 'nw':
+    case 'se':
+      return 'nwse-resize';
+    default:
+      return 'grab';
   }
-  
-  // Border - combine with softness for soft edge effect
-  if (s.borderWidth > 0) {
-    result.outline = `${borderWidthPx}px solid ${s.borderColor}`;
-    result.outlineOffset = `-${borderWidthPx / 2}px`;
-    
-    // Add soft edge using box-shadow if borderSoftness > 0
-    if (s.borderSoftness > 0) {
-      const softEdge = `0 0 ${borderSoftnessPx}px ${borderSoftnessPx / 2}px ${s.borderColor}`;
-      if (s.shadowStrength > 0) {
-        result.boxShadow = `${softEdge}, ${shadowOffsetXPx}px ${shadowOffsetYPx}px ${shadowBlurPx}px rgba(0, 0, 0, ${shadowOpacity})`;
-      } else {
-        result.boxShadow = softEdge;
-      }
-    } else if (s.shadowStrength > 0) {
-      result.boxShadow = `${shadowOffsetXPx}px ${shadowOffsetYPx}px ${shadowBlurPx}px rgba(0, 0, 0, ${shadowOpacity})`;
-    }
-  } else {
-    // No border, but maybe soft edge or shadow
-    if (s.borderSoftness > 0) {
-      const softEdge = `0 0 ${borderSoftnessPx}px ${borderSoftnessPx / 2}px ${s.borderColor}`;
-      if (s.shadowStrength > 0) {
-        result.boxShadow = `${softEdge}, ${shadowOffsetXPx}px ${shadowOffsetYPx}px ${shadowBlurPx}px rgba(0, 0, 0, ${shadowOpacity})`;
-      } else {
-        result.boxShadow = softEdge;
-      }
-    } else if (s.shadowStrength > 0) {
-      result.boxShadow = `${shadowOffsetXPx}px ${shadowOffsetYPx}px ${shadowBlurPx}px rgba(0, 0, 0, ${shadowOpacity})`;
-    }
-  }
-  
-  return result;
 }
 
 interface BlockProps {
@@ -71,97 +64,382 @@ interface BlockProps {
   selected: boolean;
   multiSelected?: boolean;
   isNew?: boolean;
+  isEditing?: boolean;
   onSelect: () => void;
   onUpdate: (updates: Partial<BlockType>) => void;
+  onUpdateMultiple?: (ids: Set<string>, updates: Partial<BlockType>) => void;
+  selectedIds?: Set<string>;
   onDelete: () => void;
+  onSetEditing?: (editing: boolean) => void;
 }
 
-export function Block({ block, selected, multiSelected = false, isNew = false, onSelect, onUpdate, onDelete }: BlockProps) {
+// Memoized Block component - only rerenders when its own props change
+export const Block = memo(function Block({
+  block,
+  selected,
+  multiSelected = false,
+  isNew = false,
+  isEditing = false,
+  onSelect,
+  onUpdate,
+  onUpdateMultiple,
+  selectedIds = new Set(),
+  onDelete,
+  onSetEditing,
+}: BlockProps) {
   const blockRef = useRef<HTMLDivElement>(null);
-  const [dragging, setDragging] = useState(false);
-  const [resizing, setResizing] = useState(false);
-  const [showStylePanel, setShowStylePanel] = useState(false);
-  const [showEffectsPanel, setShowEffectsPanel] = useState(false);
-  const dragStart = useRef({ x: 0, y: 0, blockX: 0, blockY: 0 });
-  const resizeStart = useRef({ width: 0, height: 0, mouseX: 0, mouseY: 0 });
+  const [interactionState, setInteractionState] = useState<'idle' | 'dragging' | 'resizing'>('idle');
+  const [hoveredEdge, setHoveredEdge] = useState<ResizeEdge>(null);
+  
+  // Refs for smooth interaction (no state updates during drag/resize)
+  const interactionRef = useRef({
+    startX: 0,
+    startY: 0,
+    blockX: 0,
+    blockY: 0,
+    blockWidth: 0,
+    blockHeight: 0,
+    fontSize: 16,
+    edge: null as ResizeEdge,
+    cachedRect: null as DOMRect | null,
+    rafId: 0,
+  });
 
-  // Close panels when block is deselected
-  useEffect(() => {
-    if (!selected) {
-      setShowStylePanel(false);
-      setShowEffectsPanel(false);
+  // Handle double-click to enter edit mode
+  const handleDoubleClick = useCallback((e: React.MouseEvent) => {
+    if (block.type === 'TEXT' || block.type === 'LINK') {
+      e.stopPropagation();
+      e.preventDefault();
+      onSetEditing?.(true);
     }
-  }, [selected]);
+  }, [block.type, onSetEditing]);
+
+  // Handle Enter key to enter edit mode when selected
+  useEffect(() => {
+    if (!selected || isEditing) return;
+    if (block.type !== 'TEXT' && block.type !== 'LINK') return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Enter' && !e.metaKey && !e.ctrlKey) {
+        e.preventDefault();
+        e.stopPropagation();
+        onSetEditing?.(true);
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [selected, isEditing, block.type, onSetEditing]);
 
   // Handle style update
-  const handleStyleChange = useCallback((style: BlockStyle) => {
-    onUpdate({ style });
-  }, [onUpdate]);
+  const handleStyleChange = useCallback((newStyle: BlockStyle) => {
+    if ((block.type === 'TEXT' || block.type === 'LINK') && newStyle.fontSize) {
+      const oldFontSize = block.style?.fontSize || DEFAULT_STYLE.fontSize || 16;
+      const newFontSize = newStyle.fontSize;
 
-  // Handle effects update
-  const handleEffectsChange = useCallback((effects: BlockEffects) => {
-    onUpdate({ effects });
-  }, [onUpdate]);
-  
-  // Calculate inline styles for the block
-  const inlineStyles = useMemo(() => {
-    return getInlineStyles(block.style, block.width, block.height);
+      if (oldFontSize !== newFontSize) {
+        const scale = newFontSize / oldFontSize;
+        const newWidth = Math.max(100, Math.round(block.width * scale));
+        const newHeight = Math.max(40, Math.round(block.height * scale));
+
+        onUpdate({
+          style: newStyle,
+          width: newWidth,
+          height: newHeight,
+        });
+        return;
+      }
+    }
+
+    onUpdate({ style: newStyle });
+  }, [onUpdate, block.type, block.style?.fontSize, block.width, block.height]);
+
+  // Calculate inline styles
+  const blockStyles = useMemo(() => {
+    return getBlockStyles(block.style, block.width, block.height);
   }, [block.style, block.width, block.height]);
 
-  // Drag handling
+  // Handle mouse move for edge detection (hover cursor)
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (interactionState !== 'idle') return;
+    if (!selected) {
+      setHoveredEdge(null);
+      return;
+    }
+
+    if (!blockRef.current) return;
+    const rect = blockRef.current.getBoundingClientRect();
+    const edge = detectResizeEdgeFromRect(e.clientX, e.clientY, rect);
+    setHoveredEdge(edge);
+  }, [selected, interactionState]);
+
+  // Drag/resize handling with rAF optimization
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     if ((e.target as HTMLElement).dataset.resize) return;
     if ((e.target as HTMLElement).dataset.delete) return;
+
+    const tag = (e.target as HTMLElement).tagName;
+    if (tag === 'TEXTAREA' || tag === 'INPUT') {
+      if (!selected) onSelect();
+      return;
+    }
+
     e.stopPropagation();
-    onSelect();
-    setDragging(true);
-    dragStart.current = {
-      x: e.clientX,
-      y: e.clientY,
+
+    // Cache the rect once at interaction start
+    const rect = blockRef.current?.getBoundingClientRect();
+    if (!rect) return;
+
+    const edge = selected ? detectResizeEdgeFromRect(e.clientX, e.clientY, rect) : null;
+    const isTextOrLink = block.type === 'TEXT' || block.type === 'LINK';
+
+    // Store initial values in ref (no state update)
+    interactionRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
       blockX: block.x,
       blockY: block.y,
+      blockWidth: block.width,
+      blockHeight: block.height,
+      fontSize: block.style?.fontSize || DEFAULT_STYLE.fontSize || 16,
+      edge,
+      cachedRect: rect,
+      rafId: 0,
     };
-  }, [block.x, block.y, onSelect]);
 
-  // Resize handling
-  const handleResizeStart = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    e.preventDefault();
-    onSelect();
-    setResizing(true);
-    resizeStart.current = {
-      width: block.width,
-      height: block.height,
-      mouseX: e.clientX,
-      mouseY: e.clientY,
-    };
-  }, [block.width, block.height, onSelect]);
+    // For TEXT/LINK: edges are for font-size resizing, middle is for dragging
+    // For other blocks: edges are for resizing, interior is for dragging
+    if (isTextOrLink) {
+      if (edge && selected) {
+        // Edge drag on TEXT/LINK = font size scaling
+        e.preventDefault();
+        setInteractionState('resizing');
+      } else {
+        // Middle drag on TEXT/LINK = move the block
+        onSelect();
+        setInteractionState('dragging');
+      }
+    } else if (edge && selected) {
+      e.preventDefault();
+      setInteractionState('resizing');
+    } else {
+      onSelect();
+      setInteractionState('dragging');
+    }
+  }, [block.x, block.y, block.width, block.height, block.style?.fontSize, selected, onSelect]);
 
+  // Unified mouse move/up handler for drag and resize
   useEffect(() => {
-    if (!dragging && !resizing) return;
+    if (interactionState === 'idle') return;
 
     const handleMouseMove = (e: MouseEvent) => {
-      if (dragging) {
-        const dx = e.clientX - dragStart.current.x;
-        const dy = e.clientY - dragStart.current.y;
-        onUpdate({
-          x: Math.max(0, dragStart.current.blockX + dx),
-          y: Math.max(0, dragStart.current.blockY + dy),
-        });
+      // Cancel any pending rAF
+      if (interactionRef.current.rafId) {
+        cancelAnimationFrame(interactionRef.current.rafId);
       }
-      if (resizing) {
-        const dx = e.clientX - resizeStart.current.mouseX;
-        const dy = e.clientY - resizeStart.current.mouseY;
-        onUpdate({
-          width: Math.max(50, resizeStart.current.width + dx),
-          height: Math.max(30, resizeStart.current.height + dy),
-        });
-      }
+
+      // Use rAF for smooth visual updates
+      interactionRef.current.rafId = requestAnimationFrame(() => {
+        const ref = interactionRef.current;
+        const dx = e.clientX - ref.startX;
+        const dy = e.clientY - ref.startY;
+
+        if (!blockRef.current) return;
+
+        if (interactionState === 'dragging') {
+          // Apply transform directly to DOM for smooth dragging
+          const newX = Math.max(0, ref.blockX + dx);
+          const newY = Math.max(0, ref.blockY + dy);
+          blockRef.current.style.left = `${newX}px`;
+          blockRef.current.style.top = `${newY}px`;
+        } else if (interactionState === 'resizing') {
+          const edge = ref.edge;
+          const isTextOrLink = block.type === 'TEXT' || block.type === 'LINK';
+          const minWidth = isTextOrLink ? 80 : 50;
+          const minHeight = isTextOrLink ? 40 : 30;
+
+          if (isTextOrLink) {
+            // For TEXT/LINK: edge drag scales font size proportionally
+            // Calculate scale based on drag direction
+            let scale = 1;
+            const sensitivity = 0.005; // How fast font scales with drag
+
+            if (edge === 'e') {
+              scale = 1 + dx * sensitivity;
+            } else if (edge === 'w') {
+              scale = 1 - dx * sensitivity;
+            } else if (edge === 's') {
+              scale = 1 + dy * sensitivity;
+            } else if (edge === 'n') {
+              scale = 1 - dy * sensitivity;
+            } else if (edge === 'se') {
+              scale = 1 + (dx + dy) * 0.5 * sensitivity;
+            } else if (edge === 'sw') {
+              scale = 1 + (-dx + dy) * 0.5 * sensitivity;
+            } else if (edge === 'ne') {
+              scale = 1 + (dx - dy) * 0.5 * sensitivity;
+            } else if (edge === 'nw') {
+              scale = 1 + (-dx - dy) * 0.5 * sensitivity;
+            }
+
+            // Clamp scale
+            scale = Math.max(0.5, Math.min(2.5, scale));
+
+            // Apply visual scaling via CSS transform for smooth feedback
+            blockRef.current.style.transform = `scale(${scale})`;
+            blockRef.current.style.transformOrigin = edge === 'e' || edge === 'se' || edge === 'ne' ? 'left center' :
+                                                      edge === 'w' || edge === 'sw' || edge === 'nw' ? 'right center' :
+                                                      edge === 'n' ? 'center bottom' :
+                                                      edge === 's' ? 'center top' : 'center center';
+          } else {
+            // For other blocks: resize dimensions
+            let newWidth = ref.blockWidth;
+            let newHeight = ref.blockHeight;
+            let newX = ref.blockX;
+            let newY = ref.blockY;
+
+            // Calculate new dimensions based on edge
+            if (edge === 'e' || edge === 'ne' || edge === 'se') {
+              newWidth = Math.max(minWidth, ref.blockWidth + dx);
+            }
+            if (edge === 'w' || edge === 'nw' || edge === 'sw') {
+              newWidth = Math.max(minWidth, ref.blockWidth - dx);
+              const actualDx = ref.blockWidth - newWidth;
+              newX = ref.blockX - actualDx;
+            }
+            if (edge === 's' || edge === 'se' || edge === 'sw') {
+              newHeight = Math.max(minHeight, ref.blockHeight + dy);
+            }
+            if (edge === 'n' || edge === 'ne' || edge === 'nw') {
+              newHeight = Math.max(minHeight, ref.blockHeight - dy);
+              const actualDy = ref.blockHeight - newHeight;
+              newY = ref.blockY - actualDy;
+            }
+
+            // Apply directly to DOM for smooth resizing
+            blockRef.current.style.left = `${newX}px`;
+            blockRef.current.style.top = `${newY}px`;
+            blockRef.current.style.width = `${newWidth}px`;
+            blockRef.current.style.height = `${newHeight}px`;
+          }
+        }
+      });
     };
 
-    const handleMouseUp = () => {
-      setDragging(false);
-      setResizing(false);
+    const handleMouseUp = (e: MouseEvent) => {
+      // Cancel any pending rAF
+      if (interactionRef.current.rafId) {
+        cancelAnimationFrame(interactionRef.current.rafId);
+      }
+
+      const ref = interactionRef.current;
+      const dx = e.clientX - ref.startX;
+      const dy = e.clientY - ref.startY;
+      
+      // Check if this was just a click (minimal movement) vs actual drag
+      const wasJustClick = Math.abs(dx) < 5 && Math.abs(dy) < 5;
+
+      // Commit final state to React
+      if (interactionState === 'dragging') {
+        const newX = Math.max(0, ref.blockX + dx);
+        const newY = Math.max(0, ref.blockY + dy);
+        if (newX !== block.x || newY !== block.y) {
+          onUpdate({ x: newX, y: newY });
+        }
+        
+        // If it was just a click on a TEXT or LINK block's interior (not edge), enter edit mode
+        if (wasJustClick && (block.type === 'TEXT' || block.type === 'LINK') && !ref.edge) {
+          onSetEditing?.(true);
+        }
+      } else if (interactionState === 'resizing') {
+        const edge = ref.edge;
+        const isTextOrLink = block.type === 'TEXT' || block.type === 'LINK';
+        const minWidth = isTextOrLink ? 80 : 50;
+        const minHeight = isTextOrLink ? 40 : 30;
+
+        if (isTextOrLink) {
+          // Reset the CSS transform
+          if (blockRef.current) {
+            blockRef.current.style.transform = '';
+            blockRef.current.style.transformOrigin = '';
+          }
+
+          // For TEXT/LINK: edge drag scales font size proportionally
+          const sensitivity = 0.005;
+          let scale = 1;
+
+          if (edge === 'e') {
+            scale = 1 + dx * sensitivity;
+          } else if (edge === 'w') {
+            scale = 1 - dx * sensitivity;
+          } else if (edge === 's') {
+            scale = 1 + dy * sensitivity;
+          } else if (edge === 'n') {
+            scale = 1 - dy * sensitivity;
+          } else if (edge === 'se') {
+            scale = 1 + (dx + dy) * 0.5 * sensitivity;
+          } else if (edge === 'sw') {
+            scale = 1 + (-dx + dy) * 0.5 * sensitivity;
+          } else if (edge === 'ne') {
+            scale = 1 + (dx - dy) * 0.5 * sensitivity;
+          } else if (edge === 'nw') {
+            scale = 1 + (-dx - dy) * 0.5 * sensitivity;
+          }
+
+          // Clamp scale
+          scale = Math.max(0.5, Math.min(2.5, scale));
+
+          // Calculate new font size
+          let newFontSize = Math.round(ref.fontSize * scale);
+          newFontSize = Math.max(10, newFontSize);
+
+          // Scale block dimensions proportionally with font size
+          const fontScale = newFontSize / ref.fontSize;
+          const newWidth = Math.max(minWidth, Math.round(ref.blockWidth * fontScale));
+          const newHeight = Math.max(minHeight, Math.round(ref.blockHeight * fontScale));
+
+          const updates: Partial<BlockType> = {
+            width: newWidth,
+            height: newHeight,
+            style: {
+              ...DEFAULT_STYLE,
+              ...block.style,
+              fontSize: newFontSize,
+            },
+          };
+
+          onUpdate(updates);
+        } else {
+          // For other blocks: resize dimensions
+          const updates: Partial<BlockType> = {};
+          let newWidth = ref.blockWidth;
+          let newHeight = ref.blockHeight;
+
+          if (edge === 'e' || edge === 'ne' || edge === 'se') {
+            newWidth = Math.max(minWidth, ref.blockWidth + dx);
+          }
+          if (edge === 'w' || edge === 'nw' || edge === 'sw') {
+            newWidth = Math.max(minWidth, ref.blockWidth - dx);
+            const actualDx = ref.blockWidth - newWidth;
+            updates.x = ref.blockX - actualDx;
+          }
+          if (edge === 's' || edge === 'se' || edge === 'sw') {
+            newHeight = Math.max(minHeight, ref.blockHeight + dy);
+          }
+          if (edge === 'n' || edge === 'ne' || edge === 'nw') {
+            newHeight = Math.max(minHeight, ref.blockHeight - dy);
+            const actualDy = ref.blockHeight - newHeight;
+            updates.y = ref.blockY - actualDy;
+          }
+
+          updates.width = newWidth;
+          updates.height = newHeight;
+
+          onUpdate(updates);
+        }
+      }
+
+      setInteractionState('idle');
     };
 
     document.addEventListener('mousemove', handleMouseMove);
@@ -169,28 +447,27 @@ export function Block({ block, selected, multiSelected = false, isNew = false, o
     return () => {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
+      if (interactionRef.current.rafId) {
+        cancelAnimationFrame(interactionRef.current.rafId);
+      }
     };
-  }, [dragging, resizing, onUpdate]);
+  }, [interactionState, block.x, block.y, block.type, block.style, onUpdate, onSetEditing]);
 
   const handleContentChange = useCallback((content: string) => {
     onUpdate({ content });
   }, [onUpdate]);
 
-  // Handle image load to get natural dimensions
   const handleImageLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
     const img = e.currentTarget;
     const naturalWidth = img.naturalWidth;
     const naturalHeight = img.naturalHeight;
-    
-    // Only update if dimensions are different and image just loaded
-    // Cap the max size to reasonable bounds
+
     const maxWidth = 500;
     const maxHeight = 400;
-    
+
     let newWidth = naturalWidth;
     let newHeight = naturalHeight;
-    
-    // Scale down if too large, maintaining aspect ratio
+
     if (newWidth > maxWidth) {
       const ratio = maxWidth / newWidth;
       newWidth = maxWidth;
@@ -201,37 +478,41 @@ export function Block({ block, selected, multiSelected = false, isNew = false, o
       newHeight = maxHeight;
       newWidth = Math.round(newWidth * ratio);
     }
-    
-    // Minimum size
+
     newWidth = Math.max(100, newWidth);
     newHeight = Math.max(60, newHeight);
-    
-    // Only update if significantly different from current
+
     if (Math.abs(block.width - newWidth) > 10 || Math.abs(block.height - newHeight) > 10) {
       onUpdate({ width: newWidth, height: newHeight });
     }
   }, [block.width, block.height, onUpdate]);
 
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === 'Backspace' && selected && block.content === '') {
-      e.preventDefault();
-      onDelete();
+  const cursorStyle = useMemo(() => {
+    const isTextOrLink = block.type === 'TEXT' || block.type === 'LINK';
+    if (interactionState === 'dragging') return 'grabbing';
+    if (interactionState === 'resizing') return getResizeCursor(interactionRef.current.edge);
+    // For TEXT/LINK: edges use resize cursor (for font scaling), middle uses move cursor
+    if (isTextOrLink) {
+      if (hoveredEdge) return getResizeCursor(hoveredEdge);
+      return 'move';
     }
-  }, [selected, block.content, onDelete]);
+    // For other blocks: edges use resize cursor, middle uses grab
+    if (hoveredEdge) return getResizeCursor(hoveredEdge);
+    return 'grab';
+  }, [interactionState, hoveredEdge, block.type]);
 
-  const handleDeleteClick = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    e.preventDefault();
-    onDelete();
-  }, [onDelete]);
+  const isTextOrLinkBlock = block.type === 'TEXT' || block.type === 'LINK';
+  const isFontScaling = interactionState === 'resizing' && isTextOrLinkBlock;
 
   const classNames = [
     styles.block,
     styles[block.type.toLowerCase()],
     selected ? styles.selected : '',
     multiSelected ? styles.multiSelected : '',
-    dragging ? styles.dragging : '',
+    interactionState === 'dragging' ? styles.dragging : '',
+    isFontScaling ? styles.fontScaling : '',
     isNew ? styles.entering : '',
+    isEditing ? styles.editing : '',
   ].filter(Boolean).join(' ');
 
   return (
@@ -243,230 +524,114 @@ export function Block({ block, selected, multiSelected = false, isNew = false, o
         top: block.y,
         width: block.width,
         height: block.height,
-        ...inlineStyles,
+        cursor: cursorStyle,
+        ...blockStyles.outer,
       }}
       onMouseDown={handleMouseDown}
-      onKeyDown={handleKeyDown}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={() => setHoveredEdge(null)}
+      onDoubleClick={handleDoubleClick}
     >
-      <div className={styles.blockInner}>
+      <div className={styles.blockInner} style={blockStyles.inner}>
         <BlockContent
           type={block.type}
           content={block.content}
           style={block.style}
-          effects={block.effects}
           onChange={handleContentChange}
           onImageLoad={handleImageLoad}
           selected={selected}
+          isEditing={isEditing}
+          onSetEditing={onSetEditing}
         />
       </div>
-      
-      {/* Floating control bar - appears when selected */}
-      {selected && (
-        <div className={styles.controlBar} onMouseDown={(e) => e.stopPropagation()}>
-          {/* Style & Effects buttons for image blocks */}
-          {block.type === 'IMAGE' && block.content && (
-            <>
-              <button
-                className={`${styles.styleBtn} ${hasActiveStyle(block.style) ? styles.styleBtnActive : ''}`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowStylePanel(!showStylePanel);
-                  setShowEffectsPanel(false);
-                }}
-                title="Style"
-              >
-                ◐
-              </button>
-              <button
-                className={`${styles.effectsBtn} ${hasActiveEffects(block.effects) ? styles.effectsBtnActive : ''}`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowEffectsPanel(!showEffectsPanel);
-                  setShowStylePanel(false);
-                }}
-                title="Effects"
-              >
-                ✦
-              </button>
-              <div className={styles.controlDivider} />
-            </>
-          )}
-          
-          {/* Delete button - always visible */}
-          <button 
-            className={styles.deleteBtn}
-            data-delete="true"
-            onClick={handleDeleteClick}
-            aria-label="Delete block"
-          >
-            ×
-          </button>
-        </div>
-      )}
-      
-      {/* Style panel */}
-      {selected && showStylePanel && block.type === 'IMAGE' && (
-        <StylePanel
+
+      {selected && (block.type === 'IMAGE' || block.type === 'TEXT' || block.type === 'LINK') && (
+        <ObjectControls
+          blockType={block.type}
           style={block.style}
           onChange={handleStyleChange}
-          onClose={() => setShowStylePanel(false)}
-        />
-      )}
-      
-      {/* Effects panel */}
-      {selected && showEffectsPanel && block.type === 'IMAGE' && (
-        <EffectsPanel
-          effects={block.effects}
-          onChange={handleEffectsChange}
-          onClose={() => setShowEffectsPanel(false)}
-        />
-      )}
-      
-      {/* Resize handle - subtle, only when selected */}
-      {selected && (
-        <div
-          className={styles.resizeHandle}
-          data-resize="true"
-          onMouseDown={handleResizeStart}
+          onChangeMultiple={onUpdateMultiple ? (updates) => onUpdateMultiple(selectedIds, { style: { ...DEFAULT_STYLE, ...block.style, ...updates } }) : undefined}
+          x={block.x}
+          y={block.y}
+          width={block.width}
+          height={block.height}
+          multiSelected={multiSelected}
         />
       )}
     </div>
   );
-}
+});
 
+// BlockContent component
 interface BlockContentProps {
   type: BlockType['type'];
   content: string;
   style?: BlockStyle;
-  effects?: BlockEffects;
   onChange: (content: string) => void;
   onImageLoad?: (e: React.SyntheticEvent<HTMLImageElement>) => void;
   selected: boolean;
+  isEditing?: boolean;
+  onSetEditing?: (editing: boolean) => void;
 }
 
-// Parse link content - supports both simple URLs and {name, url} JSON format
-function parseLinkContent(content: string): { name: string; url: string } {
-  if (!content) return { name: '', url: '' };
-  
-  try {
-    const parsed = JSON.parse(content);
-    if (parsed.url) {
-      return { name: parsed.name || '', url: parsed.url };
+const BlockContent = memo(function BlockContent({
+  type,
+  content,
+  style,
+  onChange,
+  onImageLoad,
+  selected,
+  isEditing,
+  onSetEditing,
+}: BlockContentProps) {
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (type === 'TEXT' && isEditing && textareaRef.current) {
+      const timer = setTimeout(() => {
+        textareaRef.current?.focus();
+        const len = textareaRef.current?.value.length || 0;
+        textareaRef.current?.setSelectionRange(len, len);
+      }, 50);
+      return () => clearTimeout(timer);
     }
-  } catch {
-    // Not JSON, treat as simple URL
-  }
-  
-  // Simple URL string - extract hostname as default name
-  try {
-    const url = new URL(content);
-    return { name: url.hostname.replace('www.', ''), url: content };
-  } catch {
-    return { name: content, url: content };
-  }
-}
+  }, [type, isEditing]);
 
-// Serialize link content to JSON
-function serializeLinkContent(name: string, url: string): string {
-  return JSON.stringify({ name, url });
-}
+  const textStyles = useMemo(() => getTextStyles(style), [style]);
 
-interface LinkBlockContentProps {
-  content: string;
-  onChange: (content: string) => void;
-  selected: boolean;
-}
-
-function LinkBlockContent({ content, onChange, selected }: LinkBlockContentProps) {
-  const { name, url } = parseLinkContent(content);
-  
-  const handleNameChange = (newName: string) => {
-    onChange(serializeLinkContent(newName, url));
-  };
-  
-  const handleUrlChange = (newUrl: string) => {
-    // Auto-generate name from URL if name is empty or was auto-generated
-    let newName = name;
-    try {
-      const oldHostname = url ? new URL(url).hostname.replace('www.', '') : '';
-      if (!name || name === oldHostname) {
-        const urlObj = new URL(newUrl.startsWith('http') ? newUrl : 'https://' + newUrl);
-        newName = urlObj.hostname.replace('www.', '');
-      }
-    } catch {
-      // Invalid URL, keep existing name
-    }
-    onChange(serializeLinkContent(newName, newUrl));
-  };
-  
-  const handleLinkClick = (e: React.MouseEvent) => {
-    if (e.metaKey || e.ctrlKey) {
-      window.open(url, '_blank', 'noopener,noreferrer');
-    }
-    e.stopPropagation();
-    e.preventDefault();
-  };
-
-  // Edit mode when selected
-  if (selected) {
-    return (
-      <div className={styles.linkContent} onMouseDown={(e) => e.stopPropagation()}>
-        <div className={styles.linkEditRow}>
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => handleNameChange(e.target.value)}
-            placeholder="Name"
-            className={styles.linkNameInput}
-            autoFocus={!name}
-          />
-        </div>
-        <div className={styles.linkEditRow}>
-          <input
-            type="url"
-            value={url}
-            onChange={(e) => handleUrlChange(e.target.value)}
-            placeholder="https://..."
-            className={styles.linkUrlInput}
-          />
-        </div>
-      </div>
-    );
-  }
-
-  // Display mode
-  return (
-    <div className={styles.linkDisplay}>
-      {url ? (
-        <a 
-          href={url}
-          onClick={handleLinkClick}
-          className={styles.linkAnchor}
-        >
-          <span className={styles.linkIcon}>↗</span>
-          <span className={styles.linkName}>{name || url}</span>
-        </a>
-      ) : (
-        <span className={styles.linkPlaceholder}>click to add link</span>
-      )}
-    </div>
-  );
-}
-
-function BlockContent({ type, content, style, effects, onChange, onImageLoad, selected }: BlockContentProps) {
   switch (type) {
     case 'TEXT':
+      if (isEditing) {
+        return (
+          <textarea
+            ref={textareaRef}
+            className={styles.textContent}
+            style={textStyles}
+            value={content}
+            onChange={(e) => onChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') e.stopPropagation();
+              if (e.key === 'Escape') {
+                e.stopPropagation();
+                e.preventDefault();
+                textareaRef.current?.blur();
+                onSetEditing?.(false);
+              }
+              if (e.key === 'Delete' || e.key === 'Backspace') e.stopPropagation();
+            }}
+            onBlur={() => onSetEditing?.(false)}
+            placeholder="Type something..."
+            onMouseDown={(e) => e.stopPropagation()}
+          />
+        );
+      }
+
       return (
-        <textarea
-          className={styles.textContent}
-          value={content}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder="Type something..."
-          autoFocus={selected && !content}
-          onMouseDown={(e) => e.stopPropagation()}
-        />
+        <div className={styles.textDisplay} style={textStyles}>
+          {content || <span className={styles.textPlaceholder}>Type something...</span>}
+        </div>
       );
-    
+
     case 'IMAGE':
       if (!content) {
         return (
@@ -475,32 +640,159 @@ function BlockContent({ type, content, style, effects, onChange, onImageLoad, se
           </div>
         );
       }
-      
-      // Apply effects (style is applied at block level)
+
       return (
-        <EffectsRenderer effects={effects}>
-          <div className={styles.imageWrapper}>
-            <img 
-              src={content} 
-              alt="" 
-              className={styles.imageContent} 
-              draggable={false}
-              onLoad={onImageLoad}
-            />
-          </div>
-        </EffectsRenderer>
+        <div className={styles.imageWrapper}>
+          <img
+            src={content}
+            alt=""
+            className={styles.imageContent}
+            draggable={false}
+            onLoad={onImageLoad}
+          />
+        </div>
       );
-    
+
     case 'LINK':
       return (
-        <LinkBlockContent 
-          content={content} 
-          onChange={onChange} 
-          selected={selected} 
+        <LinkBlockContent
+          content={content}
+          style={style}
+          onChange={onChange}
+          selected={selected}
+          isEditing={isEditing}
+          onSetEditing={onSetEditing}
         />
       );
-    
+
     default:
       return null;
   }
+});
+
+// LinkBlockContent component
+interface LinkBlockContentProps {
+  content: string;
+  style?: BlockStyle;
+  onChange: (content: string) => void;
+  selected: boolean;
+  isEditing?: boolean;
+  onSetEditing?: (editing: boolean) => void;
 }
+
+const LinkBlockContent = memo(function LinkBlockContent({
+  content,
+  style,
+  onChange,
+  selected,
+  isEditing,
+  onSetEditing,
+}: LinkBlockContentProps) {
+  const { name, url } = parseLinkContent(content);
+  const nameInputRef = useRef<HTMLInputElement>(null);
+  const urlInputRef = useRef<HTMLInputElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const textStyles = useMemo(() => getTextStyles(style), [style]);
+
+  const handleNameChange = useCallback((newName: string) => {
+    onChange(serializeLinkContent(newName, url));
+  }, [onChange, url]);
+
+  const handleUrlChange = useCallback((newUrl: string) => {
+    onChange(serializeLinkContent(name, newUrl));
+  }, [onChange, name]);
+
+  const handleLinkClick = useCallback((e: React.MouseEvent) => {
+    if (e.metaKey || e.ctrlKey) {
+      if (url) window.open(url, '_blank', 'noopener,noreferrer');
+      e.stopPropagation();
+      e.preventDefault();
+    }
+  }, [url]);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      e.stopPropagation();
+      e.preventDefault();
+      (e.target as HTMLInputElement).blur();
+      onSetEditing?.(false);
+    }
+    if (e.key === 'Delete' || e.key === 'Backspace') e.stopPropagation();
+    if (e.key === 'Enter') {
+      e.stopPropagation();
+      e.preventDefault();
+      // Tab from name to URL, or close if on URL
+      if (e.target === nameInputRef.current) {
+        urlInputRef.current?.focus();
+      } else if (e.target === urlInputRef.current) {
+        onSetEditing?.(false);
+      }
+    }
+    // Allow Tab to move between fields
+    if (e.key === 'Tab') {
+      e.stopPropagation();
+    }
+  }, [onSetEditing]);
+
+  useEffect(() => {
+    if (isEditing && nameInputRef.current) {
+      nameInputRef.current.focus();
+      nameInputRef.current.select();
+    }
+  }, [isEditing]);
+
+  // Handle blur - only exit edit mode if focus leaves the container entirely
+  const handleBlur = useCallback((e: React.FocusEvent) => {
+    // Check if the new focus target is still within our container
+    setTimeout(() => {
+      if (containerRef.current && !containerRef.current.contains(document.activeElement)) {
+        onSetEditing?.(false);
+      }
+    }, 50);
+  }, [onSetEditing]);
+
+  if (isEditing) {
+    return (
+      <div 
+        ref={containerRef}
+        className={styles.linkEditContainer} 
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <div className={styles.linkEditRow}>
+          <label className={styles.linkEditLabel}>Name</label>
+          <input
+            ref={nameInputRef}
+            type="text"
+            value={name}
+            onChange={(e) => handleNameChange(e.target.value)}
+            placeholder="Display text"
+            className={styles.linkNameInput}
+            onKeyDown={handleKeyDown}
+            onBlur={handleBlur}
+          />
+        </div>
+        <div className={styles.linkEditRow}>
+          <label className={styles.linkEditLabel}>URL</label>
+          <input
+            ref={urlInputRef}
+            type="url"
+            value={url}
+            onChange={(e) => handleUrlChange(e.target.value)}
+            placeholder="https://..."
+            className={styles.linkUrlInput}
+            onKeyDown={handleKeyDown}
+            onBlur={handleBlur}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={styles.linkDisplayInline} style={textStyles} onClick={handleLinkClick}>
+      <span className={styles.linkTextInline}>{name || url || 'Add link'}</span>
+      {url && <span className={styles.linkIconInline}>↗</span>}
+    </div>
+  );
+});

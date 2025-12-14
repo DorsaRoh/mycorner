@@ -1,7 +1,7 @@
 export { Editor } from './Editor';
 export { Canvas } from './Canvas';
 export { Block } from './Block';
-export { StylePanel } from './StylePanel';
+export { ObjectControls } from './ObjectControls';
 export { CreationPalette } from './CreationPalette';
 export { InviteModal } from './InviteModal';
 export { PageFlipExplore } from './PageFlipExplore';

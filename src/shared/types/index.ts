@@ -11,37 +11,40 @@ export interface User {
 
 export type BlockType = 'TEXT' | 'IMAGE' | 'LINK' | 'AUDIO';
 
-// Unified style system - all continuous parameters (0..1 or -1..1)
+// Simplified style system - only roundness and depth
 export interface BlockStyle {
-  // Shape
+  // Roundness (applies directly to image border-radius)
   borderRadius: number;     // 0..1 (0 = sharp, 1 = fully rounded)
-  borderWidth: number;      // 0..1 (0 = no border, 1 = thick border)
-  
-  // Edge
-  borderSoftness: number;   // 0..1 (0 = crisp, 1 = soft/feathered)
-  borderColor: string;      // rgba color string
-  
-  // Depth
-  shadowStrength: number;   // 0..1 (0 = no shadow)
+
+  // Depth (shadow)
+  shadowStrength: number;   // 0..1 (0 = flat, 1 = floating)
   shadowSoftness: number;   // 0..1 (0 = sharp, 1 = very soft)
   shadowOffsetX: number;    // -1..1 (horizontal offset)
   shadowOffsetY: number;    // -1..1 (vertical offset)
-  
-  // Presence
-  opacity: number;          // 0..1 (1 = fully visible)
+
+  // Text styling (for TEXT blocks only)
+  fontFamily?: string;      // Font family name
+  fontSize?: number;        // Font size in px
+  fontWeight?: number;      // Font weight (100-900)
+  color?: string;           // Text color (rgba string)
+  textOpacity?: number;     // Text opacity (0..1)
+  textAlign?: 'left' | 'center' | 'right';  // Text alignment
 }
 
 // Default/neutral style values (no visible effect)
 export const DEFAULT_STYLE: BlockStyle = {
   borderRadius: 0,
-  borderWidth: 0,
-  borderSoftness: 0,
-  borderColor: 'rgba(0, 0, 0, 0.2)',
   shadowStrength: 0,
   shadowSoftness: 0.5,
   shadowOffsetX: 0,
   shadowOffsetY: 0.2,
-  opacity: 1,
+  // Text defaults
+  fontFamily: 'system-ui, -apple-system, sans-serif',
+  fontSize: 16,
+  fontWeight: 400,
+  color: 'rgba(0, 0, 0, 1)',
+  textOpacity: 1,
+  textAlign: 'left',
 };
 
 // Check if any style properties are non-default
@@ -49,10 +52,14 @@ export function hasActiveStyle(style?: BlockStyle): boolean {
   if (!style) return false;
   return (
     style.borderRadius > 0 ||
-    style.borderWidth > 0 ||
-    style.borderSoftness > 0 ||
     style.shadowStrength > 0 ||
-    style.opacity < 1
+    // Text styling checks
+    style.fontFamily !== DEFAULT_STYLE.fontFamily ||
+    style.fontSize !== DEFAULT_STYLE.fontSize ||
+    style.fontWeight !== DEFAULT_STYLE.fontWeight ||
+    style.color !== DEFAULT_STYLE.color ||
+    style.textOpacity !== DEFAULT_STYLE.textOpacity ||
+    style.textAlign !== DEFAULT_STYLE.textAlign
   );
 }
 

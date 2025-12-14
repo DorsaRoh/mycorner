@@ -3,19 +3,14 @@ import { useMutation } from '@apollo/client';
 import type { Block as BlockType } from '@/shared/types';
 import { UPDATE_PAGE, PUBLISH_PAGE } from '@/lib/graphql/mutations';
 import { useAutosave } from '@/lib/hooks/useAutosave';
+import { uploadAsset, isAcceptedImageType } from '@/lib/upload';
 import { Canvas } from './Canvas';
 import { InviteModal } from './InviteModal';
 import { PageFlipExplore } from './PageFlipExplore';
 import styles from './Editor.module.css';
 
-// Accepted image extensions for pasted URLs
-const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.webp', '.gif'];
+import { IMAGE_EXTENSIONS, isImageUrl } from '@/shared/utils/blockStyles';
 
-declare global {
-  interface Window {
-    __pendingImageData?: string;
-  }
-}
 
 interface EditorProps {
   pageId: string;
@@ -28,6 +23,7 @@ export function Editor({ pageId, initialBlocks, initialTitle, initialPublished =
   const [blocks, setBlocks] = useState<BlockType[]>(initialBlocks);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [title, setTitle] = useState(initialTitle || '');
   const [isPublished, setIsPublished] = useState(initialPublished);
   const [publishing, setPublishing] = useState(false);
@@ -83,9 +79,10 @@ export function Editor({ pageId, initialBlocks, initialTitle, initialPublished =
         type: 'TEXT',
         x: 60,
         y: 40,
-        width: 220,
-        height: 60,
+        width: 500,
+        height: 80,
         content: 'your corner of the internet',
+        style: { fontSize: 60 },
       };
       setBlocks([starterBlock]);
       // Don't mark as new (no animation) since it's the starter
@@ -141,16 +138,21 @@ export function Editor({ pageId, initialBlocks, initialTitle, initialPublished =
   const handleAddBlock = useCallback((type: BlockType['type'], x?: number, y?: number, content?: string) => {
     const newId = generateBlockId();
     
-    // Default dimensions based on block type
+    // Default dimensions and font size based on block type
     let width = 200;
     let height = 100;
+    let fontSize: number | undefined;
     
     if (type === 'TEXT') {
-      width = 200;
-      height = 100;
-    } else if (type === 'LINK') {
-      width = 280;
+      // Larger text with bigger font
+      width = 300;
       height = 80;
+      fontSize = 60;
+    } else if (type === 'LINK') {
+      // Link with medium font
+      width = 200;
+      height = 60;
+      fontSize = 40;
     } else if (type === 'IMAGE') {
       // Larger default for images with 4:3 aspect ratio
       width = 320;
@@ -165,13 +167,8 @@ export function Editor({ pageId, initialBlocks, initialTitle, initialPublished =
       width,
       height,
       content: content ?? '',
+      ...(fontSize && { style: { fontSize } }),
     };
-
-    // Also check for pending image data from toolbar upload
-    if (type === 'IMAGE' && !content && window.__pendingImageData) {
-      newBlock.content = window.__pendingImageData;
-      delete window.__pendingImageData;
-    }
 
     // Track this as a new block for animation
     setNewBlockIds(prev => new Set(prev).add(newId));
@@ -186,12 +183,25 @@ export function Editor({ pageId, initialBlocks, initialTitle, initialPublished =
 
     setBlocks((prev) => [...prev, newBlock]);
     setSelectedId(newBlock.id);
+    
+    // Immediately enter edit mode for TEXT and LINK blocks so editing starts right away
+    if (type === 'TEXT' || type === 'LINK') {
+      setEditingId(newId);
+    }
   }, [blocks.length, generateBlockId]);
 
   const handleUpdateBlock = useCallback((id: string, updates: Partial<BlockType>) => {
     setBlocks((prev) =>
       prev.map((block) =>
         block.id === id ? { ...block, ...updates } : block
+      )
+    );
+  }, []);
+
+  const handleUpdateMultipleBlocks = useCallback((ids: Set<string>, updates: Partial<BlockType>) => {
+    setBlocks((prev) =>
+      prev.map((block) =>
+        ids.has(block.id) ? { ...block, ...updates } : block
       )
     );
   }, []);
@@ -238,26 +248,43 @@ export function Editor({ pageId, initialBlocks, initialTitle, initialPublished =
     }
   }, []);
 
+  // Handle setting editing state
+  const handleSetEditing = useCallback((id: string | null) => {
+    setEditingId(id);
+  }, []);
+
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const activeTag = document.activeElement?.tagName;
-      const isEditing = activeTag === 'TEXTAREA' || activeTag === 'INPUT';
+      const isInputFocused = activeTag === 'TEXTAREA' || activeTag === 'INPUT';
       
-      if ((e.key === 'Delete' || e.key === 'Backspace') && !isEditing) {
+      // Delete/Backspace: only delete objects if not actively editing text
+      if ((e.key === 'Delete' || e.key === 'Backspace') && !isInputFocused && !editingId) {
         if (selectedIds.size > 0 || selectedId) {
           e.preventDefault();
           handleDeleteSelected();
         }
       }
       
+      // Escape: first exit edit mode, then deselect
       if (e.key === 'Escape') {
-        setSelectedId(null);
-        setSelectedIds(new Set());
+        if (editingId) {
+          // Exit edit mode but keep selected
+          setEditingId(null);
+          // Blur any focused element
+          if (document.activeElement instanceof HTMLElement) {
+            document.activeElement.blur();
+          }
+        } else {
+          // Deselect
+          setSelectedId(null);
+          setSelectedIds(new Set());
+        }
       }
       
       // Select all with Cmd/Ctrl + A
-      if ((e.metaKey || e.ctrlKey) && e.key === 'a' && !isEditing) {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'a' && !isInputFocused) {
         e.preventDefault();
         setSelectedIds(new Set(blocks.map(b => b.id)));
         setSelectedId(null);
@@ -266,7 +293,7 @@ export function Editor({ pageId, initialBlocks, initialTitle, initialPublished =
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedId, selectedIds, blocks, handleDeleteSelected]);
+  }, [selectedId, selectedIds, blocks, editingId, handleDeleteSelected]);
 
   // Handle paste (Ctrl+V / Cmd+V) - images, links, or text
   useEffect(() => {
@@ -285,12 +312,14 @@ export function Editor({ pageId, initialBlocks, initialTitle, initialPublished =
         if (item.type.startsWith('image/')) {
           e.preventDefault();
           const file = item.getAsFile();
-          if (file) {
-            const reader = new FileReader();
-            reader.onload = () => {
-              handleAddBlock('IMAGE', 100, 100 + blocks.length * 30, reader.result as string);
-            };
-            reader.readAsDataURL(file);
+          if (file && isAcceptedImageType(file.type)) {
+            // Upload file first, then create block with URL
+            const result = await uploadAsset(file);
+            if (result.success) {
+              handleAddBlock('IMAGE', 100, 100 + blocks.length * 30, result.data.url);
+            } else {
+              console.error('Paste upload failed:', result.error);
+            }
           }
           return;
         }
@@ -310,10 +339,9 @@ export function Editor({ pageId, initialBlocks, initialTitle, initialPublished =
           }
           
           // Check if it's an image URL
-          const lowerUrl = url.toLowerCase();
-          const isImageUrl = IMAGE_EXTENSIONS.some(ext => lowerUrl.includes(ext));
+          const urlIsImage = isImageUrl(url);
           
-          if (isImageUrl) {
+          if (urlIsImage) {
             handleAddBlock('IMAGE', 100, 100 + blocks.length * 30, url);
           } else {
             handleAddBlock('LINK', 100, 100 + blocks.length * 30, url);
@@ -363,11 +391,14 @@ export function Editor({ pageId, initialBlocks, initialTitle, initialPublished =
           selectedId={selectedId}
           selectedIds={selectedIds}
           newBlockIds={newBlockIds}
+          editingId={editingId}
           onSelectBlock={handleSelectBlock}
           onSelectMultiple={handleSelectMultiple}
           onUpdateBlock={handleUpdateBlock}
           onDeleteBlock={handleDeleteBlock}
           onAddBlock={handleAddBlock}
+          onUpdateMultipleBlocks={handleUpdateMultipleBlocks}
+          onSetEditing={handleSetEditing}
         />
       </main>
 

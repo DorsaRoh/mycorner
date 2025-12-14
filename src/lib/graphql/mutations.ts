@@ -4,14 +4,15 @@ import { gql } from '@apollo/client';
 const BLOCK_STYLE_FRAGMENT = `
   style {
     borderRadius
-    borderWidth
-    borderSoftness
-    borderColor
     shadowStrength
     shadowSoftness
     shadowOffsetX
     shadowOffsetY
-    opacity
+    fontFamily
+    fontSize
+    fontWeight
+    color
+    textOpacity
   }
 `;
 

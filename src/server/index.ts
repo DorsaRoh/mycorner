@@ -6,6 +6,7 @@ import passport from 'passport';
 import { createApolloServer } from './graphql';
 import { expressMiddleware } from '@apollo/server/express4';
 import { configurePassport, authRoutes } from './auth';
+import { createUploadRouter } from './upload';
 
 const dev = process.env.NODE_ENV !== 'production';
 const port = parseInt(process.env.PORT || '3000', 10);
@@ -23,7 +24,11 @@ async function main() {
     origin: dev ? 'http://localhost:3000' : process.env.CORS_ORIGIN,
     credentials: true,
   }));
-  server.use(express.json());
+  
+  // JSON body limit: 1MB is plenty for page metadata + block data (no base64 blobs)
+  // Large files should use the /api/assets/upload endpoint instead
+  server.use(express.json({ limit: '1mb' }));
+  server.use(express.urlencoded({ limit: '1mb', extended: true }));
 
   // Session configuration
   server.use(session({
@@ -52,6 +57,9 @@ async function main() {
 
   // Auth routes
   server.use('/auth', authRoutes);
+
+  // Asset upload routes (multipart, before JSON middleware applies)
+  server.use('/api/assets', createUploadRouter());
 
   // Apollo Server setup
   const apolloServer = createApolloServer();

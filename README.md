@@ -43,7 +43,8 @@ src/
 ├── lib/
 │   ├── apollo/           # Apollo Client setup (SSR)
 │   ├── graphql/          # Queries and mutations
-│   └── hooks/            # Custom hooks (autosave)
+│   ├── hooks/            # Custom hooks (autosave)
+│   └── upload.ts         # Client-side upload utility
 ├── pages/
 │   ├── index.tsx         # Home - create new page
 │   ├── edit/[id].tsx     # Editor route
@@ -51,10 +52,13 @@ src/
 ├── server/
 │   ├── index.ts          # Express + Next.js server
 │   ├── auth/             # Passport magic link auth
-│   └── graphql/          # Apollo Server + resolvers
+│   ├── graphql/          # Apollo Server + resolvers
+│   └── upload.ts         # Asset upload endpoint
 ├── shared/
 │   └── types/            # Shared TypeScript types
 └── styles/               # CSS modules
+public/
+└── uploads/              # Uploaded assets (images, audio)
 ```
 
 ## Available Scripts
@@ -105,6 +109,8 @@ Uses magic link authentication (no passwords):
 | `/p/[id]` | View published page | No |
 | `/graphql` | GraphQL endpoint | No |
 | `/auth/verify` | Magic link verification | No |
+| `/api/assets/upload` | Upload images/audio | No |
+| `/uploads/*` | Serve uploaded assets | No |
 
 ## GraphQL API
 
@@ -158,6 +164,51 @@ SESSION_SECRET=your-secret-key-at-least-32-characters
 # CORS (production only)
 CORS_ORIGIN=https://yourdomain.com
 ```
+
+## Asset Uploads
+
+Images and audio files are uploaded to the server before being saved in page data. This keeps the page JSON small and fast.
+
+### How it works
+
+1. User drops/pastes/selects an image or audio file
+2. Client uploads file to `POST /api/assets/upload` (multipart/form-data)
+3. Server validates, stores file in `/public/uploads/`, returns URL
+4. Client stores only the URL in the block/page data
+
+### Upload endpoint
+
+```
+POST /api/assets/upload
+Content-Type: multipart/form-data
+
+file: <binary file data>
+```
+
+Response:
+```json
+{
+  "url": "/uploads/1702567890123-abc123.png",
+  "mime": "image/png",
+  "size": 245678,
+  "originalName": "my_image.png"
+}
+```
+
+### File limits
+
+| Type | Max Size | Allowed Formats |
+|------|----------|-----------------|
+| Images | 15 MB | PNG, JPG, WebP, GIF |
+| Audio | 25 MB | MP3, WAV, OGG, AAC, M4A |
+
+### File storage
+
+- **Development**: Files stored in `/public/uploads/` and served via `/uploads/*`
+- **Production (S3 migration)**: Update `src/server/upload.ts`:
+  1. Replace `multer.diskStorage` with `multer-s3`
+  2. Return full S3 URL instead of local path
+  3. Set appropriate bucket policies for public read access
 
 ## Data Storage
 

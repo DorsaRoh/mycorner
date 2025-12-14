@@ -19,13 +19,8 @@ interface SliderConfig {
   isPrimary?: boolean;
 }
 
-const SHAPE_SLIDERS: SliderConfig[] = [
+const ROUNDNESS_SLIDERS: SliderConfig[] = [
   { key: 'borderRadius', label: 'Roundness', min: 0, max: 1, step: 0.02, neutral: 0, isPrimary: true },
-  { key: 'borderWidth', label: 'Thickness', min: 0, max: 1, step: 0.02, neutral: 0 },
-];
-
-const EDGE_SLIDERS: SliderConfig[] = [
-  { key: 'borderSoftness', label: 'Softness', min: 0, max: 1, step: 0.02, neutral: 0, isPrimary: true },
 ];
 
 const DEPTH_SLIDERS: SliderConfig[] = [
@@ -35,11 +30,7 @@ const DEPTH_SLIDERS: SliderConfig[] = [
   { key: 'shadowOffsetY', label: 'Y offset', min: -1, max: 1, step: 0.05, neutral: 0.2 },
 ];
 
-const PRESENCE_SLIDERS: SliderConfig[] = [
-  { key: 'opacity', label: 'Opacity', min: 0, max: 1, step: 0.02, neutral: 1, isPrimary: true },
-];
-
-type BandName = 'shape' | 'edge' | 'depth' | 'presence';
+type BandName = 'roundness' | 'depth';
 
 // Check if hint has been shown before
 const HINT_SHOWN_KEY = 'style-panel-hint-shown';
@@ -147,10 +138,8 @@ export function StylePanel({ style, onChange, onClose }: StylePanelProps) {
   }, [localStyle]);
 
   const hasAnyChanges = useMemo(() => {
-    return sectionHasChanges(SHAPE_SLIDERS) || 
-           sectionHasChanges(EDGE_SLIDERS) || 
-           sectionHasChanges(DEPTH_SLIDERS) ||
-           sectionHasChanges(PRESENCE_SLIDERS);
+    return sectionHasChanges(ROUNDNESS_SLIDERS) || 
+           sectionHasChanges(DEPTH_SLIDERS);
   }, [sectionHasChanges]);
 
   // Calculate fill percentage for slider track visualization
@@ -254,23 +243,6 @@ export function StylePanel({ style, onChange, onClose }: StylePanelProps) {
     );
   }, [expandedBands, sectionHasChanges, toggleBand, renderSlider, resetSection]);
 
-  // Color picker for border color (shown in Edge band when expanded)
-  const colorPicker = (
-    <div className={styles.colorRow}>
-      <label className={`${styles.sliderLabel} ${isDragging ? styles.dragging : ''}`}>Color</label>
-      <div className={styles.colorPickerWrapper}>
-        <input
-          type="color"
-          value={localStyle.borderColor?.startsWith('rgba') 
-            ? '#000000' 
-            : localStyle.borderColor || '#000000'}
-          onChange={(e) => updateStyle('borderColor', e.target.value)}
-          className={styles.colorPicker}
-        />
-      </div>
-    </div>
-  );
-
   return (
     <div 
       ref={panelRef}
@@ -302,10 +274,8 @@ export function StylePanel({ style, onChange, onClose }: StylePanelProps) {
       )}
 
       <div className={styles.bands}>
-        {renderBand('shape', 'Shape', SHAPE_SLIDERS)}
-        {renderBand('edge', 'Edge', EDGE_SLIDERS, colorPicker)}
+        {renderBand('roundness', 'Roundness', ROUNDNESS_SLIDERS)}
         {renderBand('depth', 'Depth', DEPTH_SLIDERS)}
-        {renderBand('presence', 'Presence', PRESENCE_SLIDERS)}
       </div>
     </div>
   );

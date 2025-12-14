@@ -10,7 +10,20 @@ export interface StoredUser {
   createdAt: Date;
 }
 
-export type FrameStyle = 'none' | 'polaroid' | 'gallery_gold' | 'simple_border' | 'soft_shadow' | 'pixel';
+// Block style - roundness, shadow, and text styling
+export interface StoredBlockStyle {
+  borderRadius?: number;
+  shadowStrength?: number;
+  shadowSoftness?: number;
+  shadowOffsetX?: number;
+  shadowOffsetY?: number;
+  // Text styling
+  fontFamily?: string;
+  fontSize?: number;
+  fontWeight?: number;
+  color?: string;
+  textOpacity?: number;
+}
 
 export interface StoredGradientOverlay {
   strength: number;
@@ -39,7 +52,7 @@ export interface StoredBlock {
   width: number;
   height: number;
   content: string;
-  frameStyle?: FrameStyle;
+  style?: StoredBlockStyle;
   effects?: StoredBlockEffects;
 }
 
