@@ -141,7 +141,7 @@
   font-size: 1rem;
   line-height: 1.4;
   resize: none;
-  padding: 6px 8px;
+  /* Padding is set inline via getTextStyles for proportional scaling */
   cursor: text;
 }
 
@@ -157,7 +157,7 @@
   font-family: var(--font-sans);
   font-size: 1rem;
   line-height: 1.4;
-  padding: 6px 8px;
+  /* Padding is set inline via getTextStyles for proportional scaling */
   white-space: pre-wrap;
   word-break: break-word;
   cursor: default;
@@ -230,7 +230,7 @@
   height: 100%;
   display: flex;
   align-items: center;
-  padding: 8px 12px;
+  /* Padding is set inline via getTextStyles for proportional scaling */
   gap: 4px;
   cursor: pointer;
   color: var(--color-text);
@@ -263,7 +263,7 @@
   display: flex;
   flex-direction: column;
   justify-content: center;
-  padding: 6px 8px;
+  /* Padding inherited from parent via inline styles for proportional scaling */
   gap: 4px;
 }
 

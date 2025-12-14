@@ -45,6 +45,7 @@ export default function EditPage() {
         pageId={page.id}
         initialBlocks={page.blocks}
         initialTitle={page.title}
+        initialBackground={page.background}
         initialPublished={page.isPublished}
       />
     </>

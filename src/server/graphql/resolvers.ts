@@ -1,6 +1,6 @@
 import type { GraphQLContext } from './context';
 import { getOwnerId, canModifyPage } from './context';
-import { store, StoredBlock, StoredBackgroundAudio, StoredBlockStyle, StoredBlockEffects, StoredGradientOverlay } from './store';
+import { store, StoredBlock, StoredBackgroundAudio, StoredBlockStyle, StoredBlockEffects, StoredGradientOverlay, StoredBackgroundConfig } from './store';
 import { authStore } from '../auth/store';
 
 interface GradientOverlayInput {
@@ -55,6 +55,46 @@ interface BackgroundAudioInput {
   enabled: boolean;
 }
 
+interface BackgroundSolidInput {
+  color: string;
+  opacity: number;
+}
+
+interface BackgroundGradientInput {
+  type: "linear" | "radial";
+  colorA: string;
+  colorB: string;
+  angle: number;
+  opacity: number;
+}
+
+interface BackgroundTextureInput {
+  type: "noise" | "paper" | "grain" | "none";
+  intensity: number;
+  scale: number;
+  opacity: number;
+}
+
+interface BackgroundLightingInput {
+  vignette: number;
+  brightness: number;
+  contrast: number;
+}
+
+interface BackgroundMotionInput {
+  enabled: boolean;
+  speed: "slow" | "slower" | "slowest";
+}
+
+interface BackgroundConfigInput {
+  mode: "solid" | "gradient";
+  solid?: BackgroundSolidInput;
+  gradient?: BackgroundGradientInput;
+  texture?: BackgroundTextureInput;
+  lighting?: BackgroundLightingInput;
+  motion?: BackgroundMotionInput;
+}
+
 interface CreatePageInput {
   title?: string;
 }
@@ -63,6 +103,7 @@ interface UpdatePageInput {
   title?: string;
   blocks?: BlockInput[];
   backgroundAudio?: BackgroundAudioInput;
+  background?: BackgroundConfigInput;
 }
 
 interface FormattedPage {
@@ -77,6 +118,7 @@ interface FormattedPage {
   isPublished: boolean;
   blocks: StoredBlock[];
   backgroundAudio?: StoredBackgroundAudio;
+  background?: StoredBackgroundConfig;
   forkedFrom: FormattedPage | null;
   createdAt: string;
   updatedAt: string;
@@ -101,6 +143,7 @@ function formatPage(pageId: string): FormattedPage | null {
     isPublished: page.isPublished,
     blocks: page.blocks,
     backgroundAudio: page.backgroundAudio,
+    background: page.background,
     forkedFrom: page.forkedFromId ? formatPage(page.forkedFromId) : null,
     createdAt: page.createdAt.toISOString(),
     updatedAt: page.updatedAt.toISOString(),
@@ -207,6 +250,7 @@ export const resolvers = {
         title: args.input.title,
         blocks,
         backgroundAudio: args.input.backgroundAudio,
+        background: args.input.background,
       });
 
       return updated ? formatPage(updated.id) : null;

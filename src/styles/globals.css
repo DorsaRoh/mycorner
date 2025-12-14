@@ -1,13 +1,13 @@
 :root {
   /* ===========================================
-     SIGNATURE ACCENT COLOR - Soft sage green
+     SIGNATURE ACCENT COLOR - Black
      Change this ONE variable to update all accent colors
      =========================================== */
-  --color-accent: #6a9a84;
-  
+  --color-accent: #000000;
+
   /* Derived accent colors */
-  --color-accent-light: rgba(106, 154, 132, 0.12);
-  --color-accent-hover: #5a8a74;
+  --color-accent-light: rgba(0, 0, 0, 0.08);
+  --color-accent-hover: #333333;
   
   /* ===========================================
      BACKGROUND & SURFACE COLORS - Warm, organic

@@ -6,4 +6,5 @@ export { CreationPalette } from './CreationPalette';
 export { InviteModal } from './InviteModal';
 export { PageFlipExplore } from './PageFlipExplore';
 export { ExploreDrawer } from './ExploreDrawer';
+export { BackgroundPanel } from './BackgroundPanel';
 

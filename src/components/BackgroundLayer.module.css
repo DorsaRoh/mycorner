@@ -1,0 +1,124 @@
+.backgroundLayer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* Base background layer - handles solid and gradient */
+.baseLayer {
+  width: 100%;
+  height: 100%;
+  background: var(--bg-solid-color, transparent);
+  opacity: var(--bg-solid-opacity, 1);
+}
+
+/* Gradient backgrounds */
+.backgroundLayer[data-mode="gradient"] .baseLayer {
+  background: linear-gradient(
+    var(--bg-gradient-angle, 45deg),
+    var(--bg-gradient-color-a, #ffffff) 0%,
+    var(--bg-gradient-color-b, #000000) 100%
+  );
+  opacity: var(--bg-gradient-opacity, 1);
+}
+
+.backgroundLayer[data-mode="gradient"][data-texture-type="radial"] .baseLayer {
+  background: radial-gradient(
+    circle,
+    var(--bg-gradient-color-a, #ffffff) 0%,
+    var(--bg-gradient-color-b, #000000) 100%
+  );
+}
+
+/* Texture layers */
+.textureLayer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: var(--bg-texture-opacity, 1);
+  mix-blend-mode: overlay;
+}
+
+/* Noise texture */
+.backgroundLayer[data-texture="noise"] .textureLayer {
+  background-image:
+    radial-gradient(circle at 25% 25%, rgba(0,0,0,var(--bg-texture-intensity)) 2px, transparent 2px),
+    radial-gradient(circle at 75% 75%, rgba(0,0,0,var(--bg-texture-intensity)) 1px, transparent 1px),
+    radial-gradient(circle at 50% 50%, rgba(255,255,255,var(--bg-texture-intensity)) 0.5px, transparent 0.5px);
+  background-size: calc(20px * var(--bg-texture-scale, 1)) calc(20px * var(--bg-texture-scale, 1));
+}
+
+/* Paper texture - subtle paper-like pattern */
+.backgroundLayer[data-texture="paper"] .textureLayer {
+  background-image:
+    linear-gradient(45deg, rgba(0,0,0,var(--bg-texture-intensity)) 0%, transparent 50%, rgba(255,255,255,var(--bg-texture-intensity)) 100%),
+    linear-gradient(-45deg, rgba(0,0,0,var(--bg-texture-intensity)) 0%, transparent 50%, rgba(255,255,255,var(--bg-texture-intensity)) 100%);
+  background-size: calc(8px * var(--bg-texture-scale, 1)) calc(8px * var(--bg-texture-scale, 1));
+}
+
+/* Grain texture - film grain effect */
+.backgroundLayer[data-texture="grain"] .textureLayer {
+  background-image:
+    radial-gradient(circle, rgba(0,0,0,var(--bg-texture-intensity)) 1px, transparent 1px),
+    radial-gradient(circle, rgba(255,255,255,var(--bg-texture-intensity)) 0.5px, transparent 0.5px);
+  background-size: calc(4px * var(--bg-texture-scale, 1)) calc(4px * var(--bg-texture-scale, 1));
+}
+
+/* Lighting layer */
+.lightingLayer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  filter:
+    brightness(var(--bg-brightness, 100%))
+    contrast(var(--bg-contrast, 100%));
+}
+
+/* Vignette effect */
+.lightingLayer::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(
+    ellipse at center,
+    transparent 0%,
+    transparent calc(50% - var(--bg-vignette, 0) * 50%),
+    rgba(0,0,0,var(--bg-vignette, 0)) 100%
+  );
+  pointer-events: none;
+}
+
+/* Motion animations */
+@keyframes gradientDrift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Motion speed classes */
+.backgroundLayer[data-motion="enabled"][data-mode="gradient"] .baseLayer {
+  animation: gradientDrift 20s ease-in-out infinite;
+}
+
+.backgroundLayer[data-motion="enabled"][data-mode="gradient"].motion-slow .baseLayer {
+  animation-duration: 20s;
+}
+
+.backgroundLayer[data-motion="enabled"][data-mode="gradient"].motion-slower .baseLayer {
+  animation-duration: 40s;
+}
+
+.backgroundLayer[data-motion="enabled"][data-mode="gradient"].motion-slowest .baseLayer {
+  animation-duration: 60s;
+}

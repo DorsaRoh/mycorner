@@ -1,7 +1,8 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import type { Block as BlockType, BlockType as BlockTypeEnum } from '@/shared/types';
+import type { Block as BlockType, BlockType as BlockTypeEnum, BackgroundConfig } from '@/shared/types';
 import { Block } from './Block';
 import { CreationPalette } from './CreationPalette';
+import { BackgroundLayer } from '../BackgroundLayer';
 import { uploadAsset, isAcceptedImageType } from '@/lib/upload';
 import { isImageUrl } from '@/shared/utils/blockStyles';
 import styles from './Canvas.module.css';
@@ -22,6 +23,7 @@ interface MarqueeState {
 
 interface CanvasProps {
   blocks: BlockType[];
+  background?: BackgroundConfig;
   selectedId: string | null;
   selectedIds: Set<string>;
   newBlockIds?: Set<string>;
@@ -37,6 +39,7 @@ interface CanvasProps {
 
 export function Canvas({
   blocks,
+  background,
   selectedId,
   selectedIds,
   newBlockIds = new Set(),
@@ -257,6 +260,9 @@ export function Canvas({
       onDrop={handleDrop}
       onDragOver={handleDragOver}
     >
+      {/* Background layer */}
+      <BackgroundLayer config={background} />
+
       {/* Subtle paper boundary */}
       <div className={styles.paperSheet} />
 

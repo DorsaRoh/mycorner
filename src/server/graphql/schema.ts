@@ -66,6 +66,46 @@ export const typeDefs = gql`
     enabled: Boolean!
   }
 
+  type BackgroundConfig {
+    mode: String!
+    solid: BackgroundSolid
+    gradient: BackgroundGradient
+    texture: BackgroundTexture
+    lighting: BackgroundLighting
+    motion: BackgroundMotion
+  }
+
+  type BackgroundSolid {
+    color: String!
+    opacity: Float!
+  }
+
+  type BackgroundGradient {
+    type: String!
+    colorA: String!
+    colorB: String!
+    angle: Float!
+    opacity: Float!
+  }
+
+  type BackgroundTexture {
+    type: String!
+    intensity: Float!
+    scale: Float!
+    opacity: Float!
+  }
+
+  type BackgroundLighting {
+    vignette: Float!
+    brightness: Float!
+    contrast: Float!
+  }
+
+  type BackgroundMotion {
+    enabled: Boolean!
+    speed: String!
+  }
+
   type Page {
     id: ID!
     owner: User
@@ -73,6 +113,7 @@ export const typeDefs = gql`
     isPublished: Boolean!
     blocks: [Block!]!
     backgroundAudio: BackgroundAudio
+    background: BackgroundConfig
     forkedFrom: Page
     createdAt: String!
     updatedAt: String!
@@ -143,6 +184,46 @@ export const typeDefs = gql`
     enabled: Boolean!
   }
 
+  input BackgroundSolidInput {
+    color: String!
+    opacity: Float!
+  }
+
+  input BackgroundGradientInput {
+    type: String!
+    colorA: String!
+    colorB: String!
+    angle: Float!
+    opacity: Float!
+  }
+
+  input BackgroundTextureInput {
+    type: String!
+    intensity: Float!
+    scale: Float!
+    opacity: Float!
+  }
+
+  input BackgroundLightingInput {
+    vignette: Float!
+    brightness: Float!
+    contrast: Float!
+  }
+
+  input BackgroundMotionInput {
+    enabled: Boolean!
+    speed: String!
+  }
+
+  input BackgroundConfigInput {
+    mode: String!
+    solid: BackgroundSolidInput
+    gradient: BackgroundGradientInput
+    texture: BackgroundTextureInput
+    lighting: BackgroundLightingInput
+    motion: BackgroundMotionInput
+  }
+
   input CreatePageInput {
     title: String
   }
@@ -151,6 +232,7 @@ export const typeDefs = gql`
     title: String
     blocks: [BlockInput!]
     backgroundAudio: BackgroundAudioInput
+    background: BackgroundConfigInput
   }
 
   type Mutation {

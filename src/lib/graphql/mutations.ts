@@ -36,6 +36,39 @@ const BLOCK_EFFECTS_FRAGMENT = `
   }
 `;
 
+// Fragment for background config to avoid repetition
+const BACKGROUND_FRAGMENT = `
+  background {
+    mode
+    solid {
+      color
+      opacity
+    }
+    gradient {
+      type
+      colorA
+      colorB
+      angle
+      opacity
+    }
+    texture {
+      type
+      intensity
+      scale
+      opacity
+    }
+    lighting {
+      vignette
+      brightness
+      contrast
+    }
+    motion {
+      enabled
+      speed
+    }
+  }
+`;
+
 export const CREATE_PAGE = gql`
   mutation CreatePage($input: CreatePageInput) {
     createPage(input: $input) {
@@ -79,6 +112,7 @@ export const UPDATE_PAGE = gql`
         loop
         enabled
       }
+      ${BACKGROUND_FRAGMENT}
       updatedAt
     }
   }
@@ -107,6 +141,7 @@ export const GET_PAGE = gql`
         loop
         enabled
       }
+      ${BACKGROUND_FRAGMENT}
       createdAt
       updatedAt
     }
@@ -149,6 +184,7 @@ export const GET_PUBLIC_PAGE = gql`
         loop
         enabled
       }
+      ${BACKGROUND_FRAGMENT}
       createdAt
     }
     me {

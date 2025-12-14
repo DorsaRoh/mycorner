@@ -7,7 +7,7 @@ import { initializeApollo } from '@/lib/apollo';
 import { GET_PUBLIC_PAGE, FORK_PAGE, REQUEST_MAGIC_LINK } from '@/lib/graphql/mutations';
 import { ViewerCanvas, FloatingAction, FeedbackModal } from '@/components/viewer';
 import { PageFlipExplore } from '@/components/editor';
-import type { Block } from '@/shared/types';
+import type { Block, BackgroundConfig } from '@/shared/types';
 import styles from '@/styles/ViewPage.module.css';
 
 interface PageData {
@@ -18,6 +18,7 @@ interface PageData {
     displayName?: string;
   };
   blocks: Block[];
+  background?: BackgroundConfig;
   createdAt: string;
 }
 
@@ -95,7 +96,7 @@ export default function ViewPage({ page, currentUserId }: ViewPageProps) {
           </header>
         )}
 
-        <ViewerCanvas blocks={page.blocks} />
+        <ViewerCanvas blocks={page.blocks} background={page.background} />
 
         {/* Feedback link - only show for non-owners */}
         {!isOwner && (

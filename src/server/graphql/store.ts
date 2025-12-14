@@ -63,6 +63,46 @@ export interface StoredBackgroundAudio {
   enabled: boolean;
 }
 
+export interface StoredBackgroundSolid {
+  color: string;
+  opacity: number;
+}
+
+export interface StoredBackgroundGradient {
+  type: "linear" | "radial";
+  colorA: string;
+  colorB: string;
+  angle: number;
+  opacity: number;
+}
+
+export interface StoredBackgroundTexture {
+  type: "noise" | "paper" | "grain" | "none";
+  intensity: number;
+  scale: number;
+  opacity: number;
+}
+
+export interface StoredBackgroundLighting {
+  vignette: number;
+  brightness: number;
+  contrast: number;
+}
+
+export interface StoredBackgroundMotion {
+  enabled: boolean;
+  speed: "slow" | "slower" | "slowest";
+}
+
+export interface StoredBackgroundConfig {
+  mode: "solid" | "gradient";
+  solid?: StoredBackgroundSolid;
+  gradient?: StoredBackgroundGradient;
+  texture?: StoredBackgroundTexture;
+  lighting?: StoredBackgroundLighting;
+  motion?: StoredBackgroundMotion;
+}
+
 export interface StoredPage {
   id: string;
   ownerId: string; // Can be a user ID or anonymous session ID
@@ -70,6 +110,7 @@ export interface StoredPage {
   isPublished: boolean;
   blocks: StoredBlock[];
   backgroundAudio?: StoredBackgroundAudio;
+  background?: StoredBackgroundConfig;
   forkedFromId?: string;
   createdAt: Date;
   updatedAt: Date;
@@ -140,7 +181,7 @@ class Store {
     return page;
   }
 
-  updatePage(id: string, updates: { title?: string; blocks?: StoredBlock[]; backgroundAudio?: StoredBackgroundAudio }): StoredPage | undefined {
+  updatePage(id: string, updates: { title?: string; blocks?: StoredBlock[]; backgroundAudio?: StoredBackgroundAudio; background?: StoredBackgroundConfig }): StoredPage | undefined {
     const page = this.pages.get(id);
     if (!page) return undefined;
 
@@ -152,6 +193,9 @@ class Store {
     }
     if (updates.backgroundAudio !== undefined) {
       page.backgroundAudio = updates.backgroundAudio;
+    }
+    if (updates.background !== undefined) {
+      page.background = updates.background;
     }
     page.updatedAt = new Date();
     return page;
@@ -182,6 +226,7 @@ class Store {
         id: this.generateId('block'),
       })),
       backgroundAudio: source.backgroundAudio ? { ...source.backgroundAudio } : undefined,
+      background: source.background ? { ...source.background } : undefined,
       forkedFromId: sourceId,
       createdAt: now,
       updatedAt: now,

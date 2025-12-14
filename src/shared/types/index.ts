@@ -127,6 +127,34 @@ export interface BackgroundAudio {
   enabled: boolean;
 }
 
+// Background decoration settings for a page
+export interface BackgroundConfig {
+  mode: "solid" | "gradient";
+  solid?: { color: string; opacity: number };
+  gradient?: {
+    type: "linear" | "radial";
+    colorA: string;
+    colorB: string;
+    angle: number; // only used for linear
+    opacity: number;
+  };
+  texture?: {
+    type: "noise" | "paper" | "grain" | "none";
+    intensity: number; // clamp 0..0.2
+    scale: number; // clamp 0.5..2
+    opacity: number; // 0..1
+  };
+  lighting?: {
+    vignette: number; // clamp 0..0.3
+    brightness: number; // clamp -0.1..0.1
+    contrast: number; // clamp -0.1..0.1
+  };
+  motion?: {
+    enabled: boolean;
+    speed: "slow" | "slower" | "slowest";
+  };
+}
+
 export interface Page {
   id: string;
   owner: User | null;
@@ -134,6 +162,7 @@ export interface Page {
   isPublished: boolean;
   blocks: Block[];
   backgroundAudio?: BackgroundAudio;
+  background?: BackgroundConfig;
   forkedFrom?: Page;
   createdAt: string;
   updatedAt: string;
@@ -159,6 +188,7 @@ export interface UpdatePageInput {
   title?: string;
   blocks?: BlockInput[];
   backgroundAudio?: BackgroundAudio;
+  background?: BackgroundConfig;
 }
 
 export interface AuthPayload {

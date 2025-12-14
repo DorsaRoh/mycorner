@@ -1,12 +1,14 @@
-import type { Block as BlockType } from '@/shared/types';
+import type { Block as BlockType, BackgroundConfig } from '@/shared/types';
 import { ViewerBlock } from './ViewerBlock';
+import { BackgroundLayer } from '../BackgroundLayer';
 import styles from './ViewerCanvas.module.css';
 
 interface ViewerCanvasProps {
   blocks: BlockType[];
+  background?: BackgroundConfig;
 }
 
-export function ViewerCanvas({ blocks }: ViewerCanvasProps) {
+export function ViewerCanvas({ blocks, background }: ViewerCanvasProps) {
   // Calculate canvas bounds from block positions
   const bounds = blocks.reduce(
     (acc, block) => ({
@@ -17,12 +19,15 @@ export function ViewerCanvas({ blocks }: ViewerCanvasProps) {
   );
 
   return (
-    <div 
+    <div
       className={styles.canvas}
       style={{
         minHeight: Math.max(bounds.maxY + 100, 400),
       }}
     >
+      {/* Background layer */}
+      <BackgroundLayer config={background} />
+
       {blocks.map((block) => (
         <ViewerBlock key={block.id} block={block} />
       ))}

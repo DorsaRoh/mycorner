@@ -52,17 +52,25 @@ export function getBlockStyles(
 
 /**
  * Get text-specific CSS styles for TEXT and LINK blocks
+ * Padding scales proportionally with font size for consistent visual appearance
  */
 export function getTextStyles(style?: BlockStyle): React.CSSProperties {
   if (!style) return {};
   const s = { ...DEFAULT_STYLE, ...style };
+  const fontSize = s.fontSize || 16;
+  
+  // Padding proportional to font size (roughly 10% vertical, 15% horizontal)
+  const paddingV = Math.round(fontSize * 0.1);
+  const paddingH = Math.round(fontSize * 0.15);
+  
   return {
     fontFamily: s.fontFamily,
-    fontSize: s.fontSize ? `${s.fontSize}px` : undefined,
+    fontSize: `${fontSize}px`,
     fontWeight: s.fontWeight,
     color: s.color,
     opacity: s.textOpacity,
     textAlign: s.textAlign,
+    padding: `${paddingV}px ${paddingH}px`,
   };
 }
 

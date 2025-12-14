@@ -21,10 +21,6 @@ interface ObjectControlsProps {
   onChange: (style: BlockStyle) => void;
   onChangeMultiple?: (updates: Partial<BlockStyle>) => void;
   onClose?: () => void;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
   multiSelected?: boolean;
 }
 
@@ -50,7 +46,7 @@ const TEXT_SLIDER_CONTROLS: SliderConfig[] = [
   { key: 'textOpacity', label: 'opacity', min: 0, max: 1, step: 0.02, neutral: 1, icon: '◉' },
 ];
 
-export function ObjectControls({ blockType = 'IMAGE', style, onChange, onChangeMultiple, onClose, x, y, width, height, multiSelected = false }: ObjectControlsProps) {
+export function ObjectControls({ blockType = 'IMAGE', style, onChange, onChangeMultiple, onClose, multiSelected = false }: ObjectControlsProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [localStyle, setLocalStyle] = useState<BlockStyle>(() => ({
     ...DEFAULT_STYLE,
@@ -320,19 +316,13 @@ export function ObjectControls({ blockType = 'IMAGE', style, onChange, onChangeM
     return IMAGE_CONTROLS;
   }, [blockType]);
 
-  // Position controls to the right of the object with some spacing
-  // Since this component is rendered inside the Block, position relative to the Block
-  const controlsX = width + 16;
-  const controlsY = 0;
+  // Position controls to the right of the object
+  // Using CSS-based positioning (left: 100%) so it follows real-time DOM changes during resize
 
   return (
     <div
       ref={containerRef}
       className={styles.controls}
-      style={{
-        left: controlsX,
-        top: controlsY,
-      }}
       onMouseDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
     >

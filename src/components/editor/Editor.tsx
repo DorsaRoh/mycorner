@@ -1,12 +1,14 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useMutation } from '@apollo/client';
-import type { Block as BlockType } from '@/shared/types';
+import type { Block as BlockType, BackgroundConfig } from '@/shared/types';
+import { DEFAULT_STYLE } from '@/shared/types';
 import { UPDATE_PAGE, PUBLISH_PAGE } from '@/lib/graphql/mutations';
 import { useAutosave } from '@/lib/hooks/useAutosave';
 import { uploadAsset, isAcceptedImageType } from '@/lib/upload';
 import { Canvas } from './Canvas';
 import { InviteModal } from './InviteModal';
 import { PageFlipExplore } from './PageFlipExplore';
+import { BackgroundPanel } from './BackgroundPanel';
 import styles from './Editor.module.css';
 
 import { IMAGE_EXTENSIONS, isImageUrl } from '@/shared/utils/blockStyles';
@@ -16,21 +18,24 @@ interface EditorProps {
   pageId: string;
   initialBlocks: BlockType[];
   initialTitle?: string;
+  initialBackground?: BackgroundConfig;
   initialPublished?: boolean;
 }
 
-export function Editor({ pageId, initialBlocks, initialTitle, initialPublished = false }: EditorProps) {
+export function Editor({ pageId, initialBlocks, initialTitle, initialBackground, initialPublished = false }: EditorProps) {
   const [blocks, setBlocks] = useState<BlockType[]>(initialBlocks);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [editingId, setEditingId] = useState<string | null>(null);
   const [title, setTitle] = useState(initialTitle || '');
+  const [background, setBackground] = useState<BackgroundConfig | undefined>(initialBackground);
   const [isPublished, setIsPublished] = useState(initialPublished);
   const [publishing, setPublishing] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [inviteNeedsAuth, setInviteNeedsAuth] = useState(false);
   const [publishError, setPublishError] = useState<string | null>(null);
   const [newBlockIds, setNewBlockIds] = useState<Set<string>>(new Set());
+  const [showBackgroundPanel, setShowBackgroundPanel] = useState(false);
   
   // Track if we've already added the starter block for this session
   const starterBlockAdded = useRef(false);
@@ -55,10 +60,11 @@ export function Editor({ pageId, initialBlocks, initialTitle, initialPublished =
             style,
             effects,
           })),
+          background,
         },
       },
     });
-  }, [pageId, title, blocks, updatePage]);
+  }, [pageId, title, blocks, background, updatePage]);
 
   const { trigger: triggerAutosave, saveNow, saving, lastSaved, error: saveError, retry } = useAutosave({
     delay: 1000,
@@ -82,7 +88,10 @@ export function Editor({ pageId, initialBlocks, initialTitle, initialPublished =
         width: 500,
         height: 80,
         content: 'your corner of the internet',
-        style: { fontSize: 60 },
+        style: {
+          ...DEFAULT_STYLE,
+          fontSize: 60,
+        },
       };
       setBlocks([starterBlock]);
       // Don't mark as new (no animation) since it's the starter
@@ -167,7 +176,7 @@ export function Editor({ pageId, initialBlocks, initialTitle, initialPublished =
       width,
       height,
       content: content ?? '',
-      ...(fontSize && { style: { fontSize } }),
+      ...(fontSize && { style: { ...DEFAULT_STYLE, fontSize } }),
     };
 
     // Track this as a new block for animation
@@ -362,6 +371,13 @@ export function Editor({ pageId, initialBlocks, initialTitle, initialPublished =
       {/* Top right controls */}
       <div className={styles.topRightControls}>
         <button
+          className={`${styles.backgroundBtn} ${showBackgroundPanel ? styles.backgroundBtnActive : ''}`}
+          onClick={() => setShowBackgroundPanel(!showBackgroundPanel)}
+          title="Background settings"
+        >
+          ■
+        </button>
+        <button
           className={styles.inviteBtn}
           onClick={handleInvite}
           disabled={publishing}
@@ -388,6 +404,7 @@ export function Editor({ pageId, initialBlocks, initialTitle, initialPublished =
       <main className={styles.mainContent}>
         <Canvas
           blocks={blocks}
+          background={background}
           selectedId={selectedId}
           selectedIds={selectedIds}
           newBlockIds={newBlockIds}
@@ -416,6 +433,14 @@ export function Editor({ pageId, initialBlocks, initialTitle, initialPublished =
         needsAuth={inviteNeedsAuth}
         publishError={publishError}
       />
+
+      {showBackgroundPanel && (
+        <BackgroundPanel
+          background={background}
+          onChange={setBackground}
+          onClose={() => setShowBackgroundPanel(false)}
+        />
+      )}
     </div>
   );
 }

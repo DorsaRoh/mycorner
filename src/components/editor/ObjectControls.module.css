@@ -4,6 +4,11 @@
 
 .controls {
   position: absolute;
+  /* Position to the right of the block - uses 100% so it follows real-time width changes */
+  left: 100%;
+  top: 0;
+  margin-left: 16px;
+  
   display: flex;
   flex-direction: column;
   gap: 12px;

@@ -487,6 +487,21 @@ export const Block = memo(function Block({
     }
   }, [block.width, block.height, onUpdate]);
 
+  // Handle text measurement - auto-resize block to fit text content
+  const handleTextMeasure = useCallback((measuredWidth: number, measuredHeight: number) => {
+    // Only expand, don't shrink (to allow user sizing)
+    // Add a small buffer for safety
+    const buffer = 4;
+    const needsWidthUpdate = measuredWidth > block.width - buffer;
+    const needsHeightUpdate = measuredHeight > block.height - buffer;
+    
+    if (needsWidthUpdate || needsHeightUpdate) {
+      const newWidth = needsWidthUpdate ? Math.ceil(measuredWidth + buffer) : block.width;
+      const newHeight = needsHeightUpdate ? Math.ceil(measuredHeight + buffer) : block.height;
+      onUpdate({ width: newWidth, height: newHeight });
+    }
+  }, [block.width, block.height, onUpdate]);
+
   const cursorStyle = useMemo(() => {
     const isTextOrLink = block.type === 'TEXT' || block.type === 'LINK';
     if (interactionState === 'dragging') return 'grabbing';
@@ -539,6 +554,7 @@ export const Block = memo(function Block({
           style={block.style}
           onChange={handleContentChange}
           onImageLoad={handleImageLoad}
+          onTextMeasure={handleTextMeasure}
           selected={selected}
           isEditing={isEditing}
           onSetEditing={onSetEditing}
@@ -551,10 +567,6 @@ export const Block = memo(function Block({
           style={block.style}
           onChange={handleStyleChange}
           onChangeMultiple={onUpdateMultiple ? (updates) => onUpdateMultiple(selectedIds, { style: { ...DEFAULT_STYLE, ...block.style, ...updates } }) : undefined}
-          x={block.x}
-          y={block.y}
-          width={block.width}
-          height={block.height}
           multiSelected={multiSelected}
         />
       )}
@@ -569,6 +581,7 @@ interface BlockContentProps {
   style?: BlockStyle;
   onChange: (content: string) => void;
   onImageLoad?: (e: React.SyntheticEvent<HTMLImageElement>) => void;
+  onTextMeasure?: (width: number, height: number) => void;
   selected: boolean;
   isEditing?: boolean;
   onSetEditing?: (editing: boolean) => void;
@@ -580,11 +593,14 @@ const BlockContent = memo(function BlockContent({
   style,
   onChange,
   onImageLoad,
+  onTextMeasure,
   selected,
   isEditing,
   onSetEditing,
 }: BlockContentProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  
+  const textStyles = useMemo(() => getTextStyles(style), [style]);
 
   useEffect(() => {
     if (type === 'TEXT' && isEditing && textareaRef.current) {
@@ -597,7 +613,35 @@ const BlockContent = memo(function BlockContent({
     }
   }, [type, isEditing]);
 
-  const textStyles = useMemo(() => getTextStyles(style), [style]);
+  // Measure text content and report dimensions using a hidden measurement element
+  useEffect(() => {
+    if ((type === 'TEXT') && content && onTextMeasure) {
+      // Create a hidden measurement element
+      const measureEl = document.createElement('div');
+      measureEl.style.cssText = `
+        position: absolute;
+        visibility: hidden;
+        height: auto;
+        width: auto;
+        white-space: pre-wrap;
+        word-break: break-word;
+        font-family: ${textStyles.fontFamily || 'inherit'};
+        font-size: ${textStyles.fontSize || '16px'};
+        font-weight: ${textStyles.fontWeight || 'normal'};
+        line-height: 1.4;
+        padding: ${textStyles.padding || '0'};
+      `;
+      measureEl.textContent = content;
+      document.body.appendChild(measureEl);
+      
+      const measuredWidth = measureEl.offsetWidth;
+      const measuredHeight = measureEl.offsetHeight;
+      
+      document.body.removeChild(measureEl);
+      
+      onTextMeasure(measuredWidth, measuredHeight);
+    }
+  }, [type, content, style, textStyles, onTextMeasure]);
 
   switch (type) {
     case 'TEXT':
@@ -659,6 +703,7 @@ const BlockContent = memo(function BlockContent({
           content={content}
           style={style}
           onChange={onChange}
+          onTextMeasure={onTextMeasure}
           selected={selected}
           isEditing={isEditing}
           onSetEditing={onSetEditing}
@@ -675,6 +720,7 @@ interface LinkBlockContentProps {
   content: string;
   style?: BlockStyle;
   onChange: (content: string) => void;
+  onTextMeasure?: (width: number, height: number) => void;
   selected: boolean;
   isEditing?: boolean;
   onSetEditing?: (editing: boolean) => void;
@@ -684,6 +730,7 @@ const LinkBlockContent = memo(function LinkBlockContent({
   content,
   style,
   onChange,
+  onTextMeasure,
   selected,
   isEditing,
   onSetEditing,
@@ -694,6 +741,39 @@ const LinkBlockContent = memo(function LinkBlockContent({
   const containerRef = useRef<HTMLDivElement>(null);
 
   const textStyles = useMemo(() => getTextStyles(style), [style]);
+
+  // Measure link display and report dimensions using a hidden measurement element
+  useEffect(() => {
+    if (onTextMeasure && !isEditing) {
+      const displayText = name || url || 'Add link';
+      const measureEl = document.createElement('div');
+      measureEl.style.cssText = `
+        position: absolute;
+        visibility: hidden;
+        height: auto;
+        width: auto;
+        white-space: pre-wrap;
+        word-break: break-word;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        font-family: ${textStyles.fontFamily || 'inherit'};
+        font-size: ${textStyles.fontSize || '16px'};
+        font-weight: ${textStyles.fontWeight || 'normal'};
+        line-height: 1.5;
+        padding: ${textStyles.padding || '0'};
+      `;
+      measureEl.innerHTML = `<span>${displayText}</span>${url ? '<span style="font-size: 0.75em;">↗</span>' : ''}`;
+      document.body.appendChild(measureEl);
+      
+      const measuredWidth = measureEl.offsetWidth;
+      const measuredHeight = measureEl.offsetHeight;
+      
+      document.body.removeChild(measureEl);
+      
+      onTextMeasure(measuredWidth, measuredHeight);
+    }
+  }, [content, name, url, style, textStyles, onTextMeasure, isEditing]);
 
   const handleNameChange = useCallback((newName: string) => {
     onChange(serializeLinkContent(newName, url));
