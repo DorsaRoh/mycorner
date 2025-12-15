@@ -32,60 +32,73 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ### Prerequisites
 
-1. **Supabase Account** - For database and file storage
-2. **Render Account** - For hosting
-3. **Google Cloud Console** - For OAuth credentials
+1. **Supabase** - For PostgreSQL database and file storage
+2. **Google Cloud Console** - For OAuth credentials  
+3. **Render, Fly.io, or Railway** - For hosting
 
-### Step 1: Create Supabase Project
+### Quick Deploy
 
-1. Go to [supabase.com](https://supabase.com) and create a new project
-2. Note your project URL and service role key (Settings → API)
-3. Create a storage bucket named `uploads` and set it to public
+1. **Create Supabase project** at [supabase.com](https://supabase.com)
+   - Note your database connection string (Settings → Database → URI)
+   - Create a storage bucket named `uploads` (set to public)
 
-### Step 2: Configure Google OAuth
+2. **Configure Google OAuth** at [console.cloud.google.com](https://console.cloud.google.com/apis/credentials)
+   - Create OAuth 2.0 Client ID (Web application)
+   - Add redirect URI: `https://your-domain.com/auth/google/callback`
 
-1. Go to [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
-2. Create a new OAuth 2.0 Client ID (Web application)
-3. Add authorized redirect URIs:
-   - `https://your-app.onrender.com/auth/google/callback`
-   - `http://localhost:3000/auth/google/callback` (for dev)
+3. **Deploy** - Set these environment variables on your platform:
 
-### Step 3: Deploy to Render
-
-1. Push your code to GitHub
-2. Go to [render.com](https://render.com) and create a new Web Service
-3. Connect your GitHub repository
-4. Configure environment variables:
-
-| Variable | Value |
-|----------|-------|
-| `DATABASE_URL` | PostgreSQL connection string from Supabase |
+| Variable | Description |
+|----------|-------------|
+| `DATABASE_URL` | Supabase connection string (use pooler, port 6543) |
 | `GOOGLE_CLIENT_ID` | From Google Cloud Console |
 | `GOOGLE_CLIENT_SECRET` | From Google Cloud Console |
-| `SESSION_SECRET` | (Render generates this) |
+| `SESSION_SECRET` | Generate with `openssl rand -base64 32` |
 | `SUPABASE_URL` | Your Supabase project URL |
 | `SUPABASE_SERVICE_KEY` | Supabase service role key |
-| `SUPABASE_STORAGE_BUCKET` | `uploads` |
-| `PUBLIC_URL` | Your Render app URL |
+| `PUBLIC_URL` | Your production URL (e.g., https://mycorner.app) |
 | `CORS_ORIGIN` | Same as PUBLIC_URL |
 
-5. Deploy! The database schema will be applied automatically.
+### Deploy with Docker
 
-### Step 4: Custom Domain (Optional)
+```bash
+docker build -t my-corner .
+docker run -p 3000:3000 --env-file .env.prod my-corner
+```
 
-1. In Render → Settings → Custom Domains, add your domain
-2. Update DNS as instructed
-3. Update `PUBLIC_URL`, `CORS_ORIGIN`, and Google OAuth redirect URIs
+### Deploy to Render
+
+Use the `render.yaml` blueprint or create a Web Service:
+- Build: `npm ci --include=dev && npm run build`
+- Start: `npm start`
+
+### Deploy to Fly.io
+
+```bash
+fly launch
+fly secrets set DATABASE_URL="..." GOOGLE_CLIENT_ID="..." # etc
+fly deploy
+```
 
 ## Environment Variables
 
-Copy `.env.example` to `.env` and configure:
+Create a `.env.prod` file with your production credentials:
 
 ```bash
-cp .env.example .env
+NODE_ENV=production
+PORT=3000
+PUBLIC_URL=https://your-domain.com
+CORS_ORIGIN=https://your-domain.com
+DATABASE_URL=postgresql://...
+GOOGLE_CLIENT_ID=...
+GOOGLE_CLIENT_SECRET=...
+SESSION_SECRET=...  # Generate with: openssl rand -base64 32
+SUPABASE_URL=https://yourproject.supabase.co
+SUPABASE_SERVICE_KEY=...
+SUPABASE_STORAGE_BUCKET=uploads
 ```
 
-See `.env.example` for all available options.
+For local development, the app uses SQLite by default (no config needed).
 
 ## Available Scripts
 

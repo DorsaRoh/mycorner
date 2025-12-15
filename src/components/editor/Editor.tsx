@@ -177,13 +177,13 @@ export function Editor({
 
       const data = result.data?.updatePage;
       if (!data) {
-        return { success: false, error: { code: 'UNKNOWN', message: 'No response from server' } };
+        return { success: false, error: { code: 'UNKNOWN' as const, message: 'No response from server' } };
       }
 
       if (data.conflict) {
         return {
           success: false,
-          error: { code: 'CONFLICT', message: 'Document was modified elsewhere', serverRevision: data.currentServerRevision },
+          error: { code: 'CONFLICT' as const, message: 'Document was modified elsewhere', serverRevision: data.currentServerRevision },
         };
       }
 

@@ -272,6 +272,9 @@ export const Block = memo(function Block({
       scale: dims.scale,
       offsetX: dims.offsetX,
       offsetY: dims.offsetY,
+      startRotation: block.rotation || 0,
+      centerX: rect.left + rect.width / 2,
+      centerY: rect.top + rect.height / 2,
     };
 
     // For TEXT/LINK: edges are for font-size resizing, middle is for dragging

@@ -76,7 +76,7 @@ export function ProductFeedbackModal({ isOpen, onClose }: ProductFeedbackModalPr
           <>
             <h2>Share your thoughts</h2>
             <p className={styles.subtitle}>
-              What do you wish to see or add? We'd love to hear your ideas.
+              What do you wish to see or add? We&apos;d love to hear your ideas.
             </p>
 
             <form onSubmit={handleSubmit}>

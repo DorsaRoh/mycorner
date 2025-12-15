@@ -5,6 +5,7 @@ import type { DbUser } from '../db';
 
 // Extend Express types for session
 declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace Express {
     interface User extends DbUser {}
   }

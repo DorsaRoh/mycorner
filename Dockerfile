@@ -3,11 +3,11 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Install dependencies
+# Install dependencies (include dev for ts-node)
 COPY package*.json ./
-RUN npm ci
+RUN npm ci --include=dev
 
-# Copy source and build
+# Copy source and build Next.js
 COPY . .
 RUN npm run build
 
@@ -23,7 +23,7 @@ ENV PORT=3000
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
-# Copy built assets
+# Copy everything needed for runtime
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/.next ./.next
@@ -43,5 +43,5 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1
 
-CMD ["npm", "start"]
-
+# Start server (env vars injected by platform)
+CMD ["node", "node_modules/.bin/ts-node", "--project", "tsconfig.server.json", "src/server/index.ts"]

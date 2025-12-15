@@ -1,3 +1,4 @@
+import type { GetServerSideProps } from 'next';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import Link from 'next/link';
@@ -6,6 +7,11 @@ import { GET_PAGE } from '@/lib/graphql/mutations';
 import { Editor } from '@/components/editor/Editor';
 import { isDraftId } from '@/lib/routes';
 import styles from '@/styles/EditPage.module.css';
+
+// Force SSR to avoid static generation issues with useRouter
+export const getServerSideProps: GetServerSideProps = async () => {
+  return { props: {} };
+};
 
 /**
  * /edit/:id - Unified editor for both drafts and server pages.
