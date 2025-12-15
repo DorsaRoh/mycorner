@@ -52,6 +52,13 @@ interface CanvasProps {
   onDimensionsChange?: (dims: CanvasDimensions) => void;
   // Called when a drag/resize interaction starts (for undo history)
   onInteractionStart?: () => void;
+  // Called when first interaction happens (removes hint block)
+  onFirstInteraction?: () => void;
+  // Layer ordering
+  onBringForward?: (id: string) => void;
+  onSendBackward?: (id: string) => void;
+  onBringToFront?: (id: string) => void;
+  onSendToBack?: (id: string) => void;
 }
 
 export function Canvas({
@@ -73,6 +80,11 @@ export function Canvas({
   onExitStarterMode,
   onDimensionsChange,
   onInteractionStart,
+  onFirstInteraction,
+  onBringForward,
+  onSendBackward,
+  onBringToFront,
+  onSendToBack,
 }: CanvasProps) {
   const [dropError, setDropError] = useState<string | null>(null);
   const [palette, setPalette] = useState<PaletteState | null>(null);
@@ -144,6 +156,9 @@ export function Canvas({
     const target = e.target as HTMLElement;
     const container = containerRef.current;
     
+    // Trigger first interaction to hide hint
+    onFirstInteraction?.();
+    
     // Only trigger on canvas or paper sheet (empty areas)
     if (target !== container && !target.classList.contains(styles.paperSheet)) {
       return;
@@ -175,7 +190,7 @@ export function Canvas({
       refX: refPos.x,
       refY: refPos.y,
     });
-  }, [marquee, containerRef]);
+  }, [marquee, containerRef, onFirstInteraction]);
   
   // Handle marquee mouse move and up
   useEffect(() => {
@@ -243,11 +258,13 @@ export function Canvas({
       if (starterMode) {
         onExitStarterMode?.();
       }
+      // Remove hint on first real interaction
+      onFirstInteraction?.();
       // Pass reference coordinates for block placement
       onAddBlock(type, palette.refX, palette.refY, content);
       setPalette(null);
     }
-  }, [palette, onAddBlock, starterMode, onExitStarterMode]);
+  }, [palette, onAddBlock, starterMode, onExitStarterMode, onFirstInteraction]);
 
   // Close palette
   const handlePaletteClose = useCallback(() => {
@@ -420,6 +437,11 @@ export function Canvas({
           onDelete={() => onDeleteBlock(block.id)}
           onSetEditing={(editing) => onSetEditing?.(editing ? block.id : null)}
           onInteractionStart={onInteractionStart}
+          onFirstInteraction={onFirstInteraction}
+          onBringForward={onBringForward ? () => onBringForward(block.id) : undefined}
+          onSendBackward={onSendBackward ? () => onSendBackward(block.id) : undefined}
+          onBringToFront={onBringToFront ? () => onBringToFront(block.id) : undefined}
+          onSendToBack={onSendToBack ? () => onSendToBack(block.id) : undefined}
         />
       ))}
       

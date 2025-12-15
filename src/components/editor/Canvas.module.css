@@ -52,6 +52,15 @@
   }
 }
 
+/* Mobile canvas adjustments - prevent horizontal scroll with starter layout */
+@media (max-width: 768px) {
+  .canvas {
+    /* Only allow vertical scrolling on mobile to prevent accidental horizontal panning */
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+}
+
 /* Starter mode hint - subtle prompt to click anywhere */
 .starterHint {
   position: absolute;

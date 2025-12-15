@@ -28,9 +28,12 @@ export interface BlockStyle {
   fontFamily?: string;      // Font family name
   fontSize?: number;        // Font size in px
   fontWeight?: number;      // Font weight (100-900)
+  fontStyle?: 'normal' | 'italic';  // Font style
   color?: string;           // Text color (rgba string)
   textOpacity?: number;     // Text opacity (0..1)
   textAlign?: 'left' | 'center' | 'right';  // Text alignment
+  lineHeight?: number;      // Line height multiplier
+  textDecoration?: 'none' | 'underline' | 'line-through';  // Text decoration
 }
 
 // Default/neutral style values (no visible effect)
@@ -67,6 +70,7 @@ export interface Block {
   content: string;
   style?: BlockStyle;      // Unified style system
   effects?: BlockEffects;  // Visual effects (optional)
+  rotation?: number;       // Rotation in degrees (-180 to 180)
   isStarter?: boolean;     // True if this is a starter/placeholder block
 }
 

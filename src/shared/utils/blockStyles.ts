@@ -63,7 +63,7 @@ export function getTextStyles(style?: BlockStyle): React.CSSProperties {
   const paddingV = Math.round(fontSize * 0.1);
   const paddingH = Math.round(fontSize * 0.15);
   
-  return {
+  const styles: React.CSSProperties = {
     fontFamily: s.fontFamily,
     fontSize: `${fontSize}px`,
     fontWeight: s.fontWeight,
@@ -72,6 +72,23 @@ export function getTextStyles(style?: BlockStyle): React.CSSProperties {
     textAlign: s.textAlign,
     padding: `${paddingV}px ${paddingH}px`,
   };
+  
+  // Add fontStyle if present (for italic)
+  if (s.fontStyle) {
+    styles.fontStyle = s.fontStyle;
+  }
+  
+  // Add lineHeight if present
+  if (s.lineHeight) {
+    styles.lineHeight = s.lineHeight;
+  }
+  
+  // Add textDecoration if present (for underline)
+  if (s.textDecoration) {
+    styles.textDecoration = s.textDecoration;
+  }
+  
+  return styles;
 }
 
 /**

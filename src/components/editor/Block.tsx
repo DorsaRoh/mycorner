@@ -11,7 +11,7 @@ import {
   REFERENCE_WIDTH,
   REFERENCE_HEIGHT,
 } from '@/lib/canvas';
-import { ObjectControls } from './ObjectControls';
+import { MicroToolbar } from './MicroToolbar';
 import styles from './Block.module.css';
 
 // Resize edge types
@@ -84,6 +84,11 @@ interface BlockProps {
   onDelete: () => void;
   onSetEditing?: (editing: boolean) => void;
   onInteractionStart?: () => void;
+  onFirstInteraction?: () => void;
+  onBringForward?: () => void;
+  onSendBackward?: () => void;
+  onBringToFront?: () => void;
+  onSendToBack?: () => void;
 }
 
 // Memoized Block component - only rerenders when its own props change
@@ -103,9 +108,14 @@ export const Block = memo(function Block({
   onDelete,
   onSetEditing,
   onInteractionStart,
+  onFirstInteraction,
+  onBringForward,
+  onSendBackward,
+  onBringToFront,
+  onSendToBack,
 }: BlockProps) {
   const blockRef = useRef<HTMLDivElement>(null);
-  const [interactionState, setInteractionState] = useState<'idle' | 'dragging' | 'resizing'>('idle');
+  const [interactionState, setInteractionState] = useState<'idle' | 'dragging' | 'resizing' | 'rotating'>('idle');
   const [hoveredEdge, setHoveredEdge] = useState<ResizeEdge>(null);
   
   // Default dimensions if not provided (uses reference size, scale = 1, no offset)
@@ -136,6 +146,10 @@ export const Block = memo(function Block({
     scale: 1,
     offsetX: 0,
     offsetY: 0,
+    // Rotation
+    startRotation: 0,
+    centerX: 0,
+    centerY: 0,
   });
 
   // Handle double-click to enter edit mode
@@ -218,6 +232,8 @@ export const Block = memo(function Block({
 
     // Notify parent that an interaction is starting (for undo history)
     onInteractionStart?.();
+    // Remove hint block on first real interaction
+    onFirstInteraction?.();
 
     // Cache the rect once at interaction start
     const rect = blockRef.current?.getBoundingClientRect();
@@ -275,7 +291,7 @@ export const Block = memo(function Block({
       if (!isPartOfMultiSelection) onSelect();
       setInteractionState('dragging');
     }
-  }, [block.x, block.y, block.width, block.height, block.style?.fontSize, block.type, block.id, selected, selectedIds, allBlocks, dims.scale, onSelect, onInteractionStart]);
+  }, [block.x, block.y, block.width, block.height, block.style?.fontSize, block.type, block.id, selected, selectedIds, allBlocks, dims.scale, onSelect, onInteractionStart, onFirstInteraction]);
 
   // Drag/resize handling with rAF optimization
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -290,7 +306,33 @@ export const Block = memo(function Block({
     handleInteractionStart(touch.clientX, touch.clientY, e.target as HTMLElement, () => e.preventDefault());
   }, [handleInteractionStart]);
 
-  // Unified mouse move/up handler for drag and resize
+  // Rotation handle interaction
+  const handleRotationStart = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    
+    onInteractionStart?.();
+    
+    const rect = blockRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    
+    // Calculate center of the block
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    
+    interactionRef.current = {
+      ...interactionRef.current,
+      startX: e.clientX,
+      startY: e.clientY,
+      startRotation: block.rotation || 0,
+      centerX,
+      centerY,
+    };
+    
+    setInteractionState('rotating');
+  }, [block.rotation, onInteractionStart]);
+
+  // Unified mouse move/up handler for drag, resize, and rotate
   useEffect(() => {
     if (interactionState === 'idle') return;
 
@@ -396,6 +438,20 @@ export const Block = memo(function Block({
             blockRef.current.style.width = `${newWidth * scale}px`;
             blockRef.current.style.height = `${newHeight * scale}px`;
           }
+        } else if (interactionState === 'rotating') {
+          // Calculate angle from center to mouse position
+          const angleRad = Math.atan2(
+            e.clientY - ref.centerY,
+            e.clientX - ref.centerX
+          );
+          // Convert to degrees, offset by 90 since handle is at top
+          const angleDeg = (angleRad * 180 / Math.PI) + 90;
+          // Calculate new rotation
+          const newRotation = Math.round(angleDeg);
+          // Clamp to -180 to 180
+          const clampedRotation = ((newRotation + 180) % 360) - 180;
+          // Apply to DOM for visual feedback
+          blockRef.current.style.transform = `rotate(${clampedRotation}deg)`;
         }
       });
     };
@@ -434,14 +490,7 @@ export const Block = memo(function Block({
             onUpdate({ x: newX, y: newY });
           }
         }
-        
-      // If it was just a click on a TEXT or LINK block's interior (not edge), enter edit mode
-      // Use a small delay to allow ObjectControls to fully render and stabilize first
-      if (wasJustClick && (block.type === 'TEXT' || block.type === 'LINK') && !ref.edge) {
-        setTimeout(() => {
-          onSetEditing?.(true);
-        }, 50);
-      }
+        // Note: Don't auto-enter edit mode on click - user must double-click or press Enter
       } else if (interactionState === 'resizing') {
         const edge = ref.edge;
         const isTextOrLink = block.type === 'TEXT' || block.type === 'LINK';
@@ -529,6 +578,18 @@ export const Block = memo(function Block({
 
           onUpdate(updates);
         }
+      } else if (interactionState === 'rotating') {
+        // Calculate final rotation angle
+        const angleRad = Math.atan2(
+          e.clientY - ref.centerY,
+          e.clientX - ref.centerX
+        );
+        const angleDeg = (angleRad * 180 / Math.PI) + 90;
+        const newRotation = Math.round(angleDeg);
+        const clampedRotation = ((newRotation + 180) % 360) - 180;
+        
+        // Commit rotation to state
+        onUpdate({ rotation: clampedRotation });
       }
 
       setInteractionState('idle');
@@ -649,6 +710,15 @@ export const Block = memo(function Block({
     return scaleFontSize(baseFontSize, dims.scale);
   }, [block.style?.fontSize, dims.scale]);
 
+  // Calculate rotation transform
+  const rotationStyle = useMemo(() => {
+    if (!block.rotation || block.rotation === 0) return {};
+    return {
+      transform: `rotate(${block.rotation}deg)`,
+      transformOrigin: 'center center',
+    };
+  }, [block.rotation]);
+
   return (
     <div
       ref={blockRef}
@@ -660,6 +730,7 @@ export const Block = memo(function Block({
         height: pxRect.height,
         cursor: cursorStyle,
         ...blockStyles,
+        ...rotationStyle,
       }}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
@@ -681,13 +752,26 @@ export const Block = memo(function Block({
         onSetEditing={onSetEditing}
       />
 
-      {selected && (
-        <ObjectControls
-          blockType={block.type}
-          style={block.style}
-          onChange={handleStyleChange}
-          onChangeMultiple={onUpdateMultiple ? (updates) => onUpdateMultiple(selectedIds, { style: { ...DEFAULT_STYLE, ...block.style, ...updates } }) : undefined}
-          multiSelected={multiSelected}
+      {/* Rotation handle - visible when selected */}
+      {selected && !isEditing && (
+        <div 
+          className={styles.rotationHandle}
+          onMouseDown={handleRotationStart}
+        >
+          <div className={styles.rotationDot} />
+          <div className={styles.rotationLine} />
+        </div>
+      )}
+
+      {selected && !isEditing && (
+        <MicroToolbar
+          block={block}
+          onStyleChange={handleStyleChange}
+          onDelete={onDelete}
+          onBringForward={onBringForward || (() => {})}
+          onSendBackward={onSendBackward || (() => {})}
+          onBringToFront={onBringToFront || (() => {})}
+          onSendToBack={onSendToBack || (() => {})}
         />
       )}
     </div>

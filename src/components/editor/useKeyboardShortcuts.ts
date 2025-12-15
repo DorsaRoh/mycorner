@@ -13,6 +13,7 @@ interface KeyboardShortcutsProps {
   onSelectAll: () => void;
   onEscape: () => void;
   onSetEditing: (id: string | null) => void;
+  onFirstInteraction?: () => void;
 }
 
 export function useKeyboardShortcuts({
@@ -28,11 +29,15 @@ export function useKeyboardShortcuts({
   onSelectAll,
   onEscape,
   onSetEditing,
+  onFirstInteraction,
 }: KeyboardShortcutsProps) {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const activeTag = document.activeElement?.tagName;
       const isInputFocused = activeTag === 'TEXTAREA' || activeTag === 'INPUT';
+
+      // Dismiss hint on any keyboard interaction
+      onFirstInteraction?.();
 
       // Undo: Ctrl+Z / Cmd+Z
       if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey && !isInputFocused) {
@@ -89,5 +94,6 @@ export function useKeyboardShortcuts({
     onSelectAll,
     onEscape,
     onSetEditing,
+    onFirstInteraction,
   ]);
 }

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { useRouter } from 'next/router';
 import { useQuery, gql, useMutation } from '@apollo/client';
 import type { Block as BlockType, BackgroundConfig } from '@/shared/types';
@@ -18,6 +18,13 @@ import {
   clearPublishToastData,
 } from '@/lib/draft/storage';
 import { routes, isDraftId } from '@/lib/routes';
+import {
+  createStarterBlocks,
+  HINT_BLOCK_ID,
+  DEFAULT_STARTER_BACKGROUND,
+  STARTER_BLOCK_PREFIX,
+} from '@/lib/starter';
+import { useViewportMode, VIEWPORT_BREAKPOINT } from '@/lib/canvas';
 
 import { Canvas } from './Canvas';
 import { BackgroundPanel } from './BackgroundPanel';
@@ -27,190 +34,12 @@ import { OnboardingModal } from './OnboardingModal';
 import { ProductFeedbackModal } from '../viewer/ProductFeedbackModal';
 import styles from './Editor.module.css';
 
-import { isImageUrl, serializeLinkContent, getBackgroundBrightness } from '@/shared/utils/blockStyles';
+import { isImageUrl, getBackgroundBrightness } from '@/shared/utils/blockStyles';
 import { useEditorState } from './useEditorState';
 import { useEditorActions } from './useEditorActions';
 import { useHistory } from './useHistory';
 import { usePublish } from './usePublish';
 import { useKeyboardShortcuts } from './useKeyboardShortcuts';
-
-// Default starter background color - warm off-white/cream
-const DEFAULT_STARTER_BACKGROUND: BackgroundConfig = {
-  mode: 'solid',
-  solid: { color: '#faf9f6' },
-};
-
-// Starter block ID prefix for identification
-const STARTER_BLOCK_PREFIX = 'block_starter_';
-
-/**
- * Creates the starter composition blocks for a new page.
- * These are examples to inspire - user can delete everything and start from zero.
- *
- * All positions use proportional values relative to the reference canvas (1200x800)
- * to ensure consistent layout across all screen sizes.
- */
-function createStarterBlocks(): BlockType[] {
-  const now = Date.now();
-  const W = 1200;   // Reference width
-  const H = 800;    // Reference height
-
-  // Proportional positioning helpers
-  const pX = (percent: number) => W * percent;
-  const pY = (percent: number) => H * percent;
-  const pW = (percent: number) => W * percent;
-  const pH = (percent: number) => H * percent;
-
-  return [
-    // Large headline (centered) - the core message
-    {
-      id: `${STARTER_BLOCK_PREFIX}headline_${now}`,
-      type: 'TEXT',
-      x: pX(0.02),           // 2% from left (within safe zone)
-      y: pY(0.12),           // 12% from top
-      width: pW(0.50),       // 50% of canvas width
-      height: pH(0.10),      // 10% of canvas height
-      content: 'your corner of the internet',
-      style: {
-        borderRadius: 0,
-        shadowStrength: 0,
-        shadowSoftness: 0.5,
-        shadowOffsetX: 0,
-        shadowOffsetY: 0.2,
-        fontSize: 48,
-        fontWeight: 500,
-        color: 'rgba(0, 0, 0, 0.85)',
-        textAlign: 'center',
-      },
-      isStarter: true,
-    },
-    // Soft subtext underneath (lighter, smaller)
-    {
-      id: `${STARTER_BLOCK_PREFIX}subtext_${now}`,
-      type: 'TEXT',
-      x: pX(0.28),           // 42% from left (centered with ~17% width)
-      y: pY(0.23),           // 25% from top
-      width: pW(0.17),       // 17% of canvas width
-      height: pH(0.045),     // 4.5% of canvas height
-      content: 'a home on the web',
-      style: {
-        borderRadius: 0,
-        shadowStrength: 0,
-        shadowSoftness: 0.5,
-        shadowOffsetX: 0,
-        shadowOffsetY: 0.2,
-        fontSize: 18,
-        fontWeight: 400,
-        color: 'rgba(0, 0, 0, 0.35)',
-        textAlign: 'center',
-      },
-      isStarter: true,
-    },
-    // Song link on the upper left
-    {
-      id: `${STARTER_BLOCK_PREFIX}song_${now}`,
-      type: 'LINK',
-      x: pX(0.06),           // 6% from left
-      y: pY(0.38),           // 40% from top
-      width: pW(0.23),       // 23% of canvas width
-      height: pH(0.04),      // 4% of canvas height
-      content: serializeLinkContent('a song you always come back to', 'https://open.spotify.com'),
-      style: {
-        borderRadius: 0,
-        shadowStrength: 0,
-        shadowSoftness: 0.5,
-        shadowOffsetX: 0,
-        shadowOffsetY: 0.2,
-        fontSize: 15,
-        fontWeight: 400,
-        color: 'rgba(0, 0, 0, 0.5)',
-      },
-      isStarter: true,
-    },
-    // Multi-line paragraph on the left
-    {
-      id: `${STARTER_BLOCK_PREFIX}paragraph_${now}`,
-      type: 'TEXT',
-      x: pX(0.06),           // 6% from left
-      y: pY(0.46),           // 50% from top
-      width: pW(0.17),       // 17% of canvas width
-      height: pH(0.10),      // 10% of canvas height
-      content: 'full freedom and control. \na collection of the things you love, \ninternet gems, or \nwhatever you want!',
-      style: {
-        borderRadius: 0,
-        shadowStrength: 0,
-        shadowSoftness: 0.5,
-        shadowOffsetX: 0,
-        shadowOffsetY: 0.2,
-        fontSize: 16,
-        fontWeight: 500,
-        color: 'rgb(77, 119, 157)',
-        textAlign: 'left',
-      },
-      isStarter: true,
-    },
-    // Image on the right side - colorful flowers
-    {
-      id: `${STARTER_BLOCK_PREFIX}image_${now}`,
-      type: 'IMAGE',
-      x: pX(0.57),           // 57% from left
-      y: pY(0.29),           // 39% from top
-      width: pW(0.27),       // 37% of canvas width
-      height: pH(0.33),      // 43% of canvas height
-      content: '/hero-flowers.png',
-      style: {
-        borderRadius: 0.02,
-        shadowStrength: 0,
-        shadowSoftness: 0.5,
-        shadowOffsetX: 0,
-        shadowOffsetY: 0.2,
-      },
-      isStarter: true,
-    },
-    // Twitter link
-    {
-      id: `${STARTER_BLOCK_PREFIX}twitter_${now}`,
-      type: 'LINK',
-      x: pX(0.35),           // 35% from left
-      y: pY(0.61),           // 71% from top
-      width: pW(0.13),       // 13% of canvas width
-      height: pH(0.04),      // 4% of canvas height
-      content: serializeLinkContent('→ your twitter', 'https://twitter.com'),
-      style: {
-        borderRadius: 0,
-        shadowStrength: 0,
-        shadowSoftness: 0.5,
-        shadowOffsetX: 0,
-        shadowOffsetY: 0.2,
-        fontSize: 15,
-        fontWeight: 400,
-        color: 'rgb(0, 0, 0)',
-      },
-      isStarter: true,
-    },
-    // Github link
-    {
-      id: `${STARTER_BLOCK_PREFIX}github_${now}`,
-      type: 'LINK',
-      x: pX(0.40),           // 40% from left
-      y: pY(0.70),           // 80% from top
-      width: pW(0.13),       // 13% of canvas width
-      height: pH(0.04),      // 4% of canvas height
-      content: serializeLinkContent('→ things you build', 'https://github.com'),
-      style: {
-        borderRadius: 0,
-        shadowStrength: 0,
-        shadowSoftness: 0.5,
-        shadowOffsetX: 0,
-        shadowOffsetY: 0.2,
-        fontSize: 14,
-        fontWeight: 400,
-        color: 'rgb(0, 0, 0)',
-      },
-      isStarter: true,
-    },
-  ];
-}
 
 const ME_QUERY = gql`
   query Me {
@@ -303,6 +132,11 @@ export function Editor({
     setShowAuthGate: state.setShowAuthGate,
   });
 
+  // Handle first interaction - removes the hint block from canvas
+  const handleFirstInteraction = useCallback(() => {
+    state.setBlocks(prev => prev.filter(b => b.id !== HINT_BLOCK_ID));
+  }, [state]);
+
   // Initialize keyboard shortcuts
   useKeyboardShortcuts({
     selectedId: state.selectedId,
@@ -320,6 +154,7 @@ export function Editor({
       state.setSelectedIds(new Set());
     },
     onSetEditing: state.setEditingId,
+    onFirstInteraction: handleFirstInteraction,
   });
 
   // Initialize save controller for server mode
@@ -330,8 +165,8 @@ export function Editor({
           id: pageId,
           input: {
             title: state.title || null,
-            blocks: state.blocks.map(({ id, type, x, y, width, height, content, style, effects }) => ({
-              id, type, x, y, width, height, content, style, effects,
+            blocks: state.blocks.map(({ id, type, x, y, width, height, content, style, effects, rotation }) => ({
+              id, type, x, y, width, height, content, style, effects, rotation,
             })),
             background: state.background,
             localRevision,
@@ -383,8 +218,10 @@ export function Editor({
   });
 
   // Initialize draft from localStorage for draft mode
+  const draftLoaded = useRef(false);
   useEffect(() => {
-    if (mode === 'draft') {
+    if (mode === 'draft' && !draftLoaded.current) {
+      draftLoaded.current = true;
       setActiveDraftId(pageId);
       const draft = getDraft(pageId);
       if (draft) {
@@ -393,10 +230,14 @@ export function Editor({
         state.setBackground(draft.background ?? DEFAULT_STARTER_BACKGROUND);
       }
     }
-  }, [mode, pageId, state]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, pageId]);
 
   // Check for pending publish toast on mount
+  const toastChecked = useRef(false);
   useEffect(() => {
+    if (toastChecked.current) return;
+    toastChecked.current = true;
     const toastData = getPublishToastData();
     if (toastData) {
       state.setPublishedUrl(toastData.url);
@@ -404,24 +245,68 @@ export function Editor({
       state.setIsPublished(true);
       clearPublishToastData();
     }
-  }, [state]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Use viewport mode hook for responsive starter layout
+  const { mode: viewportMode, isMounted: viewportMounted } = useViewportMode({
+    breakpoint: VIEWPORT_BREAKPOINT,
+  });
+  
+  // Track if the page is pristine (only contains untouched starter blocks)
+  // This determines if we can safely swap layouts on resize
+  const isPristine = useCallback(() => {
+    if (!state.starterMode) return false;
+    if (state.blocks.length === 0) return true;
+    // Check if all blocks are starter blocks (haven't been edited)
+    return state.blocks.every(block => 
+      block.id.startsWith(STARTER_BLOCK_PREFIX) && block.isStarter === true
+    );
+  }, [state.blocks, state.starterMode]);
+  
+  // Track the viewport mode that was used to create current starter blocks
+  const starterViewportModeRef = useRef<'mobile' | 'desktop' | null>(null);
 
   // Add starter blocks for empty draft pages
   const starterBlockAdded = useRef(false);
   useEffect(() => {
+    // Wait for viewport to be mounted to get accurate mode
+    if (!viewportMounted) return;
+    
     if (mode === 'draft' && state.blocks.length === 0 && !starterBlockAdded.current) {
       const draft = getDraft(pageId);
       if ((!draft || draft.blocks.length === 0) && !hasStarterBeenDismissed(pageId)) {
         starterBlockAdded.current = true;
-        const starterBlocks = createStarterBlocks();
+        const isMobile = viewportMode === 'mobile';
+        const starterBlocks = createStarterBlocks(isMobile);
+        starterViewportModeRef.current = viewportMode;
         state.setBlocks(starterBlocks);
         state.setStarterMode(true);
-        const headlineBlock = starterBlocks[0];
-        state.setSelectedId(headlineBlock.id);
-        state.setEditingId(headlineBlock.id);
+        state.setSelectedId(null);
+        state.setEditingId(null);
       }
     }
-  }, [mode, pageId, state.blocks.length, state]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, pageId, state.blocks.length, viewportMounted, viewportMode]);
+
+  // Handle viewport mode change - swap starter layout if still pristine
+  useEffect(() => {
+    // Only swap if:
+    // 1. Viewport is mounted
+    // 2. Page is still pristine (only untouched starter blocks)
+    // 3. Viewport mode changed from what was used to create current starters
+    if (!viewportMounted) return;
+    if (!isPristine()) return;
+    if (starterViewportModeRef.current === null) return;
+    if (starterViewportModeRef.current === viewportMode) return;
+    
+    // Swap to the new layout
+    const isMobile = viewportMode === 'mobile';
+    const starterBlocks = createStarterBlocks(isMobile);
+    starterViewportModeRef.current = viewportMode;
+    state.setBlocks(starterBlocks);
+    // Keep starterMode true since we're just swapping starter layouts
+  }, [viewportMode, viewportMounted, isPristine, state]);
 
   // Mark dirty for server mode
   const isFirstRender = useRef(true);
@@ -736,6 +621,11 @@ export function Editor({
           onSetEditing={state.setEditingId}
           onExitStarterMode={actions.exitStarterMode}
           onInteractionStart={history.saveToHistory}
+          onFirstInteraction={handleFirstInteraction}
+          onBringForward={actions.handleBringForward}
+          onSendBackward={actions.handleSendBackward}
+          onBringToFront={actions.handleBringToFront}
+          onSendToBack={actions.handleSendToBack}
         />
       </main>
 
@@ -748,7 +638,7 @@ export function Editor({
         <svg className={styles.feedbackLogo} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
         </svg>
-        Share ideas
+        Send feedback
       </button>
 
       <AuthGate

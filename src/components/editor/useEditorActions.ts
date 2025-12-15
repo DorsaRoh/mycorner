@@ -140,6 +140,45 @@ export function useEditorActions(
     }
   }, [selectedId, selectedIds, handleDeleteBlock]);
 
+  // Layer ordering functions
+  const handleBringForward = useCallback((id: string) => {
+    actions.setBlocks((prev) => {
+      const index = prev.findIndex(b => b.id === id);
+      if (index === -1 || index === prev.length - 1) return prev;
+      const next = [...prev];
+      [next[index], next[index + 1]] = [next[index + 1], next[index]];
+      return next;
+    });
+  }, [actions]);
+
+  const handleSendBackward = useCallback((id: string) => {
+    actions.setBlocks((prev) => {
+      const index = prev.findIndex(b => b.id === id);
+      if (index <= 0) return prev;
+      const next = [...prev];
+      [next[index], next[index - 1]] = [next[index - 1], next[index]];
+      return next;
+    });
+  }, [actions]);
+
+  const handleBringToFront = useCallback((id: string) => {
+    actions.setBlocks((prev) => {
+      const index = prev.findIndex(b => b.id === id);
+      if (index === -1 || index === prev.length - 1) return prev;
+      const block = prev[index];
+      return [...prev.slice(0, index), ...prev.slice(index + 1), block];
+    });
+  }, [actions]);
+
+  const handleSendToBack = useCallback((id: string) => {
+    actions.setBlocks((prev) => {
+      const index = prev.findIndex(b => b.id === id);
+      if (index <= 0) return prev;
+      const block = prev[index];
+      return [block, ...prev.slice(0, index), ...prev.slice(index + 1)];
+    });
+  }, [actions]);
+
   return {
     handleAddBlock,
     handleUpdateBlock,
@@ -147,6 +186,10 @@ export function useEditorActions(
     handleDragMultipleBlocks,
     handleDeleteBlock,
     handleDeleteSelected,
+    handleBringForward,
+    handleSendBackward,
+    handleBringToFront,
+    handleSendToBack,
     exitStarterMode,
   };
 }

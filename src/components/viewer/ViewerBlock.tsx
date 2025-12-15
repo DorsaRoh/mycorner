@@ -57,6 +57,15 @@ export const ViewerBlock = memo(function ViewerBlock({ block, canvasDimensions }
     return mergedStyles;
   }, [block.style, block.type, pxRect.width, pxRect.height]);
 
+  // Calculate rotation transform
+  const rotationStyle = useMemo(() => {
+    if (!block.rotation || block.rotation === 0) return {};
+    return {
+      transform: `rotate(${block.rotation}deg)`,
+      transformOrigin: 'center center',
+    };
+  }, [block.rotation]);
+
   return (
     <div
       className={`${styles.block} ${styles[block.type.toLowerCase()]}`}
@@ -66,6 +75,7 @@ export const ViewerBlock = memo(function ViewerBlock({ block, canvasDimensions }
         width: pxRect.width,
         height: pxRect.height,
         ...blockStyles,
+        ...rotationStyle,
       }}
     >
       <BlockContent 

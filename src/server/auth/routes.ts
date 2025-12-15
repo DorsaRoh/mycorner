@@ -18,7 +18,7 @@ function isGoogleConfigured(): boolean {
 router.get('/google', (req, res, next) => {
   // Check if Google OAuth is configured
   if (!isGoogleConfigured()) {
-    const returnTo = req.query.returnTo as string || '/new';
+    const returnTo = req.query.returnTo as string || '/';
     return res.redirect(`${returnTo}?error=google_not_configured`);
   }
 
@@ -28,8 +28,8 @@ router.get('/google', (req, res, next) => {
   if (returnTo && returnTo.startsWith('/')) {
     req.session.returnTo = returnTo;
   } else {
-    // Default to /new if no valid returnTo
-    req.session.returnTo = '/new';
+    // Default to / if no valid returnTo
+    req.session.returnTo = '/';
   }
   
   passport.authenticate('google', {
@@ -44,24 +44,24 @@ router.get('/google', (req, res, next) => {
  */
 router.get('/google/callback', (req, res, next) => {
   if (!isGoogleConfigured()) {
-    return res.redirect('/new?error=google_not_configured');
+    return res.redirect('/?error=google_not_configured');
   }
 
   passport.authenticate('google', (err: Error | null, user: Express.User | false) => {
     if (err) {
       console.error('Google auth error:', err);
-      const returnTo = req.session.returnTo || '/new';
+      const returnTo = req.session.returnTo || '/';
       return res.redirect(`${returnTo}?error=auth_error`);
     }
     if (!user) {
-      const returnTo = req.session.returnTo || '/new';
+      const returnTo = req.session.returnTo || '/';
       return res.redirect(`${returnTo}?error=auth_failed`);
     }
 
     req.logIn(user, (loginErr) => {
       if (loginErr) {
         console.error('Login error:', loginErr);
-        const returnTo = req.session.returnTo || '/new';
+        const returnTo = req.session.returnTo || '/';
         return res.redirect(`${returnTo}?error=login_error`);
       }
       
@@ -69,7 +69,7 @@ router.get('/google/callback', (req, res, next) => {
       delete req.session.anonymousId;
       
       // Get return URL
-      let returnTo = req.session.returnTo || '/new';
+      let returnTo = req.session.returnTo || '/';
       delete req.session.returnTo;
       
       // Check if user needs onboarding (no username)

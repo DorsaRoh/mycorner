@@ -49,6 +49,7 @@ export const typeDefs = gql`
     content: String!
     style: BlockStyle
     effects: BlockEffects
+    rotation: Float
   }
 
   type BackgroundConfig {
@@ -155,6 +156,7 @@ export const typeDefs = gql`
     content: String!
     style: BlockStyleInput
     effects: BlockEffectsInput
+    rotation: Float
   }
 
   input BackgroundSolidInput {

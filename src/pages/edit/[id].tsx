@@ -63,7 +63,7 @@ export default function EditPage() {
       <div className={styles.error}>
         <h1>Page not found</h1>
         <p>This page doesn&apos;t exist or you don&apos;t have access to it.</p>
-        <Link href="/new" className={styles.backBtn}>
+        <Link href="/" className={styles.backBtn}>
           Create a new page
         </Link>
       </div>

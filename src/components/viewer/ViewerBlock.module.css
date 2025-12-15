@@ -83,19 +83,20 @@
 
 .linkText {
   text-decoration: underline;
-  text-underline-offset: 2px;
+  text-underline-offset: 3px;
   text-decoration-thickness: 1px;
   text-decoration-color: currentColor;
-  opacity: 0.8;
+  text-decoration-skip-ink: auto;
   white-space: pre-wrap;
   word-break: break-word;
+  transition: opacity 120ms ease;
 }
 
 .linkIcon {
-  font-size: 0.75em;
-  opacity: 0.5;
+  font-size: 0.7em;
+  opacity: 0.6;
   flex-shrink: 0;
-  margin-left: 2px;
+  margin-left: 3px;
 }
 
 /* ========================================

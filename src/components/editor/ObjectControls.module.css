@@ -3,11 +3,7 @@
    ========================================== */
 
 .controls {
-  position: absolute;
-  /* Position to the right of the block - uses 100% so it follows real-time width changes */
-  left: 100%;
-  top: 0;
-  margin-left: 16px;
+  position: relative;
   
   display: flex;
   flex-direction: column;
@@ -15,18 +11,18 @@
   z-index: 1002;
 
   /* Soft, ethereal background - barely there */
-  background: rgba(255, 253, 250, 0.85);
+  background: rgba(255, 253, 250, 0.92);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
 
   /* Very subtle border */
-  border: 1px solid rgba(0, 0, 0, 0.03);
+  border: 1px solid rgba(0, 0, 0, 0.04);
   border-radius: 12px;
 
   /* Gentle shadow that feels like the controls are floating */
   box-shadow:
-    0 8px 32px -4px rgba(60, 50, 40, 0.08),
-    0 4px 12px -2px rgba(60, 50, 40, 0.04),
+    0 8px 32px -4px rgba(60, 50, 40, 0.1),
+    0 4px 12px -2px rgba(60, 50, 40, 0.05),
     inset 0 1px 0 rgba(255, 255, 255, 0.4);
 
   padding: 16px;
