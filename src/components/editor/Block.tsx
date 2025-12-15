@@ -2,6 +2,14 @@ import { useState, useRef, useCallback, useEffect, useMemo, memo } from 'react';
 import type { Block as BlockType, BlockStyle } from '@/shared/types';
 import { DEFAULT_STYLE } from '@/shared/types';
 import { getBlockStyles, getTextStyles, parseLinkContent, serializeLinkContent } from '@/shared/utils/blockStyles';
+import { 
+  CanvasDimensions,
+  refToPx,
+  pxToRef,
+  scaleFontSize,
+  REFERENCE_WIDTH,
+  REFERENCE_HEIGHT,
+} from '@/lib/canvas';
 import { ObjectControls } from './ObjectControls';
 import styles from './Block.module.css';
 
@@ -65,10 +73,13 @@ interface BlockProps {
   multiSelected?: boolean;
   isNew?: boolean;
   isEditing?: boolean;
+  canvasDimensions?: CanvasDimensions;
   onSelect: () => void;
   onUpdate: (updates: Partial<BlockType>) => void;
   onUpdateMultiple?: (ids: Set<string>, updates: Partial<BlockType>) => void;
+  onDragMultiple?: (ids: Set<string>, dx: number, dy: number) => void;
   selectedIds?: Set<string>;
+  allBlocks?: BlockType[];
   onDelete: () => void;
   onSetEditing?: (editing: boolean) => void;
 }
@@ -80,16 +91,28 @@ export const Block = memo(function Block({
   multiSelected = false,
   isNew = false,
   isEditing = false,
+  canvasDimensions,
   onSelect,
   onUpdate,
   onUpdateMultiple,
+  onDragMultiple,
   selectedIds = new Set(),
+  allBlocks = [],
   onDelete,
   onSetEditing,
 }: BlockProps) {
   const blockRef = useRef<HTMLDivElement>(null);
   const [interactionState, setInteractionState] = useState<'idle' | 'dragging' | 'resizing'>('idle');
   const [hoveredEdge, setHoveredEdge] = useState<ResizeEdge>(null);
+  
+  // Default dimensions if not provided (uses reference size, scale = 1)
+  const dims = canvasDimensions || {
+    width: REFERENCE_WIDTH,
+    height: REFERENCE_HEIGHT,
+    scale: 1,
+    scaleX: 1,
+    scaleY: 1,
+  };
   
   // Refs for smooth interaction (no state updates during drag/resize)
   const interactionRef = useRef({
@@ -103,6 +126,9 @@ export const Block = memo(function Block({
     edge: null as ResizeEdge,
     cachedRect: null as DOMRect | null,
     rafId: 0,
+    isMultiDrag: false,
+    multiDragInitialPositions: new Map<string, { x: number; y: number }>(),
+    scale: 1,
   });
 
   // Handle double-click to enter edit mode
@@ -157,30 +183,41 @@ export const Block = memo(function Block({
     setHoveredEdge(edge);
   }, [selected, interactionState]);
 
-  // Drag/resize handling with rAF optimization
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if ((e.target as HTMLElement).dataset.resize) return;
-    if ((e.target as HTMLElement).dataset.delete) return;
+  // Unified interaction start handler for both mouse and touch
+  const handleInteractionStart = useCallback((clientX: number, clientY: number, target: HTMLElement, preventDefault: () => void) => {
+    if (target.dataset.resize) return;
+    if (target.dataset.delete) return;
 
-    const tag = (e.target as HTMLElement).tagName;
+    const tag = target.tagName;
     if (tag === 'TEXTAREA' || tag === 'INPUT') {
       if (!selected) onSelect();
       return;
     }
 
-    e.stopPropagation();
-
     // Cache the rect once at interaction start
     const rect = blockRef.current?.getBoundingClientRect();
     if (!rect) return;
 
-    const edge = selected ? detectResizeEdgeFromRect(e.clientX, e.clientY, rect) : null;
+    const edge = selected ? detectResizeEdgeFromRect(clientX, clientY, rect) : null;
     const isTextOrLink = block.type === 'TEXT' || block.type === 'LINK';
+
+    // Check if this block is part of a multi-selection
+    const isPartOfMultiSelection = selectedIds.has(block.id) && selectedIds.size > 1;
+    
+    // Store initial positions of all selected blocks for multi-drag
+    const multiDragInitialPositions = new Map<string, { x: number; y: number }>();
+    if (isPartOfMultiSelection && !edge) {
+      for (const selectedBlock of allBlocks) {
+        if (selectedIds.has(selectedBlock.id)) {
+          multiDragInitialPositions.set(selectedBlock.id, { x: selectedBlock.x, y: selectedBlock.y });
+        }
+      }
+    }
 
     // Store initial values in ref (no state update)
     interactionRef.current = {
-      startX: e.clientX,
-      startY: e.clientY,
+      startX: clientX,
+      startY: clientY,
       blockX: block.x,
       blockY: block.y,
       blockWidth: block.width,
@@ -189,28 +226,42 @@ export const Block = memo(function Block({
       edge,
       cachedRect: rect,
       rafId: 0,
+      isMultiDrag: isPartOfMultiSelection && !edge,
+      multiDragInitialPositions,
+      scale: dims.scale,
     };
 
     // For TEXT/LINK: edges are for font-size resizing, middle is for dragging
     // For other blocks: edges are for resizing, interior is for dragging
     if (isTextOrLink) {
       if (edge && selected) {
-        // Edge drag on TEXT/LINK = font size scaling
-        e.preventDefault();
+        preventDefault();
         setInteractionState('resizing');
       } else {
-        // Middle drag on TEXT/LINK = move the block
-        onSelect();
+        if (!isPartOfMultiSelection) onSelect();
         setInteractionState('dragging');
       }
     } else if (edge && selected) {
-      e.preventDefault();
+      preventDefault();
       setInteractionState('resizing');
     } else {
-      onSelect();
+      if (!isPartOfMultiSelection) onSelect();
       setInteractionState('dragging');
     }
-  }, [block.x, block.y, block.width, block.height, block.style?.fontSize, selected, onSelect]);
+  }, [block.x, block.y, block.width, block.height, block.style?.fontSize, block.type, block.id, selected, selectedIds, allBlocks, dims.scale, onSelect]);
+
+  // Drag/resize handling with rAF optimization
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    handleInteractionStart(e.clientX, e.clientY, e.target as HTMLElement, () => e.preventDefault());
+  }, [handleInteractionStart]);
+
+  // Touch event handler for mobile support
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length !== 1) return; // Only single touch
+    const touch = e.touches[0];
+    handleInteractionStart(touch.clientX, touch.clientY, e.target as HTMLElement, () => e.preventDefault());
+  }, [handleInteractionStart]);
 
   // Unified mouse move/up handler for drag and resize
   useEffect(() => {
@@ -225,17 +276,26 @@ export const Block = memo(function Block({
       // Use rAF for smooth visual updates
       interactionRef.current.rafId = requestAnimationFrame(() => {
         const ref = interactionRef.current;
-        const dx = e.clientX - ref.startX;
-        const dy = e.clientY - ref.startY;
+        const scale = ref.scale;
+        
+        // Pixel deltas from mouse movement
+        const pxDx = e.clientX - ref.startX;
+        const pxDy = e.clientY - ref.startY;
+        
+        // Convert to reference deltas for coordinate updates
+        const dx = pxDx / scale;
+        const dy = pxDy / scale;
 
         if (!blockRef.current) return;
 
         if (interactionState === 'dragging') {
-          // Apply transform directly to DOM for smooth dragging
-          const newX = Math.max(0, ref.blockX + dx);
-          const newY = Math.max(0, ref.blockY + dy);
-          blockRef.current.style.left = `${newX}px`;
-          blockRef.current.style.top = `${newY}px`;
+          // Calculate new position in reference coordinates
+          const newRefX = Math.max(0, ref.blockX + dx);
+          const newRefY = Math.max(0, ref.blockY + dy);
+          
+          // Apply to DOM in pixels for visual feedback
+          blockRef.current.style.left = `${newRefX * scale}px`;
+          blockRef.current.style.top = `${newRefY * scale}px`;
         } else if (interactionState === 'resizing') {
           const edge = ref.edge;
           const isTextOrLink = block.type === 'TEXT' || block.type === 'LINK';
@@ -244,45 +304,45 @@ export const Block = memo(function Block({
 
           if (isTextOrLink) {
             // For TEXT/LINK: edge drag scales font size proportionally
-            // Calculate scale based on drag direction
-            let scale = 1;
+            // Calculate scale based on drag direction (use pixel deltas for sensitivity)
+            let fontScale = 1;
             const sensitivity = 0.005; // How fast font scales with drag
 
             if (edge === 'e') {
-              scale = 1 + dx * sensitivity;
+              fontScale = 1 + pxDx * sensitivity;
             } else if (edge === 'w') {
-              scale = 1 - dx * sensitivity;
+              fontScale = 1 - pxDx * sensitivity;
             } else if (edge === 's') {
-              scale = 1 + dy * sensitivity;
+              fontScale = 1 + pxDy * sensitivity;
             } else if (edge === 'n') {
-              scale = 1 - dy * sensitivity;
+              fontScale = 1 - pxDy * sensitivity;
             } else if (edge === 'se') {
-              scale = 1 + (dx + dy) * 0.5 * sensitivity;
+              fontScale = 1 + (pxDx + pxDy) * 0.5 * sensitivity;
             } else if (edge === 'sw') {
-              scale = 1 + (-dx + dy) * 0.5 * sensitivity;
+              fontScale = 1 + (-pxDx + pxDy) * 0.5 * sensitivity;
             } else if (edge === 'ne') {
-              scale = 1 + (dx - dy) * 0.5 * sensitivity;
+              fontScale = 1 + (pxDx - pxDy) * 0.5 * sensitivity;
             } else if (edge === 'nw') {
-              scale = 1 + (-dx - dy) * 0.5 * sensitivity;
+              fontScale = 1 + (-pxDx - pxDy) * 0.5 * sensitivity;
             }
 
-            // Clamp scale
-            scale = Math.max(0.5, Math.min(2.5, scale));
+            // Clamp font scale
+            fontScale = Math.max(0.5, Math.min(2.5, fontScale));
 
             // Apply visual scaling via CSS transform for smooth feedback
-            blockRef.current.style.transform = `scale(${scale})`;
+            blockRef.current.style.transform = `scale(${fontScale})`;
             blockRef.current.style.transformOrigin = edge === 'e' || edge === 'se' || edge === 'ne' ? 'left center' :
                                                       edge === 'w' || edge === 'sw' || edge === 'nw' ? 'right center' :
                                                       edge === 'n' ? 'center bottom' :
                                                       edge === 's' ? 'center top' : 'center center';
           } else {
-            // For other blocks: resize dimensions
+            // For other blocks: resize dimensions (in reference coordinates)
             let newWidth = ref.blockWidth;
             let newHeight = ref.blockHeight;
             let newX = ref.blockX;
             let newY = ref.blockY;
 
-            // Calculate new dimensions based on edge
+            // Calculate new dimensions based on edge (using reference deltas)
             if (edge === 'e' || edge === 'ne' || edge === 'se') {
               newWidth = Math.max(minWidth, ref.blockWidth + dx);
             }
@@ -300,11 +360,11 @@ export const Block = memo(function Block({
               newY = ref.blockY - actualDy;
             }
 
-            // Apply directly to DOM for smooth resizing
-            blockRef.current.style.left = `${newX}px`;
-            blockRef.current.style.top = `${newY}px`;
-            blockRef.current.style.width = `${newWidth}px`;
-            blockRef.current.style.height = `${newHeight}px`;
+            // Apply to DOM in pixels for smooth resizing
+            blockRef.current.style.left = `${newX * scale}px`;
+            blockRef.current.style.top = `${newY * scale}px`;
+            blockRef.current.style.width = `${newWidth * scale}px`;
+            blockRef.current.style.height = `${newHeight * scale}px`;
           }
         }
       });
@@ -317,24 +377,39 @@ export const Block = memo(function Block({
       }
 
       const ref = interactionRef.current;
-      const dx = e.clientX - ref.startX;
-      const dy = e.clientY - ref.startY;
+      const scale = ref.scale;
       
-      // Check if this was just a click (minimal movement) vs actual drag
-      const wasJustClick = Math.abs(dx) < 5 && Math.abs(dy) < 5;
+      // Pixel deltas from mouse movement
+      const pxDx = e.clientX - ref.startX;
+      const pxDy = e.clientY - ref.startY;
+      
+      // Convert to reference deltas for coordinate updates
+      const dx = pxDx / scale;
+      const dy = pxDy / scale;
+      
+      // Check if this was just a click (minimal movement in pixels) vs actual drag
+      const wasJustClick = Math.abs(pxDx) < 5 && Math.abs(pxDy) < 5;
 
-      // Commit final state to React
+      // Commit final state to React (all values in reference coordinates)
       if (interactionState === 'dragging') {
-        const newX = Math.max(0, ref.blockX + dx);
-        const newY = Math.max(0, ref.blockY + dy);
-        if (newX !== block.x || newY !== block.y) {
-          onUpdate({ x: newX, y: newY });
+        // Multi-block drag: update all selected blocks with reference deltas
+        if (ref.isMultiDrag && onDragMultiple && !wasJustClick) {
+          onDragMultiple(selectedIds, dx, dy);
+        } else {
+          const newX = Math.max(0, ref.blockX + dx);
+          const newY = Math.max(0, ref.blockY + dy);
+          if (newX !== block.x || newY !== block.y) {
+            onUpdate({ x: newX, y: newY });
+          }
         }
         
-        // If it was just a click on a TEXT or LINK block's interior (not edge), enter edit mode
-        if (wasJustClick && (block.type === 'TEXT' || block.type === 'LINK') && !ref.edge) {
+      // If it was just a click on a TEXT or LINK block's interior (not edge), enter edit mode
+      // Use a small delay to allow ObjectControls to fully render and stabilize first
+      if (wasJustClick && (block.type === 'TEXT' || block.type === 'LINK') && !ref.edge) {
+        setTimeout(() => {
           onSetEditing?.(true);
-        }
+        }, 50);
+      }
       } else if (interactionState === 'resizing') {
         const edge = ref.edge;
         const isTextOrLink = block.type === 'TEXT' || block.type === 'LINK';
@@ -349,38 +424,39 @@ export const Block = memo(function Block({
           }
 
           // For TEXT/LINK: edge drag scales font size proportionally
+          // Use pixel deltas for consistent sensitivity feel
           const sensitivity = 0.005;
-          let scale = 1;
+          let fontScale = 1;
 
           if (edge === 'e') {
-            scale = 1 + dx * sensitivity;
+            fontScale = 1 + pxDx * sensitivity;
           } else if (edge === 'w') {
-            scale = 1 - dx * sensitivity;
+            fontScale = 1 - pxDx * sensitivity;
           } else if (edge === 's') {
-            scale = 1 + dy * sensitivity;
+            fontScale = 1 + pxDy * sensitivity;
           } else if (edge === 'n') {
-            scale = 1 - dy * sensitivity;
+            fontScale = 1 - pxDy * sensitivity;
           } else if (edge === 'se') {
-            scale = 1 + (dx + dy) * 0.5 * sensitivity;
+            fontScale = 1 + (pxDx + pxDy) * 0.5 * sensitivity;
           } else if (edge === 'sw') {
-            scale = 1 + (-dx + dy) * 0.5 * sensitivity;
+            fontScale = 1 + (-pxDx + pxDy) * 0.5 * sensitivity;
           } else if (edge === 'ne') {
-            scale = 1 + (dx - dy) * 0.5 * sensitivity;
+            fontScale = 1 + (pxDx - pxDy) * 0.5 * sensitivity;
           } else if (edge === 'nw') {
-            scale = 1 + (-dx - dy) * 0.5 * sensitivity;
+            fontScale = 1 + (-pxDx - pxDy) * 0.5 * sensitivity;
           }
 
-          // Clamp scale
-          scale = Math.max(0.5, Math.min(2.5, scale));
+          // Clamp font scale
+          fontScale = Math.max(0.5, Math.min(2.5, fontScale));
 
-          // Calculate new font size
-          let newFontSize = Math.round(ref.fontSize * scale);
+          // Calculate new font size (still in reference units)
+          let newFontSize = Math.round(ref.fontSize * fontScale);
           newFontSize = Math.max(10, newFontSize);
 
-          // Scale block dimensions proportionally with font size
-          const fontScale = newFontSize / ref.fontSize;
-          const newWidth = Math.max(minWidth, Math.round(ref.blockWidth * fontScale));
-          const newHeight = Math.max(minHeight, Math.round(ref.blockHeight * fontScale));
+          // Scale block dimensions proportionally with font size (in reference coords)
+          const sizeScale = newFontSize / ref.fontSize;
+          const newWidth = Math.max(minWidth, Math.round(ref.blockWidth * sizeScale));
+          const newHeight = Math.max(minHeight, Math.round(ref.blockHeight * sizeScale));
 
           const updates: Partial<BlockType> = {
             width: newWidth,
@@ -394,7 +470,7 @@ export const Block = memo(function Block({
 
           onUpdate(updates);
         } else {
-          // For other blocks: resize dimensions
+          // For other blocks: resize dimensions (in reference coordinates)
           const updates: Partial<BlockType> = {};
           let newWidth = ref.blockWidth;
           let newHeight = ref.blockHeight;
@@ -426,16 +502,37 @@ export const Block = memo(function Block({
       setInteractionState('idle');
     };
 
+    // Touch move handler for mobile
+    const handleTouchMove = (e: TouchEvent) => {
+      if (e.touches.length !== 1) return;
+      const touch = e.touches[0];
+      // Create a synthetic event-like object for the shared logic
+      handleMouseMove({ clientX: touch.clientX, clientY: touch.clientY } as MouseEvent);
+    };
+
+    // Touch end handler for mobile
+    const handleTouchEnd = (e: TouchEvent) => {
+      const touch = e.changedTouches[0];
+      handleMouseUp({ clientX: touch.clientX, clientY: touch.clientY } as MouseEvent);
+    };
+
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
+    document.addEventListener('touchmove', handleTouchMove, { passive: false });
+    document.addEventListener('touchend', handleTouchEnd);
+    document.addEventListener('touchcancel', handleTouchEnd);
+    
     return () => {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('touchmove', handleTouchMove);
+      document.removeEventListener('touchend', handleTouchEnd);
+      document.removeEventListener('touchcancel', handleTouchEnd);
       if (interactionRef.current.rafId) {
         cancelAnimationFrame(interactionRef.current.rafId);
       }
     };
-  }, [interactionState, block.x, block.y, block.type, block.style, onUpdate, onSetEditing]);
+  }, [interactionState, block.x, block.y, block.type, block.style, selectedIds, onUpdate, onDragMultiple, onSetEditing]);
 
   const handleContentChange = useCallback((content: string) => {
     onUpdate({ content });
@@ -514,15 +611,27 @@ export const Block = memo(function Block({
     isEditing ? styles.editing : '',
   ].filter(Boolean).join(' ');
 
+  // Compute pixel positions from reference coordinates
+  const pxRect = useMemo(() => refToPx(
+    { x: block.x, y: block.y, width: block.width, height: block.height },
+    dims
+  ), [block.x, block.y, block.width, block.height, dims]);
+  
+  // Scale font size for rendering
+  const scaledFontSize = useMemo(() => {
+    const baseFontSize = block.style?.fontSize || DEFAULT_STYLE.fontSize || 16;
+    return scaleFontSize(baseFontSize, dims.scale);
+  }, [block.style?.fontSize, dims.scale]);
+
   return (
     <div
       ref={blockRef}
       className={classNames}
       style={{
-        left: block.x,
-        top: block.y,
-        width: block.width,
-        height: block.height,
+        left: pxRect.x,
+        top: pxRect.y,
+        width: pxRect.width,
+        height: pxRect.height,
         cursor: cursorStyle,
         ...blockStyles.outer,
       }}
@@ -530,12 +639,15 @@ export const Block = memo(function Block({
       onMouseMove={handleMouseMove}
       onMouseLeave={() => setHoveredEdge(null)}
       onDoubleClick={handleDoubleClick}
+      onTouchStart={handleTouchStart}
     >
       <div className={styles.blockInner} style={blockStyles.inner}>
         <BlockContent
           type={block.type}
           content={block.content}
           style={block.style}
+          scaledFontSize={scaledFontSize}
+          canvasScale={dims.scale}
           onChange={handleContentChange}
           onImageLoad={handleImageLoad}
           onTextMeasure={handleTextMeasure}
@@ -563,6 +675,8 @@ interface BlockContentProps {
   type: BlockType['type'];
   content: string;
   style?: BlockStyle;
+  scaledFontSize?: number;
+  canvasScale?: number;
   onChange: (content: string) => void;
   onImageLoad?: (e: React.SyntheticEvent<HTMLImageElement>) => void;
   onTextMeasure?: (width: number, height: number) => void;
@@ -575,6 +689,8 @@ const BlockContent = memo(function BlockContent({
   type,
   content,
   style,
+  scaledFontSize,
+  canvasScale = 1,
   onChange,
   onImageLoad,
   onTextMeasure,
@@ -584,7 +700,19 @@ const BlockContent = memo(function BlockContent({
 }: BlockContentProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   
-  const textStyles = useMemo(() => getTextStyles(style), [style]);
+  // Get text styles but override fontSize with scaled version
+  const textStyles = useMemo(() => {
+    const baseStyles = getTextStyles(style);
+    if (scaledFontSize) {
+      return {
+        ...baseStyles,
+        fontSize: `${scaledFontSize}px`,
+        // Scale padding proportionally too
+        padding: `${Math.round(scaledFontSize * 0.1)}px ${Math.round(scaledFontSize * 0.15)}px`,
+      };
+    }
+    return baseStyles;
+  }, [style, scaledFontSize]);
 
   useEffect(() => {
     if (type === 'TEXT' && isEditing && textareaRef.current) {
@@ -638,7 +766,15 @@ const BlockContent = memo(function BlockContent({
             value={content}
             onChange={(e) => onChange(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') e.stopPropagation();
+              // Enter finishes editing and deselects (Shift+Enter for newline)
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.stopPropagation();
+                e.preventDefault();
+                textareaRef.current?.blur();
+                onSetEditing?.(false);
+              } else if (e.key === 'Enter') {
+                e.stopPropagation(); // Allow Shift+Enter for newline
+              }
               if (e.key === 'Escape') {
                 e.stopPropagation();
                 e.preventDefault();
@@ -686,6 +822,8 @@ const BlockContent = memo(function BlockContent({
         <LinkBlockContent
           content={content}
           style={style}
+          scaledFontSize={scaledFontSize}
+          canvasScale={canvasScale}
           onChange={onChange}
           onTextMeasure={onTextMeasure}
           selected={selected}
@@ -703,6 +841,8 @@ const BlockContent = memo(function BlockContent({
 interface LinkBlockContentProps {
   content: string;
   style?: BlockStyle;
+  scaledFontSize?: number;
+  canvasScale?: number;
   onChange: (content: string) => void;
   onTextMeasure?: (width: number, height: number) => void;
   selected: boolean;
@@ -713,6 +853,8 @@ interface LinkBlockContentProps {
 const LinkBlockContent = memo(function LinkBlockContent({
   content,
   style,
+  scaledFontSize,
+  canvasScale = 1,
   onChange,
   onTextMeasure,
   selected,
@@ -724,7 +866,18 @@ const LinkBlockContent = memo(function LinkBlockContent({
   const urlInputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const textStyles = useMemo(() => getTextStyles(style), [style]);
+  // Get text styles but override fontSize with scaled version
+  const textStyles = useMemo(() => {
+    const baseStyles = getTextStyles(style);
+    if (scaledFontSize) {
+      return {
+        ...baseStyles,
+        fontSize: `${scaledFontSize}px`,
+        padding: `${Math.round(scaledFontSize * 0.1)}px ${Math.round(scaledFontSize * 0.15)}px`,
+      };
+    }
+    return baseStyles;
+  }, [style, scaledFontSize]);
 
   // Measure link display and report dimensions using a hidden measurement element
   useEffect(() => {

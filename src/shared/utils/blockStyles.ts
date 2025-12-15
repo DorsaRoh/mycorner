@@ -105,14 +105,45 @@ export function serializeLinkContent(name: string, url: string): string {
   return JSON.stringify({ name, url });
 }
 
-// Image extensions for URL detection
 const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.webp', '.gif'];
 
-/**
- * Check if a URL points to an image based on extension
- */
 export function isImageUrl(url: string): boolean {
   const lowerUrl = url.toLowerCase();
   return IMAGE_EXTENSIONS.some(ext => lowerUrl.includes(ext));
 }
 
+/**
+ * Compute background styles from BackgroundConfig.
+ * Returns canvasStyle (for solid/gradient) and bgImageStyle (for image layer with opacity).
+ */
+export function getBackgroundStyles(background?: {
+  mode: 'solid' | 'gradient' | 'image';
+  solid?: { color: string };
+  gradient?: { type: 'linear' | 'radial'; colorA: string; colorB: string; angle: number };
+  image?: { url: string; fit: 'cover' | 'contain' | 'fill' | 'tile'; position: string; opacity: number };
+}): { canvasStyle: React.CSSProperties; bgImageStyle: React.CSSProperties | null } {
+  const canvasStyle: React.CSSProperties = {};
+  let bgImageStyle: React.CSSProperties | null = null;
+
+  if (!background) return { canvasStyle, bgImageStyle };
+
+  if (background.mode === 'solid' && background.solid) {
+    canvasStyle.background = background.solid.color;
+  } else if (background.mode === 'gradient' && background.gradient) {
+    const { type, colorA, colorB, angle } = background.gradient;
+    canvasStyle.background = type === 'radial'
+      ? `radial-gradient(circle, ${colorA} 0%, ${colorB} 100%)`
+      : `linear-gradient(${angle}deg, ${colorA} 0%, ${colorB} 100%)`;
+  } else if (background.mode === 'image' && background.image?.url) {
+    const { url, fit, position, opacity } = background.image;
+    bgImageStyle = {
+      backgroundImage: `url(${url})`,
+      backgroundSize: fit === 'tile' ? 'auto' : fit,
+      backgroundPosition: position,
+      backgroundRepeat: fit === 'tile' ? 'repeat' : 'no-repeat',
+      opacity,
+    };
+  }
+
+  return { canvasStyle, bgImageStyle };
+}

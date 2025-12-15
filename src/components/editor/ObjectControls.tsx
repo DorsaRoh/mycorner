@@ -1,7 +1,10 @@
-import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo, useLayoutEffect } from 'react';
 import type { BlockStyle, BlockType } from '@/shared/types';
 import { DEFAULT_STYLE } from '@/shared/types';
 import styles from './ObjectControls.module.css';
+
+// Minimum margin from viewport edges
+const VIEWPORT_MARGIN = 16;
 
 // Available font families
 const FONT_FAMILIES = [
@@ -34,16 +37,21 @@ interface SliderConfig {
   icon?: string;
 }
 
-// Image controls - only roundness and depth
+// Organic style groups - continuous sliders, no fixed presets
+// Shape → roundness
+// Depth → shadow
+// Presence → opacity
+
+// Image controls - shape and depth
 const IMAGE_CONTROLS: SliderConfig[] = [
-  { key: 'borderRadius', label: 'roundness', min: 0, max: 1, step: 0.02, neutral: 0, icon: '○' },
+  { key: 'borderRadius', label: 'shape', min: 0, max: 1, step: 0.02, neutral: 0, icon: '○' },
   { key: 'shadowStrength', label: 'depth', min: 0, max: 1, step: 0.02, neutral: 0, icon: '▲' },
 ];
 
-// Text controls - weight, opacity (font size is now a separate input)
+// Text/Link controls - weight, presence (opacity), plus shape/depth for visual effects
 const TEXT_SLIDER_CONTROLS: SliderConfig[] = [
   { key: 'fontWeight', label: 'weight', min: 100, max: 900, step: 100, neutral: 400, icon: 'B' },
-  { key: 'textOpacity', label: 'opacity', min: 0, max: 1, step: 0.02, neutral: 1, icon: '◉' },
+  { key: 'textOpacity', label: 'presence', min: 0, max: 1, step: 0.02, neutral: 1, icon: '◉' },
 ];
 
 export function ObjectControls({ blockType = 'IMAGE', style, onChange, onChangeMultiple, onClose, multiSelected = false }: ObjectControlsProps) {
@@ -54,6 +62,45 @@ export function ObjectControls({ blockType = 'IMAGE', style, onChange, onChangeM
   }));
 
   const [isDragging, setIsDragging] = useState<string | null>(null);
+  
+  // Position adjustment state: 'right' (default), 'left', 'above', or 'below'
+  const [position, setPosition] = useState<'right' | 'left' | 'above' | 'below'>('right');
+  
+  // Check and adjust position when controls would overflow viewport
+  useLayoutEffect(() => {
+    if (!containerRef.current) return;
+    
+    const checkPosition = () => {
+      const container = containerRef.current;
+      if (!container) return;
+      
+      const rect = container.getBoundingClientRect();
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+      
+      // Check if controls overflow right edge
+      if (rect.right > viewportWidth - VIEWPORT_MARGIN) {
+        // Try left positioning
+        setPosition('left');
+      } else if (rect.left < VIEWPORT_MARGIN) {
+        // If left would also overflow, try above/below
+        if (rect.bottom > viewportHeight - VIEWPORT_MARGIN) {
+          setPosition('above');
+        } else {
+          setPosition('below');
+        }
+      } else {
+        setPosition('right');
+      }
+    };
+    
+    // Check synchronously on mount to prevent visual flash
+    checkPosition();
+    
+    // Also check on window resize
+    window.addEventListener('resize', checkPosition);
+    return () => window.removeEventListener('resize', checkPosition);
+  }, []);
 
   // Update local style when prop changes (rehydrate on reselect)
   useEffect(() => {
@@ -316,14 +363,22 @@ export function ObjectControls({ blockType = 'IMAGE', style, onChange, onChangeM
     return IMAGE_CONTROLS;
   }, [blockType]);
 
-  // Position controls to the right of the object
-  // Using CSS-based positioning (left: 100%) so it follows real-time DOM changes during resize
+  // Position controls relative to the object with viewport-aware adjustment
+  const positionClass = useMemo(() => {
+    switch (position) {
+      case 'left': return styles.positionLeft;
+      case 'above': return styles.positionAbove;
+      case 'below': return styles.positionBelow;
+      default: return ''; // 'right' is default in CSS
+    }
+  }, [position]);
 
   return (
     <div
       ref={containerRef}
-      className={styles.controls}
+      className={`${styles.controls} ${positionClass}`}
       onMouseDown={(e) => e.stopPropagation()}
+      onPointerDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
     >
       {/* Text-specific controls: font family, color, size (for TEXT and LINK) */}
@@ -335,8 +390,8 @@ export function ObjectControls({ blockType = 'IMAGE', style, onChange, onChangeM
         </>
       )}
       
-      {/* Alignment only for TEXT blocks */}
-      {blockType === 'TEXT' && renderAlignmentButtons()}
+      {/* Alignment for TEXT and LINK blocks (unified styling) */}
+      {(blockType === 'TEXT' || blockType === 'LINK') && renderAlignmentButtons()}
       
       {/* Slider controls */}
       {controls.map(renderControl)}

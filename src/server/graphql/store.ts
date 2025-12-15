@@ -25,23 +25,12 @@ export interface StoredBlockStyle {
   textOpacity?: number;
 }
 
-export interface StoredGradientOverlay {
-  strength: number;
-  angle: number;
-  colors: [string, string];
-}
-
 export interface StoredBlockEffects {
   brightness?: number;
   contrast?: number;
   saturation?: number;
   hueShift?: number;
-  pixelate?: number;
-  dither?: number;
-  noise?: number;
-  grainSize?: number;
   blur?: number;
-  gradientOverlay?: StoredGradientOverlay;
 }
 
 export interface StoredBlock {
@@ -54,13 +43,6 @@ export interface StoredBlock {
   content: string;
   style?: StoredBlockStyle;
   effects?: StoredBlockEffects;
-}
-
-export interface StoredBackgroundAudio {
-  url: string;
-  volume: number;
-  loop: boolean;
-  enabled: boolean;
 }
 
 export interface StoredBackgroundSolid {
@@ -86,11 +68,14 @@ export interface StoredPage {
   title?: string;
   isPublished: boolean;
   blocks: StoredBlock[];
-  backgroundAudio?: StoredBackgroundAudio;
   background?: StoredBackgroundConfig;
   forkedFromId?: string;
   createdAt: Date;
   updatedAt: Date;
+  /** Server revision number, increments on each successful save */
+  serverRevision: number;
+  /** Schema version for forward compatibility */
+  schemaVersion: number;
 }
 
 export interface StoredFeedback {
@@ -153,29 +138,36 @@ class Store {
       blocks: [],
       createdAt: now,
       updatedAt: now,
+      serverRevision: 1,
+      schemaVersion: 1,
     };
     this.pages.set(id, page);
     return page;
   }
 
-  updatePage(id: string, updates: { title?: string; blocks?: StoredBlock[]; backgroundAudio?: StoredBackgroundAudio; background?: StoredBackgroundConfig }): StoredPage | undefined {
+  /**
+   * Update page with revision checking
+   * @returns { page, conflict } - page if success, conflict=true if revision mismatch
+   */
+  updatePage(
+    id: string, 
+    updates: { title?: string; blocks?: StoredBlock[]; background?: StoredBackgroundConfig },
+    baseServerRevision?: number
+  ): { page?: StoredPage; conflict: boolean } {
     const page = this.pages.get(id);
-    if (!page) return undefined;
+    if (!page) return { conflict: false };
 
-    if (updates.title !== undefined) {
-      page.title = updates.title;
+    if (baseServerRevision !== undefined && baseServerRevision !== page.serverRevision) {
+      return { page, conflict: true };
     }
-    if (updates.blocks !== undefined) {
-      page.blocks = updates.blocks;
-    }
-    if (updates.backgroundAudio !== undefined) {
-      page.backgroundAudio = updates.backgroundAudio;
-    }
-    if (updates.background !== undefined) {
-      page.background = updates.background;
-    }
+
+    if (updates.title !== undefined) page.title = updates.title;
+    if (updates.blocks !== undefined) page.blocks = updates.blocks;
+    if (updates.background !== undefined) page.background = updates.background;
     page.updatedAt = new Date();
-    return page;
+    page.serverRevision += 1;
+    
+    return { page, conflict: false };
   }
 
   publishPage(id: string): StoredPage | undefined {
@@ -202,11 +194,12 @@ class Store {
         ...block,
         id: this.generateId('block'),
       })),
-      backgroundAudio: source.backgroundAudio ? { ...source.backgroundAudio } : undefined,
       background: source.background ? { ...source.background } : undefined,
       forkedFromId: sourceId,
       createdAt: now,
       updatedAt: now,
+      serverRevision: 1,
+      schemaVersion: 1,
     };
     this.pages.set(id, forked);
     return forked;

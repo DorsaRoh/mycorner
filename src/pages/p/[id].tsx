@@ -1,18 +1,22 @@
-import { useState } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { GetServerSideProps } from 'next';
 import Head from 'next/head';
+import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useMutation } from '@apollo/client';
 import { initializeApollo } from '@/lib/apollo/client';
-import { GET_PUBLIC_PAGE, FORK_PAGE, REQUEST_MAGIC_LINK } from '@/lib/graphql/mutations';
-import { ViewerCanvas, FloatingAction, FeedbackModal } from '@/components/viewer';
-import { PageFlipExplore } from '@/components/editor';
+import { GET_PUBLIC_PAGE, FORK_PAGE } from '@/lib/graphql/mutations';
+import { ViewerCanvas } from '@/components/viewer/ViewerCanvas';
+import { FloatingAction } from '@/components/viewer/FloatingAction';
+import { FeedbackModal } from '@/components/viewer/FeedbackModal';
+import { routes, getPublicUrl } from '@/lib/routes';
 import type { Block, BackgroundConfig } from '@/shared/types';
 import styles from '@/styles/ViewPage.module.css';
 
 interface PageData {
   id: string;
   title?: string;
+  isPublished: boolean;
   owner?: {
     id: string;
     displayName?: string;
@@ -24,43 +28,61 @@ interface PageData {
 
 interface ViewPageProps {
   page: PageData | null;
+  pageExists: boolean;
   currentUserId: string | null;
 }
 
-export default function ViewPage({ page, currentUserId }: ViewPageProps) {
+export default function ViewPage({ page, pageExists, currentUserId }: ViewPageProps) {
   const router = useRouter();
+  const { id } = router.query;
   const [forking, setForking] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const [forkPage] = useMutation(FORK_PAGE);
-  const [requestMagicLink] = useMutation(REQUEST_MAGIC_LINK);
 
-  if (!page) {
-    return (
-      <div className={styles.notFound}>
-        <h1>Page not found</h1>
-        <p>This page doesn&apos;t exist or isn&apos;t published yet.</p>
-        <button onClick={() => router.push('/')} className={styles.backBtn}>
-          Go home
-        </button>
-      </div>
-    );
-  }
+  const publicUrl = typeof id === 'string' ? getPublicUrl(id) : '';
 
-  const isOwner = currentUserId && page.owner?.id === currentUserId;
+  // Reset copied state
+  useEffect(() => {
+    if (copied) {
+      const timer = setTimeout(() => setCopied(false), 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [copied]);
+
+  const handleCopy = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(publicUrl);
+      setCopied(true);
+    } catch {
+      const input = document.createElement('input');
+      input.value = publicUrl;
+      document.body.appendChild(input);
+      input.select();
+      document.execCommand('copy');
+      document.body.removeChild(input);
+      setCopied(true);
+    }
+  }, [publicUrl]);
+
+  const isOwner = currentUserId && page?.owner?.id === currentUserId;
 
   const handleEdit = () => {
-    router.push(`/edit/${page.id}`);
+    if (page) {
+      router.push(routes.edit(page.id));
+    }
   };
 
   const handleFork = async () => {
+    if (!page) return;
     setForking(true);
     try {
       const { data } = await forkPage({
         variables: { id: page.id },
       });
       if (data?.forkPage?.id) {
-        router.push(`/edit/${data.forkPage.id}`);
+        router.push(routes.edit(data.forkPage.id));
       }
     } catch (error) {
       console.error('Fork failed:', error);
@@ -68,14 +90,47 @@ export default function ViewPage({ page, currentUserId }: ViewPageProps) {
     }
   };
 
-  const handleRequestAuth = async (email: string) => {
-    const { data } = await requestMagicLink({
-      variables: { email },
-    });
-    if (!data?.requestMagicLink?.success) {
-      throw new Error('Failed to send magic link');
-    }
-  };
+  // Page exists but is not published yet
+  if (pageExists && (!page || !page.isPublished)) {
+    return (
+      <>
+        <Head>
+          <title>Not published yet – my corner</title>
+        </Head>
+        <div className={styles.notFound}>
+          <h1>Not published yet</h1>
+          <p>This page hasn&apos;t been published yet.</p>
+          {isOwner ? (
+            <Link href={routes.edit(id as string)} className={styles.backBtn}>
+              Publish now
+            </Link>
+          ) : (
+            <Link href={routes.home()} className={styles.backBtn}>
+              Go home
+            </Link>
+          )}
+        </div>
+      </>
+    );
+  }
+
+  // Page doesn't exist at all
+  if (!page) {
+    return (
+      <>
+        <Head>
+          <title>Page not found – my corner</title>
+        </Head>
+        <div className={styles.notFound}>
+          <h1>Page not found</h1>
+          <p>This page doesn&apos;t exist.</p>
+          <Link href={routes.new()} className={styles.backBtn}>
+            Create a new page
+          </Link>
+        </div>
+      </>
+    );
+  }
 
   const pageTitle = page.title || 'Untitled';
   const authorName = page.owner?.displayName || 'Someone';
@@ -98,6 +153,19 @@ export default function ViewPage({ page, currentUserId }: ViewPageProps) {
 
         <ViewerCanvas blocks={page.blocks} background={page.background} />
 
+        {/* Copy link button - subtle */}
+        <button 
+          className={styles.copyLink}
+          onClick={handleCopy}
+        >
+          {copied ? 'Copied!' : 'Copy link'}
+        </button>
+
+        {/* Create your own link */}
+        <Link href={routes.new()} className={styles.createOwn}>
+          Create your own
+        </Link>
+
         {/* Feedback link - only show for non-owners */}
         {!isOwner && (
           <button 
@@ -108,15 +176,11 @@ export default function ViewPage({ page, currentUserId }: ViewPageProps) {
           </button>
         )}
 
-        {/* Page flip for Explore */}
-        <PageFlipExplore />
-
         <FloatingAction
           isOwner={!!isOwner}
           isAuthenticated={!!currentUserId}
           onEdit={handleEdit}
           onFork={handleFork}
-          onRequestAuth={handleRequestAuth}
           forking={forking}
         />
 
@@ -142,9 +206,13 @@ export const getServerSideProps: GetServerSideProps<ViewPageProps> = async (cont
       fetchPolicy: 'network-only',
     });
 
+    // Check if page exists but is just not published
+    const pageExists = data.publicPage !== null || data.page !== null;
+
     return {
       props: {
         page: data.publicPage || null,
+        pageExists,
         currentUserId: data.me?.id || null,
       },
     };
@@ -153,6 +221,7 @@ export const getServerSideProps: GetServerSideProps<ViewPageProps> = async (cont
     return {
       props: {
         page: null,
+        pageExists: false,
         currentUserId: null,
       },
     };

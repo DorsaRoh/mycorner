@@ -1,19 +1,13 @@
 import type { AppProps } from 'next/app';
 import { ApolloProvider, NormalizedCacheObject } from '@apollo/client';
-import { useApollo } from '@/lib/apollo/client';
+import { initializeApollo } from '@/lib/apollo/client';
 import '@/styles/globals.css';
 
-interface PageProps {
-  initialApolloState?: NormalizedCacheObject;
-}
-
-export default function App({ Component, pageProps }: AppProps<PageProps>) {
-  const apolloClient = useApollo(pageProps.initialApolloState ?? null);
-
+export default function App({ Component, pageProps }: AppProps<{ initialApolloState?: NormalizedCacheObject }>) {
+  const apolloClient = initializeApollo(pageProps.initialApolloState ?? null);
   return (
     <ApolloProvider client={apolloClient}>
       <Component {...pageProps} />
     </ApolloProvider>
   );
 }
-

@@ -1,3 +1,3 @@
 export { configurePassport } from './passport';
-export { authRoutes, authStore } from './routes';
-
+export { authRoutes } from './routes';
+export { authStore } from './store';

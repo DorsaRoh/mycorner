@@ -55,6 +55,54 @@
   background: var(--color-bg);
 }
 
+/* Copy link button - top right, subtle */
+.copyLink {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  padding: 8px 14px;
+  font-size: 0.75rem;
+  font-family: var(--font-sans);
+  font-weight: 500;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: var(--color-text-muted);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 16px;
+  cursor: pointer;
+  transition: all 150ms ease;
+  z-index: 50;
+  box-shadow: 0 2px 8px rgba(60, 50, 40, 0.06);
+}
+
+.copyLink:hover {
+  color: var(--color-text);
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 4px 12px rgba(60, 50, 40, 0.1);
+}
+
+/* Create your own link - top left, very subtle */
+.createOwn {
+  position: fixed;
+  top: 20px;
+  left: 20px;
+  padding: 8px 14px;
+  font-size: 0.75rem;
+  font-family: var(--font-sans);
+  font-weight: 500;
+  color: var(--color-text-muted);
+  text-decoration: none;
+  border-radius: 16px;
+  transition: all 150ms ease;
+  z-index: 50;
+}
+
+.createOwn:hover {
+  color: var(--color-text);
+  background: rgba(0, 0, 0, 0.03);
+}
+
 .feedbackLink {
   position: fixed;
   bottom: 24px;

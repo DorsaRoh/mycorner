@@ -2,6 +2,25 @@
   position: relative;
   width: 100%;
   min-height: 100vh;
+  min-height: 100dvh; /* Dynamic viewport height for mobile */
   background: var(--color-bg-pure);
+  overflow-x: hidden; /* Prevent horizontal scroll */
 }
 
+/* Background image layer - separate for opacity support */
+.bgImageLayer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Safe area support for mobile */
+@supports (padding: env(safe-area-inset-top)) {
+  .canvas {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+}

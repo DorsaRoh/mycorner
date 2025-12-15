@@ -1,0 +1,190 @@
+/**
+ * Local draft storage for anonymous page editing.
+ * Drafts are stored in localStorage until the user publishes (which requires auth).
+ */
+
+import type { Block, BackgroundConfig } from '@/shared/types';
+
+export interface DraftData {
+  id: string;
+  title: string;
+  blocks: Block[];
+  background?: BackgroundConfig;
+  createdAt: number;
+  updatedAt: number;
+}
+
+const STORAGE_PREFIX = 'mycorner:draft:';
+const ACTIVE_DRAFT_KEY = 'mycorner:activeDraftId';
+const PENDING_PUBLISH_KEY = 'mycorner:pendingPublish';
+const USER_INTERACTED_KEY = 'mycorner:hasInteracted';
+const STARTER_DISMISSED_PREFIX = 'mycorner:starterDismissed:';
+
+/**
+ * Generate a unique draft ID
+ */
+export function generateDraftId(): string {
+  return `draft_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+}
+
+/**
+ * Get the active draft ID (the one the user was last working on)
+ */
+export function getActiveDraftId(): string | null {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem(ACTIVE_DRAFT_KEY);
+}
+
+/**
+ * Set the active draft ID
+ */
+export function setActiveDraftId(draftId: string): void {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(ACTIVE_DRAFT_KEY, draftId);
+}
+
+/**
+ * Clear the active draft ID
+ */
+export function clearActiveDraftId(): void {
+  if (typeof window === 'undefined') return;
+  localStorage.removeItem(ACTIVE_DRAFT_KEY);
+}
+
+/**
+ * Get a draft by ID
+ */
+export function getDraft(draftId: string): DraftData | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const data = localStorage.getItem(`${STORAGE_PREFIX}${draftId}`);
+    if (!data) return null;
+    return JSON.parse(data) as DraftData;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Save a draft
+ */
+export function saveDraft(draft: DraftData): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(`${STORAGE_PREFIX}${draft.id}`, JSON.stringify(draft));
+  } catch (e) {
+    console.error('Failed to save draft:', e);
+  }
+}
+
+/**
+ * Delete a draft
+ */
+export function deleteDraft(draftId: string): void {
+  if (typeof window === 'undefined') return;
+  localStorage.removeItem(`${STORAGE_PREFIX}${draftId}`);
+  
+  // Clear active draft if it matches
+  if (getActiveDraftId() === draftId) {
+    clearActiveDraftId();
+  }
+}
+
+/**
+ * Get all draft IDs
+ */
+export function getAllDraftIds(): string[] {
+  if (typeof window === 'undefined') return [];
+  const ids: string[] = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key?.startsWith(STORAGE_PREFIX)) {
+      ids.push(key.slice(STORAGE_PREFIX.length));
+    }
+  }
+  return ids;
+}
+
+/**
+ * Pending publish data - stored when auth is triggered during publish
+ */
+export interface PendingPublish {
+  draftId: string;
+  timestamp: number;
+}
+
+/**
+ * Set pending publish (to be continued after auth)
+ */
+export function setPendingPublish(draftId: string): void {
+  if (typeof window === 'undefined') return;
+  const data: PendingPublish = {
+    draftId,
+    timestamp: Date.now(),
+  };
+  sessionStorage.setItem(PENDING_PUBLISH_KEY, JSON.stringify(data));
+}
+
+/**
+ * Get pending publish data
+ */
+export function getPendingPublish(): PendingPublish | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const data = sessionStorage.getItem(PENDING_PUBLISH_KEY);
+    if (!data) return null;
+    const parsed = JSON.parse(data) as PendingPublish;
+    // Expire after 15 minutes
+    if (Date.now() - parsed.timestamp > 15 * 60 * 1000) {
+      clearPendingPublish();
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Clear pending publish
+ */
+export function clearPendingPublish(): void {
+  if (typeof window === 'undefined') return;
+  sessionStorage.removeItem(PENDING_PUBLISH_KEY);
+}
+
+/**
+ * Check if user has interacted with the canvas (used to hide placeholder)
+ */
+export function hasUserInteracted(): boolean {
+  if (typeof window === 'undefined') return false;
+  return localStorage.getItem(USER_INTERACTED_KEY) === 'true';
+}
+
+/**
+ * Mark that user has interacted with the canvas
+ */
+export function setUserInteracted(value: boolean = true): void {
+  if (typeof window === 'undefined') return;
+  if (value) {
+    localStorage.setItem(USER_INTERACTED_KEY, 'true');
+  } else {
+    localStorage.removeItem(USER_INTERACTED_KEY);
+  }
+}
+
+/**
+ * Check if starter mode has been dismissed for a specific draft
+ */
+export function hasStarterBeenDismissed(draftId: string): boolean {
+  if (typeof window === 'undefined') return false;
+  return localStorage.getItem(`${STARTER_DISMISSED_PREFIX}${draftId}`) === 'true';
+}
+
+/**
+ * Mark starter mode as dismissed for a specific draft
+ */
+export function setStarterDismissed(draftId: string): void {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(`${STARTER_DISMISSED_PREFIX}${draftId}`, 'true');
+}

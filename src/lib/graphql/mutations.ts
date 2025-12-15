@@ -16,23 +16,13 @@ const BLOCK_STYLE_FRAGMENT = `
   }
 `;
 
-// Fragment for block effects to avoid repetition
 const BLOCK_EFFECTS_FRAGMENT = `
   effects {
     brightness
     contrast
     saturation
     hueShift
-    pixelate
-    dither
-    noise
-    grainSize
     blur
-    gradientOverlay {
-      strength
-      angle
-      colors
-    }
   }
 `;
 
@@ -76,27 +66,28 @@ export const CREATE_PAGE = gql`
 export const UPDATE_PAGE = gql`
   mutation UpdatePage($id: ID!, $input: UpdatePageInput!) {
     updatePage(id: $id, input: $input) {
-      id
-      title
-      blocks {
+      page {
         id
-        type
-        x
-        y
-        width
-        height
-        content
-        ${BLOCK_STYLE_FRAGMENT}
-        ${BLOCK_EFFECTS_FRAGMENT}
+        title
+        blocks {
+          id
+          type
+          x
+          y
+          width
+          height
+          content
+          ${BLOCK_STYLE_FRAGMENT}
+          ${BLOCK_EFFECTS_FRAGMENT}
+        }
+        ${BACKGROUND_FRAGMENT}
+        updatedAt
+        serverRevision
+        schemaVersion
       }
-      backgroundAudio {
-        url
-        volume
-        loop
-        enabled
-      }
-      ${BACKGROUND_FRAGMENT}
-      updatedAt
+      conflict
+      currentServerRevision
+      acceptedLocalRevision
     }
   }
 `;
@@ -118,15 +109,11 @@ export const GET_PAGE = gql`
         ${BLOCK_STYLE_FRAGMENT}
         ${BLOCK_EFFECTS_FRAGMENT}
       }
-      backgroundAudio {
-        url
-        volume
-        loop
-        enabled
-      }
       ${BACKGROUND_FRAGMENT}
       createdAt
       updatedAt
+      serverRevision
+      schemaVersion
     }
   }
 `;
@@ -160,12 +147,6 @@ export const GET_PUBLIC_PAGE = gql`
         content
         ${BLOCK_STYLE_FRAGMENT}
         ${BLOCK_EFFECTS_FRAGMENT}
-      }
-      backgroundAudio {
-        url
-        volume
-        loop
-        enabled
       }
       ${BACKGROUND_FRAGMENT}
       createdAt

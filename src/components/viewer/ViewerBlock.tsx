@@ -1,36 +1,72 @@
 import { useMemo, memo } from 'react';
 import type { Block as BlockType, BlockStyle, BlockEffects } from '@/shared/types';
+import { DEFAULT_STYLE } from '@/shared/types';
 import { getBlockStyles, getTextStyles, parseLinkContent } from '@/shared/utils/blockStyles';
+import { 
+  CanvasDimensions, 
+  refToPx, 
+  scaleFontSize,
+  REFERENCE_WIDTH,
+  REFERENCE_HEIGHT,
+} from '@/lib/canvas';
 import { EffectsRenderer } from '@/components/effects/EffectsRenderer';
 import styles from './ViewerBlock.module.css';
 
 interface ViewerBlockProps {
   block: BlockType;
+  canvasDimensions?: CanvasDimensions;
 }
 
 // Memoized ViewerBlock - only rerenders when block changes
-export const ViewerBlock = memo(function ViewerBlock({ block }: ViewerBlockProps) {
+export const ViewerBlock = memo(function ViewerBlock({ block, canvasDimensions }: ViewerBlockProps) {
+  // Default dimensions if not provided
+  const dims = canvasDimensions || {
+    width: REFERENCE_WIDTH,
+    height: REFERENCE_HEIGHT,
+    scale: 1,
+    scaleX: 1,
+    scaleY: 1,
+  };
+  
+  // Convert reference coordinates to pixels
+  const pxRect = useMemo(() => refToPx(
+    { x: block.x, y: block.y, width: block.width, height: block.height },
+    dims
+  ), [block.x, block.y, block.width, block.height, dims]);
+  
+  // Scale font size for rendering
+  const scaledFontSize = useMemo(() => {
+    const baseFontSize = block.style?.fontSize || DEFAULT_STYLE.fontSize || 16;
+    return scaleFontSize(baseFontSize, dims.scale);
+  }, [block.style?.fontSize, dims.scale]);
+  
   const blockStyles = useMemo(() => {
-    const { outer, inner } = getBlockStyles(block.style, block.width, block.height);
+    const { outer, inner } = getBlockStyles(block.style, pxRect.width, pxRect.height);
     // For viewer, we merge outer styles (shadow goes on wrapper, border-radius/overflow on content)
     return {
       ...outer,
       ...inner,
     };
-  }, [block.style, block.width, block.height]);
+  }, [block.style, pxRect.width, pxRect.height]);
 
   return (
     <div
       className={`${styles.block} ${styles[block.type.toLowerCase()]}`}
       style={{
-        left: block.x,
-        top: block.y,
-        width: block.width,
-        height: block.height,
+        left: pxRect.x,
+        top: pxRect.y,
+        width: pxRect.width,
+        height: pxRect.height,
         ...blockStyles,
       }}
     >
-      <BlockContent type={block.type} content={block.content} style={block.style} effects={block.effects} />
+      <BlockContent 
+        type={block.type} 
+        content={block.content} 
+        style={block.style} 
+        effects={block.effects}
+        scaledFontSize={scaledFontSize}
+      />
     </div>
   );
 });
@@ -40,10 +76,22 @@ interface BlockContentProps {
   content: string;
   style?: BlockStyle;
   effects?: BlockEffects;
+  scaledFontSize?: number;
 }
 
-const BlockContent = memo(function BlockContent({ type, content, style, effects }: BlockContentProps) {
-  const textStyles = useMemo(() => getTextStyles(style), [style]);
+const BlockContent = memo(function BlockContent({ type, content, style, effects, scaledFontSize }: BlockContentProps) {
+  // Get text styles but override fontSize with scaled version
+  const textStyles = useMemo(() => {
+    const baseStyles = getTextStyles(style);
+    if (scaledFontSize) {
+      return {
+        ...baseStyles,
+        fontSize: `${scaledFontSize}px`,
+        padding: `${Math.round(scaledFontSize * 0.1)}px ${Math.round(scaledFontSize * 0.15)}px`,
+      };
+    }
+    return baseStyles;
+  }, [style, scaledFontSize]);
 
   switch (type) {
     case 'TEXT':

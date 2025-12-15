@@ -28,23 +28,12 @@ export const typeDefs = gql`
     textOpacity: Float
   }
 
-  type GradientOverlay {
-    strength: Float!
-    angle: Float!
-    colors: [String!]!
-  }
-
   type BlockEffects {
     brightness: Float
     contrast: Float
     saturation: Float
     hueShift: Float
-    pixelate: Float
-    dither: Float
-    noise: Float
-    grainSize: Float
     blur: Float
-    gradientOverlay: GradientOverlay
   }
 
   type Block {
@@ -57,13 +46,6 @@ export const typeDefs = gql`
     content: String!
     style: BlockStyle
     effects: BlockEffects
-  }
-
-  type BackgroundAudio {
-    url: String!
-    volume: Float!
-    loop: Boolean!
-    enabled: Boolean!
   }
 
   type BackgroundConfig {
@@ -89,11 +71,26 @@ export const typeDefs = gql`
     title: String
     isPublished: Boolean!
     blocks: [Block!]!
-    backgroundAudio: BackgroundAudio
     background: BackgroundConfig
     forkedFrom: Page
     createdAt: String!
     updatedAt: String!
+    """Server revision number, increments on each save"""
+    serverRevision: Int!
+    """Schema version for forward compatibility"""
+    schemaVersion: Int!
+  }
+  
+  """Result of an update operation with conflict detection"""
+  type UpdatePageResult {
+    """The updated page (null if conflict or not found)"""
+    page: Page
+    """True if there was a revision conflict"""
+    conflict: Boolean!
+    """Current server revision (useful for conflict resolution)"""
+    currentServerRevision: Int
+    """The local revision that was accepted (matches input if successful)"""
+    acceptedLocalRevision: Int
   }
 
   type AuthPayload {
@@ -109,23 +106,12 @@ export const typeDefs = gql`
     health: String!
   }
 
-  input GradientOverlayInput {
-    strength: Float!
-    angle: Float!
-    colors: [String!]!
-  }
-
   input BlockEffectsInput {
     brightness: Float
     contrast: Float
     saturation: Float
     hueShift: Float
-    pixelate: Float
-    dither: Float
-    noise: Float
-    grainSize: Float
     blur: Float
-    gradientOverlay: GradientOverlayInput
   }
 
   input BlockStyleInput {
@@ -154,13 +140,6 @@ export const typeDefs = gql`
     effects: BlockEffectsInput
   }
 
-  input BackgroundAudioInput {
-    url: String!
-    volume: Float!
-    loop: Boolean!
-    enabled: Boolean!
-  }
-
   input BackgroundSolidInput {
     color: String!
   }
@@ -185,8 +164,11 @@ export const typeDefs = gql`
   input UpdatePageInput {
     title: String
     blocks: [BlockInput!]
-    backgroundAudio: BackgroundAudioInput
     background: BackgroundConfigInput
+    """Client's local revision (for logging/debugging)"""
+    localRevision: Int
+    """Expected server revision (for conflict detection)"""
+    baseServerRevision: Int
   }
 
   type Mutation {
@@ -203,8 +185,9 @@ export const typeDefs = gql`
 
     """
     Update a page. Owner only.
+    Returns UpdatePageResult with conflict detection.
     """
-    updatePage(id: ID!, input: UpdatePageInput!): Page
+    updatePage(id: ID!, input: UpdatePageInput!): UpdatePageResult!
 
     """
     Publish a page. Requires authentication.

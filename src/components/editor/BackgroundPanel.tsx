@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import type { BackgroundConfig } from '@/shared/types';
+import { uploadAsset, isAcceptedImageType } from '@/lib/upload';
 import styles from './BackgroundPanel.module.css';
 
 interface BackgroundPanelProps {
@@ -14,6 +15,12 @@ const DEFAULT_GRADIENT = {
   colorA: '#ffffff',
   colorB: '#000000',
   angle: 45,
+};
+const DEFAULT_IMAGE = {
+  url: '',
+  fit: 'cover' as const,
+  position: 'center' as const,
+  opacity: 1,
 };
 
 export function BackgroundPanel({ background, onChange, onClose }: BackgroundPanelProps) {
@@ -39,33 +46,38 @@ export function BackgroundPanel({ background, onChange, onClose }: BackgroundPan
   // Handle click outside to close panel
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      const target = e.target as Node;
+      const target = e.target as HTMLElement;
       
+      // Don't close if clicking inside the panel
       if (panelRef.current?.contains(target)) return;
       
+      // Don't close if clicking the background button itself (it toggles)
       const bgButton = document.querySelector('[data-background-btn]');
       if (bgButton?.contains(target)) return;
+      
+      // Don't close if clicking on a color picker (they open native dialogs)
+      if (target.closest('input[type="color"]')) return;
       
       onClose();
     };
 
-    const timeoutId = setTimeout(() => {
-      document.addEventListener('mousedown', handleClickOutside);
-    }, 10);
+    // Add listener immediately on capture phase for reliability
+    document.addEventListener('mousedown', handleClickOutside, true);
 
     return () => {
-      clearTimeout(timeoutId);
-      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('mousedown', handleClickOutside, true);
     };
   }, [onClose]);
 
-  const setMode = useCallback((mode: 'solid' | 'gradient') => {
+  const setMode = useCallback((mode: 'solid' | 'gradient' | 'image') => {
     setLocalBackground(prev => {
       const next: BackgroundConfig = { ...prev, mode };
       if (mode === 'solid' && !next.solid) {
         next.solid = { color: DEFAULT_SOLID_COLOR };
       } else if (mode === 'gradient' && !next.gradient) {
         next.gradient = { ...DEFAULT_GRADIENT };
+      } else if (mode === 'image' && !next.image) {
+        next.image = { ...DEFAULT_IMAGE };
       }
       return next;
     });
@@ -99,11 +111,82 @@ export function BackgroundPanel({ background, onChange, onClose }: BackgroundPan
     }));
   }, []);
 
+  // Image controls
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
+  const handleImageUpload = useCallback(async (file: File) => {
+    if (!isAcceptedImageType(file.type)) {
+      setUploadError('Please upload a valid image (PNG, JPG, WebP, GIF)');
+      return;
+    }
+
+    setIsUploading(true);
+    setUploadError(null);
+
+    const result = await uploadAsset(file);
+    
+    if (result.success) {
+      setLocalBackground(prev => ({
+        ...prev,
+        mode: 'image',
+        image: {
+          ...DEFAULT_IMAGE,
+          ...prev.image,
+          url: result.data.url,
+        },
+      }));
+    } else {
+      setUploadError(result.error);
+    }
+    
+    setIsUploading(false);
+  }, []);
+
+  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      handleImageUpload(file);
+    }
+    // Reset the input so the same file can be selected again
+    e.target.value = '';
+  }, [handleImageUpload]);
+
+  const setImageFit = useCallback((fit: 'cover' | 'contain' | 'fill' | 'tile') => {
+    setLocalBackground(prev => ({
+      ...prev,
+      image: prev.image ? { ...prev.image, fit } : { ...DEFAULT_IMAGE, fit },
+    }));
+  }, []);
+
+  const setImagePosition = useCallback((position: 'center' | 'top' | 'bottom' | 'left' | 'right') => {
+    setLocalBackground(prev => ({
+      ...prev,
+      image: prev.image ? { ...prev.image, position } : { ...DEFAULT_IMAGE, position },
+    }));
+  }, []);
+
+  const setImageOpacity = useCallback((opacity: number) => {
+    setLocalBackground(prev => ({
+      ...prev,
+      image: prev.image ? { ...prev.image, opacity } : { ...DEFAULT_IMAGE, opacity },
+    }));
+  }, []);
+
+  const removeImage = useCallback(() => {
+    setLocalBackground(prev => ({
+      ...prev,
+      image: { ...DEFAULT_IMAGE },
+    }));
+  }, []);
+
   const resetAll = useCallback(() => {
     setLocalBackground({
       mode: 'solid',
       solid: { color: DEFAULT_SOLID_COLOR },
     });
+    setUploadError(null);
   }, []);
 
   const hasChanges = localBackground.mode !== 'solid' || 
@@ -144,6 +227,12 @@ export function BackgroundPanel({ background, onChange, onClose }: BackgroundPan
           onClick={() => setMode('gradient')}
         >
           Gradient
+        </button>
+        <button
+          className={`${styles.modeButton} ${localBackground.mode === 'image' ? styles.modeActive : ''}`}
+          onClick={() => setMode('image')}
+        >
+          Image
         </button>
       </div>
 
@@ -217,6 +306,116 @@ export function BackgroundPanel({ background, onChange, onClose }: BackgroundPan
                 className={styles.slider}
               />
             </div>
+          )}
+        </>
+      )}
+
+      {/* Image controls */}
+      {localBackground.mode === 'image' && (
+        <>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/jpg,image/webp,image/gif"
+            onChange={handleFileChange}
+            className={styles.hiddenInput}
+          />
+
+          {/* Upload area or image preview */}
+          {!localBackground.image?.url ? (
+            <button
+              className={styles.uploadArea}
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUploading}
+            >
+              {isUploading ? (
+                <span className={styles.uploadingText}>Uploading...</span>
+              ) : (
+                <>
+                  <span className={styles.uploadIcon}>📷</span>
+                  <span className={styles.uploadText}>Click to upload image</span>
+                </>
+              )}
+            </button>
+          ) : (
+            <div className={styles.imagePreviewContainer}>
+              <div
+                className={styles.imagePreview}
+                style={{ backgroundImage: `url(${localBackground.image.url})` }}
+              />
+              <div className={styles.imageActions}>
+                <button
+                  className={styles.changeImageBtn}
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploading}
+                >
+                  {isUploading ? 'Uploading...' : 'Change'}
+                </button>
+                <button
+                  className={styles.removeImageBtn}
+                  onClick={removeImage}
+                >
+                  Remove
+                </button>
+              </div>
+            </div>
+          )}
+
+          {uploadError && (
+            <div className={styles.uploadError}>{uploadError}</div>
+          )}
+
+          {/* Image fit selector */}
+          {localBackground.image?.url && (
+            <>
+              <div className={styles.gradientTypeRow}>
+                <span className={styles.typeLabel}>Fit</span>
+                <div className={styles.gradientTypeSelector}>
+                  {(['cover', 'contain', 'fill', 'tile'] as const).map(fit => (
+                    <button
+                      key={fit}
+                      className={`${styles.typeButton} ${localBackground.image?.fit === fit ? styles.typeActive : ''}`}
+                      onClick={() => setImageFit(fit)}
+                    >
+                      {fit.charAt(0).toUpperCase() + fit.slice(1)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Image position selector */}
+              <div className={styles.gradientTypeRow}>
+                <span className={styles.typeLabel}>Position</span>
+                <div className={styles.gradientTypeSelector}>
+                  {(['center', 'top', 'bottom'] as const).map(pos => (
+                    <button
+                      key={pos}
+                      className={`${styles.typeButton} ${localBackground.image?.position === pos ? styles.typeActive : ''}`}
+                      onClick={() => setImagePosition(pos)}
+                    >
+                      {pos.charAt(0).toUpperCase() + pos.slice(1)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Image opacity slider */}
+              <div className={styles.sliderRow}>
+                <label className={styles.sliderLabel}>
+                  Opacity
+                  <span className={styles.sliderValue}>{Math.round((localBackground.image?.opacity ?? 1) * 100)}%</span>
+                </label>
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  value={localBackground.image?.opacity ?? 1}
+                  onChange={(e) => setImageOpacity(parseFloat(e.target.value))}
+                  className={styles.slider}
+                />
+              </div>
+            </>
           )}
         </>
       )}

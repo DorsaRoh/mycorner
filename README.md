@@ -91,12 +91,20 @@ public/
 
 ### 3. Authentication
 
-Uses magic link authentication (no passwords):
+Supports two authentication methods:
 
-1. Click "Publish" or "Make your own"
-2. Enter your email
-3. Check console for login link (dev) or email (prod)
-4. Click link to authenticate
+#### Google OAuth (Recommended)
+1. Click "Publish" on your page
+2. Click "Continue with Google" in the auth modal
+3. Sign in with your Google account
+4. Your page is automatically published
+
+**Setup**: Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in `.env.local`
+
+#### Magic Link (Fallback)
+1. Enter your email
+2. Check console for login link (dev) or email (prod)
+3. Click link to authenticate
 
 **Note**: In development, magic links are logged to the console instead of being emailed.
 
@@ -104,10 +112,13 @@ Uses magic link authentication (no passwords):
 
 | Route | Description | Auth Required |
 |-------|-------------|---------------|
-| `/` | Home page - create new page | No |
-| `/edit/[id]` | Edit a page | Owner only |
+| `/` | Home page - landing | No |
+| `/new` | Create/edit a new page (draft mode) | No |
+| `/edit/[id]` | Edit an existing page | Owner only |
 | `/p/[id]` | View published page | No |
 | `/graphql` | GraphQL endpoint | No |
+| `/auth/google` | Google OAuth login | No |
+| `/auth/google/callback` | Google OAuth callback | No |
 | `/auth/verify` | Magic link verification | No |
 | `/api/assets/upload` | Upload images/audio | No |
 | `/uploads/*` | Serve uploaded assets | No |
@@ -161,9 +172,23 @@ NODE_ENV=development
 # Session (change in production!)
 SESSION_SECRET=your-secret-key-at-least-32-characters
 
+# Google OAuth (required for Google sign-in)
+GOOGLE_CLIENT_ID=your-google-client-id
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+
 # CORS (production only)
 CORS_ORIGIN=https://yourdomain.com
 ```
+
+### Setting up Google OAuth
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Create a new project or select existing one
+3. Go to "APIs & Services" > "Credentials"
+4. Click "Create Credentials" > "OAuth client ID"
+5. Choose "Web application"
+6. Add authorized redirect URI: `http://localhost:3000/auth/google/callback`
+7. Copy Client ID and Client Secret to `.env.local`
 
 ## Asset Uploads
 

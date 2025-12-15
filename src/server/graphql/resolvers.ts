@@ -1,40 +1,7 @@
 import type { GraphQLContext } from './context';
 import { getOwnerId, canModifyPage } from './context';
-import { store, StoredBlock, StoredBackgroundAudio, StoredBlockStyle, StoredBlockEffects, StoredGradientOverlay, StoredBackgroundConfig } from './store';
+import { store, StoredBlock, StoredBackgroundConfig } from './store';
 import { authStore } from '../auth/store';
-
-interface GradientOverlayInput {
-  strength: number;
-  angle: number;
-  colors: [string, string];
-}
-
-interface BlockStyleInput {
-  borderRadius?: number;
-  shadowStrength?: number;
-  shadowSoftness?: number;
-  shadowOffsetX?: number;
-  shadowOffsetY?: number;
-  // Text styling
-  fontFamily?: string;
-  fontSize?: number;
-  fontWeight?: number;
-  color?: string;
-  textOpacity?: number;
-}
-
-interface BlockEffectsInput {
-  brightness?: number;
-  contrast?: number;
-  saturation?: number;
-  hueShift?: number;
-  pixelate?: number;
-  dither?: number;
-  noise?: number;
-  grainSize?: number;
-  blur?: number;
-  gradientOverlay?: GradientOverlayInput;
-}
 
 interface BlockInput {
   id?: string;
@@ -44,68 +11,22 @@ interface BlockInput {
   width: number;
   height: number;
   content: string;
-  style?: BlockStyleInput;
-  effects?: BlockEffectsInput;
-}
-
-interface BackgroundAudioInput {
-  url: string;
-  volume: number;
-  loop: boolean;
-  enabled: boolean;
-}
-
-interface BackgroundSolidInput {
-  color: string;
-}
-
-interface BackgroundGradientInput {
-  type: "linear" | "radial";
-  colorA: string;
-  colorB: string;
-  angle: number;
-}
-
-interface BackgroundConfigInput {
-  mode: "solid" | "gradient";
-  solid?: BackgroundSolidInput;
-  gradient?: BackgroundGradientInput;
-}
-
-interface CreatePageInput {
-  title?: string;
+  style?: Record<string, unknown>;
+  effects?: Record<string, unknown>;
 }
 
 interface UpdatePageInput {
   title?: string;
   blocks?: BlockInput[];
-  backgroundAudio?: BackgroundAudioInput;
-  background?: BackgroundConfigInput;
+  background?: { mode: string; solid?: { color: string }; gradient?: { type: string; colorA: string; colorB: string; angle: number } };
+  localRevision?: number;
+  baseServerRevision?: number;
 }
 
-interface FormattedPage {
-  id: string;
-  owner: {
-    id: string;
-    email: string;
-    displayName?: string;
-    createdAt: string;
-  } | null;
-  title?: string;
-  isPublished: boolean;
-  blocks: StoredBlock[];
-  backgroundAudio?: StoredBackgroundAudio;
-  background?: StoredBackgroundConfig;
-  forkedFrom: FormattedPage | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-function formatPage(pageId: string): FormattedPage | null {
+function formatPage(pageId: string) {
   const page = store.getPage(pageId);
   if (!page) return null;
 
-  // For anonymous owners, we don't have a user record
   const owner = store.getUser(page.ownerId);
   
   return {
@@ -119,11 +40,12 @@ function formatPage(pageId: string): FormattedPage | null {
     title: page.title,
     isPublished: page.isPublished,
     blocks: page.blocks,
-    backgroundAudio: page.backgroundAudio,
     background: page.background,
     forkedFrom: page.forkedFromId ? formatPage(page.forkedFromId) : null,
     createdAt: page.createdAt.toISOString(),
     updatedAt: page.updatedAt.toISOString(),
+    serverRevision: page.serverRevision,
+    schemaVersion: page.schemaVersion,
   };
 }
 
@@ -204,11 +126,23 @@ export const resolvers = {
       context: GraphQLContext
     ) => {
       const page = store.getPage(args.id);
-      if (!page) return null;
+      if (!page) {
+        return {
+          page: null,
+          conflict: false,
+          currentServerRevision: null,
+          acceptedLocalRevision: null,
+        };
+      }
 
       // Only owner can update
       if (!canModifyPage(context, page.ownerId)) {
-        return null;
+        return {
+          page: null,
+          conflict: false,
+          currentServerRevision: page.serverRevision,
+          acceptedLocalRevision: null,
+        };
       }
 
       const blocks: StoredBlock[] | undefined = args.input.blocks?.map((block) => ({
@@ -223,14 +157,27 @@ export const resolvers = {
         effects: block.effects,
       }));
 
-      const updated = store.updatePage(args.id, {
-        title: args.input.title,
-        blocks,
-        backgroundAudio: args.input.backgroundAudio,
-        background: args.input.background,
-      });
+      const result = store.updatePage(
+        args.id, 
+        { title: args.input.title, blocks, background: args.input.background },
+        args.input.baseServerRevision
+      );
 
-      return updated ? formatPage(updated.id) : null;
+      if (result.conflict) {
+        return {
+          page: null,
+          conflict: true,
+          currentServerRevision: result.page?.serverRevision ?? null,
+          acceptedLocalRevision: null,
+        };
+      }
+
+      return {
+        page: result.page ? formatPage(result.page.id) : null,
+        conflict: false,
+        currentServerRevision: result.page?.serverRevision ?? null,
+        acceptedLocalRevision: args.input.localRevision ?? null,
+      };
     },
 
     publishPage: (_parent: unknown, args: { id: string }, context: GraphQLContext) => {

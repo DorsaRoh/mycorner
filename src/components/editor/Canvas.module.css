@@ -3,7 +3,51 @@
   flex: 1;
   height: 100%;
   background: var(--color-bg-pure);
-  overflow: hidden;
+  overflow: visible;
+  /* Prevent default touch behaviors for smoother mobile interaction */
+  touch-action: none;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Subtle atmospheric vignette - extremely low contrast, barely perceptible */
+.canvas::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse at center,
+    transparent 0%,
+    transparent 60%,
+    rgba(0, 0, 0, 0.012) 100%
+  );
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Background image layer - separate for opacity support */
+.bgImageLayer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Starter mode hint - subtle prompt to click anywhere */
+.starterHint {
+  position: absolute;
+  bottom: 80px;
+  right: 80px;
+  font-size: 0.8125rem;
+  font-weight: 400;
+  font-style: italic;
+  color: var(--color-text-muted);
+  opacity: 0.35;
+  pointer-events: none;
+  user-select: none;
+  z-index: 1;
+  animation: hintPulse 3s ease-in-out infinite;
 }
 
 /* Full canvas area - edge to edge for maximum creative freedom */
@@ -51,11 +95,20 @@
   }
 }
 
+@keyframes hintPulse {
+  0%, 100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
 /* Marquee selection box */
 .marquee {
   position: absolute;
-  border: 1.5px solid rgba(106, 154, 132, 0.5);
-  background: rgba(106, 154, 132, 0.08);
+  border: 1.5px solid rgba(100, 100, 100, 0.5);
+  background: rgba(100, 100, 100, 0.08);
   border-radius: 4px;
   pointer-events: none;
   z-index: 50;

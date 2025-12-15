@@ -3,7 +3,7 @@ import type { Block as BlockType, BlockType as BlockTypeEnum, BackgroundConfig }
 import { Block } from './Block';
 import { CreationPalette } from './CreationPalette';
 import { uploadAsset, isAcceptedImageType } from '@/lib/upload';
-import { isImageUrl } from '@/shared/utils/blockStyles';
+import { isImageUrl, getBackgroundStyles } from '@/shared/utils/blockStyles';
 import styles from './Canvas.module.css';
 
 interface PaletteState {
@@ -27,13 +27,16 @@ interface CanvasProps {
   selectedIds: Set<string>;
   newBlockIds?: Set<string>;
   editingId?: string | null;
+  starterMode?: boolean;
   onSelectBlock: (id: string | null) => void;
   onSelectMultiple: (ids: Set<string>) => void;
   onUpdateBlock: (id: string, updates: Partial<BlockType>) => void;
   onUpdateMultipleBlocks: (ids: Set<string>, updates: Partial<BlockType>) => void;
+  onDragMultipleBlocks?: (ids: Set<string>, dx: number, dy: number) => void;
   onDeleteBlock: (id: string) => void;
   onAddBlock: (type: BlockType['type'], x: number, y: number, content?: string) => void;
   onSetEditing?: (id: string | null) => void;
+  onExitStarterMode?: () => void;
 }
 
 export function Canvas({
@@ -43,13 +46,16 @@ export function Canvas({
   selectedIds,
   newBlockIds = new Set(),
   editingId = null,
+  starterMode = false,
   onSelectBlock,
   onSelectMultiple,
   onUpdateBlock,
   onDeleteBlock,
   onAddBlock,
   onUpdateMultipleBlocks,
+  onDragMultipleBlocks,
   onSetEditing,
+  onExitStarterMode,
 }: CanvasProps) {
   const canvasRef = useRef<HTMLDivElement>(null);
   const [dropError, setDropError] = useState<string | null>(null);
@@ -183,10 +189,14 @@ export function Canvas({
   // Handle palette selection
   const handlePaletteSelect = useCallback((type: BlockTypeEnum, content?: string) => {
     if (palette) {
+      // Exit starter mode when user adds a new block via palette
+      if (starterMode) {
+        onExitStarterMode?.();
+      }
       onAddBlock(type, palette.canvasX, palette.canvasY, content);
       setPalette(null);
     }
-  }, [palette, onAddBlock]);
+  }, [palette, onAddBlock, starterMode, onExitStarterMode]);
 
   // Close palette
   const handlePaletteClose = useCallback(() => {
@@ -250,25 +260,7 @@ export function Canvas({
   const marqueeRect = getMarqueeRect();
   const isMarqueeVisible = marqueeRect && (marqueeRect.width > 5 || marqueeRect.height > 5);
 
-  // Compute canvas background styles from config
-  const canvasStyle = useMemo(() => {
-    const style: React.CSSProperties = {};
-    
-    if (!background) return style;
-
-    if (background.mode === 'solid' && background.solid) {
-      style.background = background.solid.color;
-    } else if (background.mode === 'gradient' && background.gradient) {
-      const { type, colorA, colorB, angle } = background.gradient;
-      if (type === 'radial') {
-        style.background = `radial-gradient(circle, ${colorA} 0%, ${colorB} 100%)`;
-      } else {
-        style.background = `linear-gradient(${angle}deg, ${colorA} 0%, ${colorB} 100%)`;
-      }
-    }
-
-    return style;
-  }, [background]);
+  const { canvasStyle, bgImageStyle } = useMemo(() => getBackgroundStyles(background), [background]);
 
   return (
     <div
@@ -280,6 +272,11 @@ export function Canvas({
       onDrop={handleDrop}
       onDragOver={handleDragOver}
     >
+
+      {/* Background image layer (separate for opacity support) */}
+      {bgImageStyle && (
+        <div className={styles.bgImageLayer} style={bgImageStyle} />
+      )}
 
       {/* Subtle paper boundary */}
       <div className={styles.paperSheet} />
@@ -295,13 +292,23 @@ export function Canvas({
           onSelect={() => onSelectBlock(block.id)}
           onUpdate={(updates) => onUpdateBlock(block.id, updates)}
           onUpdateMultiple={onUpdateMultipleBlocks}
+          onDragMultiple={onDragMultipleBlocks}
           selectedIds={selectedIds}
+          allBlocks={blocks}
           onDelete={() => onDeleteBlock(block.id)}
           onSetEditing={(editing) => onSetEditing?.(editing ? block.id : null)}
         />
       ))}
       
-      {blocks.length === 0 && (
+      {/* Click anywhere hint - only visible in starter mode */}
+      {starterMode && (
+        <div className={styles.starterHint}>
+          <span>(click anywhere)</span>
+        </div>
+      )}
+      
+      {/* Only show empty state hint when not in starter mode and no blocks */}
+      {blocks.length === 0 && !starterMode && (
         <div className={styles.emptyState}>
           <p className={styles.emptySubtext}>click anywhere</p>
         </div>
