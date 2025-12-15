@@ -46,6 +46,7 @@ const GET_PAGE_BY_USERNAME = gql`
           fontWeight
           color
           textOpacity
+          textAlign
         }
         effects {
           brightness
