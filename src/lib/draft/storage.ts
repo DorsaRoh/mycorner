@@ -219,3 +219,54 @@ export function setStarterDismissed(draftId: string): void {
   if (typeof window === 'undefined') return;
   localStorage.setItem(`${STARTER_DISMISSED_PREFIX}${draftId}`, 'true');
 }
+
+/**
+ * Publish toast data - stores the URL to show in toast after navigation
+ */
+export interface PublishToastData {
+  url: string;
+  timestamp: number;
+}
+
+const PUBLISH_TOAST_KEY = 'mycorner:publishToast';
+const PUBLISH_TOAST_EXPIRY_MS = 30 * 1000; // 30 seconds
+
+/**
+ * Set publish toast data to show after navigation
+ */
+export function setPublishToastData(url: string): void {
+  if (typeof window === 'undefined') return;
+  const data: PublishToastData = {
+    url,
+    timestamp: Date.now(),
+  };
+  sessionStorage.setItem(PUBLISH_TOAST_KEY, JSON.stringify(data));
+}
+
+/**
+ * Get publish toast data if valid and not expired
+ */
+export function getPublishToastData(): PublishToastData | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const data = sessionStorage.getItem(PUBLISH_TOAST_KEY);
+    if (!data) return null;
+    const parsed = JSON.parse(data) as PublishToastData;
+    // Expire after 30 seconds
+    if (Date.now() - parsed.timestamp > PUBLISH_TOAST_EXPIRY_MS) {
+      clearPublishToastData();
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Clear publish toast data
+ */
+export function clearPublishToastData(): void {
+  if (typeof window === 'undefined') return;
+  sessionStorage.removeItem(PUBLISH_TOAST_KEY);
+}

@@ -2,17 +2,16 @@ import { useState, useCallback, useEffect } from 'react';
 import { GetServerSideProps } from 'next';
 import Head from 'next/head';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter } from 'next/router';
-import { useMutation } from '@apollo/client';
+import { gql } from '@apollo/client';
 import { initializeApollo } from '@/lib/apollo/client';
-import { FORK_PAGE } from '@/lib/graphql/mutations';
 import { ViewerCanvas } from '@/components/viewer/ViewerCanvas';
 import { FloatingAction } from '@/components/viewer/FloatingAction';
-import { FeedbackModal } from '@/components/viewer/FeedbackModal';
-import { routes, getPublicUrl } from '@/lib/routes';
+import { getBackgroundBrightness } from '@/shared/utils/blockStyles';
+import { routes } from '@/lib/routes';
 import type { Block, BackgroundConfig } from '@/shared/types';
 import styles from '@/styles/ViewPage.module.css';
-import { gql } from '@apollo/client';
 
 const GET_PAGE_BY_USERNAME = gql`
   query GetPageByUsername($username: String!) {
@@ -93,11 +92,7 @@ interface UserPageProps {
 
 export default function UserPage({ page, username, currentUserId }: UserPageProps) {
   const router = useRouter();
-  const [forking, setForking] = useState(false);
-  const [showFeedback, setShowFeedback] = useState(false);
   const [copied, setCopied] = useState(false);
-
-  const [forkPage] = useMutation(FORK_PAGE);
 
   const publicUrl = typeof window !== 'undefined' 
     ? `${window.location.origin}/u/${username}` 
@@ -134,22 +129,6 @@ export default function UserPage({ page, username, currentUserId }: UserPageProp
     }
   };
 
-  const handleFork = async () => {
-    if (!page) return;
-    setForking(true);
-    try {
-      const { data } = await forkPage({
-        variables: { id: page.id },
-      });
-      if (data?.forkPage?.id) {
-        router.push(routes.edit(data.forkPage.id));
-      }
-    } catch (error) {
-      console.error('Fork failed:', error);
-      setForking(false);
-    }
-  };
-
   // Page doesn't exist
   if (!page) {
     return (
@@ -161,7 +140,7 @@ export default function UserPage({ page, username, currentUserId }: UserPageProp
           <h1>@{username}</h1>
           <p>This page doesn&apos;t exist yet.</p>
           <Link href={routes.new()} className={styles.backBtn}>
-            Create your own
+            Want your own corner of the internet?
           </Link>
         </div>
       </>
@@ -170,6 +149,7 @@ export default function UserPage({ page, username, currentUserId }: UserPageProp
 
   const pageTitle = page.title || `@${username}'s corner`;
   const authorName = page.owner?.name || page.owner?.username || username;
+  const backgroundBrightness = getBackgroundBrightness(page.background);
 
   return (
     <>
@@ -181,7 +161,7 @@ export default function UserPage({ page, username, currentUserId }: UserPageProp
         <meta property="og:url" content={publicUrl} />
       </Head>
 
-      <main className={styles.main}>
+      <main className={`${styles.main} ${backgroundBrightness === 'dark' ? styles.darkBg : styles.lightBg}`}>
         {page.title && (
           <header className={styles.header}>
             <h1 className={styles.title}>{page.title}</h1>
@@ -190,41 +170,23 @@ export default function UserPage({ page, username, currentUserId }: UserPageProp
 
         <ViewerCanvas blocks={page.blocks} background={page.background} />
 
-        {/* Copy link button - subtle */}
+        {/* Share button - subtle */}
         <button 
           className={styles.copyLink}
           onClick={handleCopy}
         >
-          {copied ? 'Copied!' : 'Copy link'}
+          {copied ? 'Copied!' : 'Share'}
         </button>
 
-        {/* Create your own link */}
+        {/* Want your own corner link - top right with logo */}
         <Link href={routes.new()} className={styles.createOwn}>
-          Create your own
+          <Image src="/logo.png" alt="" width={18} height={18} className={styles.createOwnLogo} />
+          Want your own corner of the internet?
         </Link>
-
-        {/* Feedback link - only show for non-owners */}
-        {!isOwner && (
-          <button 
-            className={styles.feedbackLink}
-            onClick={() => setShowFeedback(true)}
-          >
-            Send feedback
-          </button>
-        )}
 
         <FloatingAction
           isOwner={!!isOwner}
-          isAuthenticated={!!currentUserId}
           onEdit={handleEdit}
-          onFork={handleFork}
-          forking={forking}
-        />
-
-        <FeedbackModal
-          pageId={page.id}
-          isOpen={showFeedback}
-          onClose={() => setShowFeedback(false)}
         />
       </main>
     </>

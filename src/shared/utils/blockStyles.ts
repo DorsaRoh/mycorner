@@ -113,6 +113,103 @@ export function isImageUrl(url: string): boolean {
 }
 
 /**
+ * Parse a color string (hex, rgb, rgba) and return RGB values.
+ * Returns null if parsing fails.
+ */
+function parseColor(color: string): { r: number; g: number; b: number } | null {
+  if (!color) return null;
+  
+  // Handle hex colors
+  const hexMatch = color.match(/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i);
+  if (hexMatch) {
+    return {
+      r: parseInt(hexMatch[1], 16),
+      g: parseInt(hexMatch[2], 16),
+      b: parseInt(hexMatch[3], 16),
+    };
+  }
+  
+  // Handle short hex colors
+  const shortHexMatch = color.match(/^#?([a-f\d])([a-f\d])([a-f\d])$/i);
+  if (shortHexMatch) {
+    return {
+      r: parseInt(shortHexMatch[1] + shortHexMatch[1], 16),
+      g: parseInt(shortHexMatch[2] + shortHexMatch[2], 16),
+      b: parseInt(shortHexMatch[3] + shortHexMatch[3], 16),
+    };
+  }
+  
+  // Handle rgb/rgba colors
+  const rgbMatch = color.match(/rgba?\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
+  if (rgbMatch) {
+    return {
+      r: parseInt(rgbMatch[1], 10),
+      g: parseInt(rgbMatch[2], 10),
+      b: parseInt(rgbMatch[3], 10),
+    };
+  }
+  
+  return null;
+}
+
+/**
+ * Calculate relative luminance of a color (0-1 scale).
+ * Uses the W3C formula for perceived brightness.
+ */
+function getLuminance(r: number, g: number, b: number): number {
+  // Normalize to 0-1
+  const rs = r / 255;
+  const gs = g / 255;
+  const bs = b / 255;
+  
+  // Apply gamma correction
+  const rg = rs <= 0.03928 ? rs / 12.92 : Math.pow((rs + 0.055) / 1.055, 2.4);
+  const gg = gs <= 0.03928 ? gs / 12.92 : Math.pow((gs + 0.055) / 1.055, 2.4);
+  const bg = bs <= 0.03928 ? bs / 12.92 : Math.pow((bs + 0.055) / 1.055, 2.4);
+  
+  // Calculate luminance
+  return 0.2126 * rg + 0.7152 * gg + 0.0722 * bg;
+}
+
+/**
+ * Determine if a background is dark or light based on its configuration.
+ * Returns 'dark' if text should be light, 'light' if text should be dark.
+ */
+export function getBackgroundBrightness(background?: {
+  mode: 'solid' | 'gradient' | 'image';
+  solid?: { color: string };
+  gradient?: { type: 'linear' | 'radial'; colorA: string; colorB: string; angle: number };
+  image?: { url: string; fit: 'cover' | 'contain' | 'fill' | 'tile'; position: string; opacity: number };
+}): 'dark' | 'light' {
+  if (!background) return 'light'; // Default to light background
+  
+  if (background.mode === 'solid' && background.solid) {
+    const rgb = parseColor(background.solid.color);
+    if (rgb) {
+      const luminance = getLuminance(rgb.r, rgb.g, rgb.b);
+      return luminance < 0.5 ? 'dark' : 'light';
+    }
+  } else if (background.mode === 'gradient' && background.gradient) {
+    const rgbA = parseColor(background.gradient.colorA);
+    const rgbB = parseColor(background.gradient.colorB);
+    if (rgbA && rgbB) {
+      // Average the luminance of both colors
+      const lumA = getLuminance(rgbA.r, rgbA.g, rgbA.b);
+      const lumB = getLuminance(rgbB.r, rgbB.g, rgbB.b);
+      const avgLuminance = (lumA + lumB) / 2;
+      return avgLuminance < 0.5 ? 'dark' : 'light';
+    }
+  } else if (background.mode === 'image') {
+    // For images, we can't easily determine brightness
+    // Default to light (dark text) since most images have varied colors
+    // The frosted glass effect should help with readability
+    return 'light';
+  }
+  
+  return 'light'; // Default fallback
+}
+
+/**
  * Compute background styles from BackgroundConfig.
  * Returns canvasStyle (for solid/gradient) and bgImageStyle (for image layer with opacity).
  */

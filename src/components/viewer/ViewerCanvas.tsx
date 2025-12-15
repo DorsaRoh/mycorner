@@ -19,13 +19,15 @@ export function ViewerCanvas({ blocks, background }: ViewerCanvasProps) {
   return (
     <div ref={containerRef} className={styles.canvas} style={canvasStyle}>
       {bgImageStyle && <div className={styles.bgImageLayer} style={bgImageStyle} />}
-      {blocks.map((block) => (
-        <ViewerBlock 
-          key={block.id} 
-          block={block} 
-          canvasDimensions={dimensions}
-        />
-      ))}
+      <div className={styles.blocksContainer}>
+        {blocks.map((block) => (
+          <ViewerBlock 
+            key={block.id} 
+            block={block} 
+            canvasDimensions={dimensions}
+          />
+        ))}
+      </div>
     </div>
   );
 }

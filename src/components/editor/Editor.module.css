@@ -8,6 +8,25 @@
   position: relative;
 }
 
+/* Background brightness classes for adaptive text colors */
+.lightBg {
+  --ui-text: rgba(0, 0, 0, 0.7);
+  --ui-text-muted: rgba(0, 0, 0, 0.5);
+  --ui-text-shadow: 0 0 8px rgba(255, 255, 255, 0.6);
+  --ui-bg: rgba(255, 255, 255, 0.2);
+  --ui-bg-hover: rgba(255, 255, 255, 0.35);
+  --ui-border: rgba(0, 0, 0, 0.1);
+}
+
+.darkBg {
+  --ui-text: rgba(255, 255, 255, 0.9);
+  --ui-text-muted: rgba(255, 255, 255, 0.7);
+  --ui-text-shadow: 0 0 8px rgba(0, 0, 0, 0.6);
+  --ui-bg: rgba(0, 0, 0, 0.2);
+  --ui-bg-hover: rgba(0, 0, 0, 0.35);
+  --ui-border: rgba(255, 255, 255, 0.15);
+}
+
 /* Top right controls container */
 .topRightControls {
   position: fixed;
@@ -19,34 +38,31 @@
   z-index: 100;
 }
 
-/* Floating Invite button - top right, soft, organic */
+/* Floating Invite button - top right, adaptive to background */
 .inviteBtn {
   padding: 9px 22px;
   font-size: 0.8125rem;
   font-family: var(--font-sans);
   font-weight: 500;
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  color: var(--color-text);
-  border: 1px solid rgba(0, 0, 0, 0.06);
+  background: var(--ui-bg);
+  backdrop-filter: blur(12px) saturate(1.2);
+  -webkit-backdrop-filter: blur(12px) saturate(1.2);
+  color: var(--ui-text);
+  text-shadow: var(--ui-text-shadow);
+  border: 1px solid var(--ui-border);
   border-radius: 20px;
   cursor: pointer;
   transition: 
     transform 180ms cubic-bezier(0.23, 1, 0.32, 1),
     background 150ms ease-out,
     box-shadow 180ms ease-out;
-  box-shadow: 
-    0 2px 12px -2px rgba(60, 50, 40, 0.08),
-    0 1px 3px rgba(60, 50, 40, 0.04);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
 }
 
 .inviteBtn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.95);
+  background: var(--ui-bg-hover);
   transform: scale(1.02);
-  box-shadow: 
-    0 4px 16px -2px rgba(60, 50, 40, 0.1),
-    0 2px 6px rgba(60, 50, 40, 0.05);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
 }
 
 .inviteBtn:active:not(:disabled) {
@@ -60,30 +76,32 @@
 
 /* Published state - subtle success indication */
 .publishedBtn {
-  color: var(--color-text-muted);
+  color: var(--ui-text-muted);
 }
 
 /* Unpublished changes - gentle prompt to update */
 .unpublishedChanges {
-  background: rgba(255, 255, 255, 0.9);
-  border-color: var(--color-accent);
-  color: var(--color-accent);
+  background: rgba(0, 0, 0, 0.7);
+  border-color: transparent;
+  color: rgba(255, 255, 255, 0.95);
+  text-shadow: none;
 }
 
 .unpublishedChanges:hover:not(:disabled) {
-  background: var(--color-accent);
+  background: rgba(0, 0, 0, 0.85);
   color: white;
 }
 
 /* Publish error state */
 .inviteBtn.publishError {
-  background: rgba(255, 240, 240, 0.9);
+  background: rgba(200, 80, 80, 0.2);
   border-color: rgba(200, 80, 80, 0.3);
   color: rgb(180, 60, 60);
+  text-shadow: 0 0 8px rgba(255, 255, 255, 0.8);
 }
 
 .inviteBtn.publishError:hover {
-  background: rgba(255, 230, 230, 0.95);
+  background: rgba(200, 80, 80, 0.3);
 }
 
 /* Background button wrapper for positioning panel */
@@ -91,7 +109,7 @@
   position: relative;
 }
 
-/* Background button - subtle square icon */
+/* Background button - adaptive to background */
 .backgroundBtn {
   width: 36px;
   height: 36px;
@@ -100,11 +118,11 @@
   justify-content: center;
   font-size: 0.75rem;
   font-family: var(--font-sans);
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  color: var(--color-text-muted);
-  border: 1px solid rgba(0, 0, 0, 0.06);
+  background: var(--ui-bg);
+  backdrop-filter: blur(12px) saturate(1.2);
+  -webkit-backdrop-filter: blur(12px) saturate(1.2);
+  color: var(--ui-text-muted);
+  border: 1px solid var(--ui-border);
   border-radius: 8px;
   cursor: pointer;
   transition:
@@ -112,9 +130,7 @@
     background 150ms ease-out,
     box-shadow 180ms ease-out,
     color 150ms ease-out;
-  box-shadow:
-    0 2px 12px -2px rgba(60, 50, 40, 0.08),
-    0 1px 3px rgba(60, 50, 40, 0.04);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
 }
 
 .backgroundIcon {
@@ -125,12 +141,10 @@
 }
 
 .backgroundBtn:hover {
-  background: rgba(255, 255, 255, 0.95);
-  color: var(--color-text);
+  background: var(--ui-bg-hover);
+  color: var(--ui-text);
   transform: scale(1.05);
-  box-shadow:
-    0 4px 16px -2px rgba(60, 50, 40, 0.1),
-    0 2px 6px rgba(60, 50, 40, 0.05);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
 }
 
 .backgroundBtn:active {
@@ -138,16 +152,16 @@
 }
 
 .backgroundBtnActive {
-  background: var(--color-accent);
-  color: white;
-  border-color: var(--color-accent);
+  background: rgba(0, 0, 0, 0.7);
+  color: rgba(255, 255, 255, 0.95);
+  border-color: transparent;
 }
 
 .backgroundBtnActive .backgroundIcon {
-  background: white;
+  background: rgba(255, 255, 255, 0.95);
 }
 
-/* Published URL indicator - subtle, below publish button */
+/* Published URL indicator - subtle, below publish button, adaptive */
 .publishedUrl {
   position: fixed;
   top: 64px;
@@ -158,7 +172,8 @@
 }
 
 .publishedUrl a {
-  color: var(--color-text-muted);
+  color: var(--ui-text-muted);
+  text-shadow: var(--ui-text-shadow);
   text-decoration: none;
   padding: 4px 8px;
   border-radius: 6px;
@@ -166,11 +181,11 @@
 }
 
 .publishedUrl a:hover {
-  color: var(--color-accent);
-  background: rgba(0, 0, 0, 0.03);
+  color: var(--ui-text);
+  background: var(--ui-bg);
 }
 
-/* Floating save indicator - bottom left, very subtle */
+/* Floating save indicator - bottom left, adaptive to background */
 .saveIndicator {
   position: fixed;
   bottom: 20px;
@@ -179,13 +194,14 @@
   font-family: var(--font-sans);
   z-index: 100;
   padding: 6px 12px;
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border: none;
+  background: var(--ui-bg);
+  backdrop-filter: blur(12px) saturate(1.2);
+  -webkit-backdrop-filter: blur(12px) saturate(1.2);
+  color: var(--ui-text-muted);
+  text-shadow: var(--ui-text-shadow);
+  border: 1px solid var(--ui-border);
   border-radius: 14px;
-  box-shadow: 
-    0 2px 8px rgba(60, 50, 40, 0.05);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
 .saving {
@@ -303,6 +319,243 @@
   min-height: 0; /* Allow flex shrinking to prevent overflow */
 }
 
+/* Feedback button - bottom right, adaptive to background */
+.feedbackBtn {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px 10px 12px;
+  font-size: 0.75rem;
+  font-family: var(--font-sans);
+  font-weight: 500;
+  background: var(--ui-bg);
+  backdrop-filter: blur(12px) saturate(1.2);
+  -webkit-backdrop-filter: blur(12px) saturate(1.2);
+  color: var(--ui-text-muted);
+  text-shadow: var(--ui-text-shadow);
+  border: 1px solid var(--ui-border);
+  border-radius: 20px;
+  cursor: pointer;
+  transition: all 150ms ease;
+  z-index: 50;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.feedbackBtn:hover {
+  background: var(--ui-bg-hover);
+  color: var(--ui-text);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+.feedbackLogo {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+}
+
+/* Feedback modal */
+.feedbackOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  backdrop-filter: blur(4px);
+  animation: feedbackFadeIn 0.15s ease-out;
+}
+
+@keyframes feedbackFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.feedbackModal {
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 28px;
+  max-width: 420px;
+  width: 90%;
+  box-shadow: var(--shadow-lg);
+  animation: feedbackSlideUp 0.2s ease-out;
+}
+
+@keyframes feedbackSlideUp {
+  from { 
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to { 
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.feedbackModal h2 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0 0 4px;
+  color: var(--color-text);
+}
+
+.feedbackSubtitle {
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+  margin: 0 0 20px;
+}
+
+.feedbackTextarea {
+  width: 100%;
+  padding: 12px;
+  font-size: 0.9375rem;
+  font-family: var(--font-sans);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  color: var(--color-text);
+  resize: vertical;
+  min-height: 100px;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.feedbackTextarea:focus {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px var(--color-accent-light);
+}
+
+.feedbackTextarea::placeholder {
+  color: var(--color-text-muted);
+}
+
+.feedbackEmailInput {
+  width: 100%;
+  margin-top: 12px;
+  padding: 12px;
+  font-size: 0.875rem;
+  font-family: var(--font-sans);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  color: var(--color-text);
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.feedbackEmailInput:focus {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px var(--color-accent-light);
+}
+
+.feedbackEmailInput::placeholder {
+  color: var(--color-text-muted);
+}
+
+.feedbackError {
+  color: var(--color-error);
+  font-size: 0.875rem;
+  margin: 12px 0 0;
+}
+
+.feedbackActions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 20px;
+}
+
+.feedbackCancelBtn {
+  padding: 10px 20px;
+  font-size: 0.875rem;
+  font-family: var(--font-sans);
+  font-weight: 500;
+  background: transparent;
+  color: var(--color-text-muted);
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.feedbackCancelBtn:hover {
+  color: var(--color-text);
+  background: var(--color-surface);
+}
+
+.feedbackSubmitBtn {
+  padding: 10px 24px;
+  font-size: 0.875rem;
+  font-family: var(--font-sans);
+  font-weight: 600;
+  background: var(--color-accent);
+  color: white;
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.feedbackSubmitBtn:hover:not(:disabled) {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.feedbackSubmitBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.feedbackSuccess {
+  text-align: center;
+  padding: 16px 0;
+}
+
+.feedbackCheckmark {
+  width: 56px;
+  height: 56px;
+  background: var(--color-success);
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  margin: 0 auto 16px;
+}
+
+.feedbackSuccess h2 {
+  margin-bottom: 8px;
+}
+
+.feedbackSuccess p {
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+  margin-bottom: 24px;
+}
+
+.feedbackDoneBtn {
+  padding: 12px 28px;
+  font-size: 0.875rem;
+  font-family: var(--font-sans);
+  font-weight: 500;
+  background: var(--color-surface);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.feedbackDoneBtn:hover {
+  border-color: var(--color-text-muted);
+  background: var(--color-bg);
+}
+
 /* Responsive adjustments */
 @media (max-width: 640px) {
   .topRightControls {
@@ -327,5 +580,12 @@
     left: 16px;
     font-size: 0.6875rem;
     padding: 5px 10px;
+  }
+
+  .feedbackBtn {
+    bottom: 16px;
+    right: 16px;
+    padding: 6px 12px;
+    font-size: 0.6875rem;
   }
 }

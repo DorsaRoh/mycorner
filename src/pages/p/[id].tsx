@@ -2,13 +2,13 @@ import { useState, useCallback, useEffect } from 'react';
 import { GetServerSideProps } from 'next';
 import Head from 'next/head';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter } from 'next/router';
-import { useMutation } from '@apollo/client';
 import { initializeApollo } from '@/lib/apollo/client';
-import { GET_PUBLIC_PAGE, FORK_PAGE } from '@/lib/graphql/mutations';
+import { GET_PUBLIC_PAGE } from '@/lib/graphql/mutations';
 import { ViewerCanvas } from '@/components/viewer/ViewerCanvas';
 import { FloatingAction } from '@/components/viewer/FloatingAction';
-import { FeedbackModal } from '@/components/viewer/FeedbackModal';
+import { getBackgroundBrightness } from '@/shared/utils/blockStyles';
 import { routes, getPublicUrl } from '@/lib/routes';
 import type { Block, BackgroundConfig } from '@/shared/types';
 import styles from '@/styles/ViewPage.module.css';
@@ -35,11 +35,7 @@ interface ViewPageProps {
 export default function ViewPage({ page, pageExists, currentUserId }: ViewPageProps) {
   const router = useRouter();
   const { id } = router.query;
-  const [forking, setForking] = useState(false);
-  const [showFeedback, setShowFeedback] = useState(false);
   const [copied, setCopied] = useState(false);
-
-  const [forkPage] = useMutation(FORK_PAGE);
 
   const publicUrl = typeof id === 'string' ? getPublicUrl(id) : '';
 
@@ -71,22 +67,6 @@ export default function ViewPage({ page, pageExists, currentUserId }: ViewPagePr
   const handleEdit = () => {
     if (page) {
       router.push(routes.edit(page.id));
-    }
-  };
-
-  const handleFork = async () => {
-    if (!page) return;
-    setForking(true);
-    try {
-      const { data } = await forkPage({
-        variables: { id: page.id },
-      });
-      if (data?.forkPage?.id) {
-        router.push(routes.edit(data.forkPage.id));
-      }
-    } catch (error) {
-      console.error('Fork failed:', error);
-      setForking(false);
     }
   };
 
@@ -125,7 +105,7 @@ export default function ViewPage({ page, pageExists, currentUserId }: ViewPagePr
           <h1>Page not found</h1>
           <p>This page doesn&apos;t exist.</p>
           <Link href={routes.new()} className={styles.backBtn}>
-            Create a new page
+            Want your own corner of the internet?
           </Link>
         </div>
       </>
@@ -134,6 +114,7 @@ export default function ViewPage({ page, pageExists, currentUserId }: ViewPagePr
 
   const pageTitle = page.title || 'Untitled';
   const authorName = page.owner?.displayName || 'Someone';
+  const backgroundBrightness = getBackgroundBrightness(page.background);
 
   return (
     <>
@@ -144,7 +125,7 @@ export default function ViewPage({ page, pageExists, currentUserId }: ViewPagePr
         <meta property="og:type" content="website" />
       </Head>
 
-      <main className={styles.main}>
+      <main className={`${styles.main} ${backgroundBrightness === 'dark' ? styles.darkBg : styles.lightBg}`}>
         {page.title && (
           <header className={styles.header}>
             <h1 className={styles.title}>{page.title}</h1>
@@ -153,41 +134,23 @@ export default function ViewPage({ page, pageExists, currentUserId }: ViewPagePr
 
         <ViewerCanvas blocks={page.blocks} background={page.background} />
 
-        {/* Copy link button - subtle */}
+        {/* Share button - subtle */}
         <button 
           className={styles.copyLink}
           onClick={handleCopy}
         >
-          {copied ? 'Copied!' : 'Copy link'}
+          {copied ? 'Copied!' : 'Share'}
         </button>
 
-        {/* Create your own link */}
+        {/* Want your own corner link - top right with logo */}
         <Link href={routes.new()} className={styles.createOwn}>
-          Create your own
+          <Image src="/logo.png" alt="" width={18} height={18} className={styles.createOwnLogo} />
+          Want your own corner of the internet?
         </Link>
-
-        {/* Feedback link - only show for non-owners */}
-        {!isOwner && (
-          <button 
-            className={styles.feedbackLink}
-            onClick={() => setShowFeedback(true)}
-          >
-            Send feedback
-          </button>
-        )}
 
         <FloatingAction
           isOwner={!!isOwner}
-          isAuthenticated={!!currentUserId}
           onEdit={handleEdit}
-          onFork={handleFork}
-          forking={forking}
-        />
-
-        <FeedbackModal
-          pageId={page.id}
-          isOpen={showFeedback}
-          onClose={() => setShowFeedback(false)}
         />
       </main>
     </>

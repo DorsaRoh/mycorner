@@ -14,3 +14,43 @@
   pointer-events: none;
   z-index: 0;
 }
+
+/* Inner container for blocks - allows mobile offset without affecting bg */
+.blocksContainer {
+  position: relative;
+  width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+/* ========================================
+   MOBILE RESPONSIVENESS
+   ======================================== */
+
+@media (max-width: 768px) {
+  .canvas {
+    /* Allow vertical scrolling for content that extends below viewport */
+    min-height: auto;
+    padding-bottom: 60px; /* Space for share button */
+  }
+
+  .blocksContainer {
+    /* Use transform to offset content down and avoid banner overlap */
+    transform: translateY(56px);
+    min-height: calc(100vh + 56px);
+    min-height: calc(100dvh + 56px);
+  }
+}
+
+@media (max-width: 480px) {
+  .canvas {
+    padding-bottom: 56px;
+  }
+
+  .blocksContainer {
+    /* More offset on small phones where banner takes full width */
+    transform: translateY(64px);
+    min-height: calc(100vh + 64px);
+    min-height: calc(100dvh + 64px);
+  }
+}

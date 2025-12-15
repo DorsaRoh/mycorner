@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
+import Image from 'next/image';
 import { useMutation, useQuery, gql } from '@apollo/client';
 import type { Block as BlockType, BackgroundConfig } from '@/shared/types';
 import { DEFAULT_STYLE } from '@/shared/types';
@@ -17,6 +18,9 @@ import {
   clearAuthContinuation,
   hasStarterBeenDismissed,
   setStarterDismissed,
+  setPublishToastData,
+  getPublishToastData,
+  clearPublishToastData,
 } from '@/lib/draft/storage';
 import { routes, getPublicUrl, isDraftId } from '@/lib/routes';
 
@@ -46,7 +50,7 @@ import { PublishToast } from './PublishToast';
 import { OnboardingModal } from './OnboardingModal';
 import styles from './Editor.module.css';
 
-import { isImageUrl, serializeLinkContent } from '@/shared/utils/blockStyles';
+import { isImageUrl, serializeLinkContent, getBackgroundBrightness } from '@/shared/utils/blockStyles';
 import { REFERENCE_WIDTH, REFERENCE_HEIGHT } from '@/lib/canvas';
 
 // Starter block ID prefix for identification
@@ -162,9 +166,9 @@ function createStarterBlocks(): BlockType[] {
       isStarter: true,
       starterOwned: false,
     },
-    // GitHub link
+    // Twitter link
     {
-      id: `${STARTER_BLOCK_PREFIX}github_${now}`,
+      id: `${STARTER_BLOCK_PREFIX}twitter_${now}`,
       type: 'LINK',
       x: pX(0.35),           // 35% from left
       y: pY(0.61),           // 71% from top
@@ -180,15 +184,15 @@ function createStarterBlocks(): BlockType[] {
       isStarter: true,
       starterOwned: false,
     },
-    // Twitter link
+    // Github link
     {
-      id: `${STARTER_BLOCK_PREFIX}twitter_${now}`,
+      id: `${STARTER_BLOCK_PREFIX}github_${now}`,
       type: 'LINK',
       x: pX(0.40),           // 40% from left
-      y: pY(0.65),           // 80% from top
+      y: pY(0.70),           // 80% from top
       width: pW(0.13),       // 13% of canvas width
       height: pH(0.04),      // 4% of canvas height
-      content: serializeLinkContent('→ your github', 'https://github.com'),
+      content: serializeLinkContent('→ things you build', 'https://github.com'),
       style: {
         ...DEFAULT_STYLE,
         fontSize: 14,
@@ -224,6 +228,12 @@ interface EditorProps {
   initialPublishedRevision?: number | null;
 }
 
+// Default starter background color - warm off-white/cream
+const DEFAULT_STARTER_BACKGROUND: BackgroundConfig = {
+  mode: 'solid',
+  solid: { color: '#faf9f6' },
+};
+
 export function Editor({ 
   pageId, 
   mode,
@@ -240,7 +250,7 @@ export function Editor({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [editingId, setEditingId] = useState<string | null>(null);
   const [title, setTitle] = useState(initialTitle);
-  const [background, setBackground] = useState<BackgroundConfig | undefined>(initialBackground);
+  const [background, setBackground] = useState<BackgroundConfig | undefined>(initialBackground ?? DEFAULT_STARTER_BACKGROUND);
   const [isPublished, setIsPublished] = useState(initialPublished);
   const [publishedRevision, setPublishedRevision] = useState<number | null>(initialPublishedRevision);
   const [publishing, setPublishing] = useState(false);
@@ -254,6 +264,10 @@ export function Editor({
   const [showPublishToast, setShowPublishToast] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [pendingPublishAfterOnboarding, setPendingPublishAfterOnboarding] = useState(false);
+  const [showFeedback, setShowFeedback] = useState(false);
+  const [feedbackMessage, setFeedbackMessage] = useState('');
+  const [feedbackEmail, setFeedbackEmail] = useState('');
+  const [feedbackStatus, setFeedbackStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
   
   // For draft mode: local save indicator
   const [draftSaveIndicator, setDraftSaveIndicator] = useState<'idle' | 'saving' | 'saved'>('idle');
@@ -286,10 +300,21 @@ export function Editor({
       if (draft) {
         setTitle(draft.title || '');
         setBlocks(draft.blocks || []);
-        setBackground(draft.background);
+        setBackground(draft.background ?? DEFAULT_STARTER_BACKGROUND);
       }
     }
   }, [mode, pageId]);
+
+  // Check for pending publish toast on mount (after navigation from draft publish)
+  useEffect(() => {
+    const toastData = getPublishToastData();
+    if (toastData) {
+      setPublishedUrl(toastData.url);
+      setShowPublishToast(true);
+      setIsPublished(true);
+      clearPublishToastData();
+    }
+  }, []);
 
   // Add starter blocks for empty draft pages
   useEffect(() => {
@@ -577,8 +602,9 @@ export function Editor({
           const publicUrl = publishData.publicUrl 
             ? `${window.location.origin}${publishData.publicUrl}`
             : getPublicUrl(serverPageId);
-          setPublishedUrl(publicUrl);
-          setShowPublishToast(true);
+          
+          // Store toast data before navigation so it persists across page load
+          setPublishToastData(publicUrl);
 
           // Navigate to the server page URL
           router.replace(routes.edit(serverPageId));
@@ -763,8 +789,9 @@ export function Editor({
           const publicUrl = publishData.publishPage.publicUrl 
             ? `${window.location.origin}${publishData.publishPage.publicUrl}`
             : getPublicUrl(newPageId, username);
-          setPublishedUrl(publicUrl);
-          setShowPublishToast(true);
+          
+          // Store toast data before navigation so it persists across page load
+          setPublishToastData(publicUrl);
           
           // Navigate to the published page's edit URL
           router.replace(routes.edit(newPageId));
@@ -803,6 +830,42 @@ export function Editor({
       setEditingId(null);
     }
   }, [starterMode, pageId]);
+
+  // Handle feedback submission
+  const handleFeedbackSubmit = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!feedbackMessage.trim()) return;
+
+    setFeedbackStatus('sending');
+    try {
+      const response = await fetch('/api/feature-request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: feedbackMessage.trim(),
+          email: feedbackEmail.trim() || null,
+          url: window.location.href,
+        }),
+      });
+
+      if (response.ok) {
+        setFeedbackStatus('sent');
+      } else {
+        setFeedbackStatus('error');
+      }
+    } catch {
+      setFeedbackStatus('error');
+    }
+  }, [feedbackMessage, feedbackEmail]);
+
+  const handleFeedbackClose = useCallback(() => {
+    setShowFeedback(false);
+    setTimeout(() => {
+      setFeedbackMessage('');
+      setFeedbackEmail('');
+      setFeedbackStatus('idle');
+    }, 200);
+  }, []);
 
   const handleAddBlock = useCallback((type: BlockType['type'], x?: number, y?: number, content?: string) => {
     exitStarterMode();
@@ -1054,8 +1117,10 @@ export function Editor({
     }
   };
 
+  const backgroundBrightness = getBackgroundBrightness(background);
+
   return (
-    <div className={styles.editor}>
+    <div className={`${styles.editor} ${backgroundBrightness === 'dark' ? styles.darkBg : styles.lightBg}`}>
       {/* Top right controls */}
       <div className={styles.topRightControls}>
         <div className={styles.backgroundBtnWrapper}>
@@ -1222,6 +1287,81 @@ export function Editor({
         userName={meData?.me?.name}
         onComplete={handleOnboardingComplete}
       />
+
+      {/* Feedback button - bottom right with logo */}
+      <button 
+        className={styles.feedbackBtn}
+        onClick={() => setShowFeedback(true)}
+      >
+        <Image src="/logo.png" alt="" width={18} height={18} className={styles.feedbackLogo} />
+        Send feedback
+      </button>
+
+      {/* Feedback modal */}
+      {showFeedback && (
+        <div className={styles.feedbackOverlay} onClick={handleFeedbackClose}>
+          <div className={styles.feedbackModal} onClick={(e) => e.stopPropagation()}>
+            {feedbackStatus === 'sent' ? (
+              <div className={styles.feedbackSuccess}>
+                <div className={styles.feedbackCheckmark}>✓</div>
+                <h2>Thanks for sharing!</h2>
+                <p>Your feedback makes your corner better!</p>
+                <button className={styles.feedbackDoneBtn} onClick={handleFeedbackClose}>
+                  Done
+                </button>
+              </div>
+            ) : (
+              <>
+                <h2>What would you like to see?</h2>
+                <p className={styles.feedbackSubtitle}>
+                  Share a feature request, idea, or anything you&apos;d like changed.
+                </p>
+
+                <form onSubmit={handleFeedbackSubmit}>
+                  <textarea
+                    value={feedbackMessage}
+                    onChange={(e) => setFeedbackMessage(e.target.value)}
+                    placeholder="I wish I could..."
+                    className={styles.feedbackTextarea}
+                    rows={4}
+                    autoFocus
+                    required
+                  />
+
+                  <input
+                    type="email"
+                    value={feedbackEmail}
+                    onChange={(e) => setFeedbackEmail(e.target.value)}
+                    placeholder="Your email (optional, for follow-up)"
+                    className={styles.feedbackEmailInput}
+                  />
+
+                  {feedbackStatus === 'error' && (
+                    <p className={styles.feedbackError}>Something went wrong. Please try again.</p>
+                  )}
+
+                  <div className={styles.feedbackActions}>
+                    <button 
+                      type="button" 
+                      className={styles.feedbackCancelBtn}
+                      onClick={handleFeedbackClose}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className={styles.feedbackSubmitBtn}
+                      disabled={feedbackStatus === 'sending' || !feedbackMessage.trim()}
+                    >
+                      {feedbackStatus === 'sending' ? 'Sending...' : 'Send'}
+                    </button>
+                  </div>
+                </form>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

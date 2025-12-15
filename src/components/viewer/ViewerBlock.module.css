@@ -97,3 +97,28 @@
   flex-shrink: 0;
   margin-left: 2px;
 }
+
+/* ========================================
+   MOBILE RESPONSIVENESS
+   ======================================== */
+
+@media (max-width: 768px) {
+  .textContent {
+    /* Ensure text wraps properly on smaller screens */
+    word-break: break-word;
+    hyphens: auto;
+    -webkit-hyphens: auto;
+  }
+
+  .linkContent {
+    /* Allow link content to wrap */
+    flex-wrap: wrap;
+  }
+
+  .linkText {
+    /* Better text handling on mobile */
+    word-break: break-word;
+    hyphens: auto;
+    -webkit-hyphens: auto;
+  }
+}
