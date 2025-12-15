@@ -1,0 +1,43 @@
+# Render Blueprint for my-corner
+# https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: my-corner
+    runtime: node
+    region: oregon
+    plan: free
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      # Database - set in Render dashboard
+      - key: DATABASE_URL
+        sync: false
+      # Auth - set in Render dashboard  
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true
+      # Storage - set in Render dashboard
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: SUPABASE_STORAGE_BUCKET
+        value: uploads
+      # Public URL - set after first deploy
+      - key: PUBLIC_URL
+        sync: false
+      - key: CORS_ORIGIN
+        sync: false
+      # Analytics (optional)
+      - key: NEXT_PUBLIC_PLAUSIBLE_DOMAIN
+        sync: false
+

@@ -197,12 +197,12 @@ export function Editor({
       console.error('[Save] Error:', error);
       const message = error instanceof Error ? error.message : 'Unknown error';
       if (message.includes('413') || message.toLowerCase().includes('payload too large')) {
-        return { success: false, error: { code: 'PAYLOAD_TOO_LARGE', message: 'Document too large to save' } };
+        return { success: false, error: { code: 'PAYLOAD_TOO_LARGE' as const, message: 'Document too large to save' } };
       }
       if (message.includes('Network') || message.includes('fetch')) {
-        return { success: false, error: { code: 'NETWORK', message: 'Network error' } };
+        return { success: false, error: { code: 'NETWORK' as const, message: 'Network error' } };
       }
-      return { success: false, error: { code: 'UNKNOWN', message } };
+      return { success: false, error: { code: 'UNKNOWN' as const, message } };
     }
   }, [pageId, state.title, state.blocks, state.background]);
 

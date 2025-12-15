@@ -1,0 +1,161 @@
+# Ship Checklist
+
+Production deployment checklist for my-corner.
+
+## Phase 0: Repo Understanding ✅
+
+- [x] Map codebase structure
+- [x] Document architecture in `docs/ARCHITECTURE.md`
+- [x] Identify save/publish flow
+- [x] Identify PayloadTooLarge root cause
+
+## Phase 1: Architecture ✅
+
+- [x] Choose deployment architecture (Express + Render + Supabase)
+- [x] Keep existing stack (minimal diff)
+
+## Phase 2: Production Essentials
+
+### 2.1 Environment + Config ✅
+
+- [x] Create `.env.example` with all required vars
+- [x] Create typed config module (`src/lib/config.ts`)
+- [x] Validate env vars at boot
+- [x] Separate dev vs prod URLs
+
+### 2.2 Persistence Model ✅
+
+- [x] PostgreSQL schema via Drizzle ORM (`src/server/db/schema.ts`)
+- [x] SQLite fallback for development
+- [x] JSONB for page content
+- [x] Draft + published content snapshots
+- [x] Server revision for conflict detection
+
+### 2.3 PayloadTooLarge Fix ✅
+
+- [x] Images upload to Supabase Storage (not base64)
+- [x] 1MB body limit (sufficient for metadata)
+- [x] Debounced saves via `useSaveController`
+- [x] Error handling for large payloads
+
+### 2.4 Routing ✅
+
+- [x] `/` - Landing (redirects to new draft)
+- [x] `/edit/[id]` - Editor (draft or server mode)
+- [x] `/p/[id]` - Public page by ID
+- [x] `/u/[username]` - Public page by username
+
+### 2.5 Auth (Google) ✅
+
+- [x] Google OAuth via Passport.js
+- [x] Session persistence
+- [x] Onboarding flow for username
+- [x] Auth gating for publish
+
+### 2.6 Security + Abuse Controls ✅
+
+- [x] Zod validation for page JSON (`src/server/db/validation.ts`)
+- [x] Rate limiting (`src/server/rateLimit.ts`)
+- [x] Reserved usernames list
+- [x] Owner-only page modifications
+- [x] Public pages show published content only
+
+### 2.7 Performance + Reliability ✅
+
+- [x] Debounced auto-save
+- [x] Conflict detection with revisions
+- [x] Health check endpoint
+- [x] Storage adapter for Supabase
+
+### 2.8 Analytics + Monitoring ✅
+
+- [x] Plausible Analytics (privacy-respecting)
+- [x] Environment variable for domain
+
+## Phase 3: Deployment
+
+### 3.1 Deploy ✅
+
+- [x] Create `render.yaml` for Render deployment
+- [x] Environment variables documented
+- [x] Health check configured
+
+### 3.2 Database ✅
+
+- [x] Drizzle ORM schema
+- [x] Migration commands in package.json
+- [x] PostgreSQL support for production
+
+## Phase 4: Cleanup
+
+### Code Quality
+
+- [x] Add lint script
+- [x] Add type-check script
+- [ ] Add format script (prettier)
+- [ ] Remove unused dependencies
+- [ ] Remove unused components
+
+### Testing
+
+- [ ] Smoke test: create draft
+- [ ] Smoke test: add object
+- [ ] Smoke test: publish
+- [ ] Smoke test: view public page
+
+---
+
+## Deployment Steps
+
+### 1. Create Supabase Project
+
+1. Go to https://supabase.com and create a new project
+2. Copy the project URL and service role key
+3. Create a storage bucket named `uploads` (set to public)
+
+### 2. Create Render Web Service
+
+1. Go to https://render.com and create a new Web Service
+2. Connect to your GitHub repo
+3. Use the settings from `render.yaml`
+4. Set environment variables:
+   - `DATABASE_URL` - Supabase PostgreSQL connection string
+   - `GOOGLE_CLIENT_ID` - From Google Cloud Console
+   - `GOOGLE_CLIENT_SECRET` - From Google Cloud Console
+   - `SUPABASE_URL` - Your Supabase project URL
+   - `SUPABASE_SERVICE_KEY` - Supabase service role key
+   - `PUBLIC_URL` - Your Render URL (e.g., https://my-corner.onrender.com)
+   - `CORS_ORIGIN` - Same as PUBLIC_URL
+
+### 3. Configure Google OAuth
+
+1. Go to https://console.cloud.google.com/apis/credentials
+2. Create OAuth 2.0 Client ID
+3. Add authorized redirect URIs:
+   - `https://your-domain.com/auth/google/callback`
+   - `http://localhost:3000/auth/google/callback` (for dev)
+
+### 4. Deploy
+
+1. Push to your main branch
+2. Render will automatically deploy
+3. Check the health endpoint: `https://your-domain.com/health`
+
+### 5. Custom Domain (Optional)
+
+1. In Render, go to Settings → Custom Domains
+2. Add your domain
+3. Update DNS records as instructed
+4. Update `PUBLIC_URL` and `CORS_ORIGIN` env vars
+5. Update Google OAuth redirect URIs
+
+---
+
+## Post-Launch Checklist
+
+- [ ] Test full flow: create → edit → publish → share
+- [ ] Check Plausible analytics are working
+- [ ] Monitor Render logs for errors
+- [ ] Test on mobile devices
+- [ ] Share with beta users
+

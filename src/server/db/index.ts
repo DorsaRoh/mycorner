@@ -1,519 +1,125 @@
 /**
- * SQLite database module with proper schema for users and pages.
- * Uses better-sqlite3 for synchronous, fast SQLite access.
+ * Database facade - switches between SQLite (dev) and PostgreSQL (prod).
+ * 
+ * This module re-exports database operations from the appropriate adapter
+ * based on environment configuration.
  */
 
-import Database from 'better-sqlite3';
-import path from 'path';
-import { v4 as uuidv4 } from 'uuid';
+import { getConfig } from '../../lib/config';
 
-// Database file location
-const DB_PATH = process.env.DATABASE_PATH || path.join(process.cwd(), 'data', 'my-corner.db');
+// Re-export types
+export type { DbUser, DbPage, DbFeedback, DbProductFeedback, PublishPageParams, PublishPageResult } from './types';
 
-// Ensure data directory exists
-import fs from 'fs';
-const dataDir = path.dirname(DB_PATH);
-if (!fs.existsSync(dataDir)) {
-  fs.mkdirSync(dataDir, { recursive: true });
-}
+// Determine which adapter to use at module load time
+const config = getConfig();
 
-// Initialize database
-const db = new Database(DB_PATH);
+// In development or when USE_SQLITE is true, use SQLite
+// Otherwise, use PostgreSQL
+const useSqlite = config.useSqlite;
 
-// Enable WAL mode for better concurrency
-db.pragma('journal_mode = WAL');
+// Dynamic import based on config
+// We use require here for synchronous loading (SQLite operations are sync)
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const adapter = useSqlite 
+  ? require('./sqlite') 
+  : require('./postgres');
 
-// Create tables
-db.exec(`
-  -- Users table
-  CREATE TABLE IF NOT EXISTS users (
-    id TEXT PRIMARY KEY,
-    email TEXT UNIQUE NOT NULL,
-    google_sub TEXT UNIQUE NOT NULL,
-    name TEXT,
-    avatar_url TEXT,
-    username TEXT UNIQUE,
-    created_at TEXT DEFAULT (datetime('now')),
-    updated_at TEXT DEFAULT (datetime('now'))
-  );
+// =============================================================================
+// User Operations (re-exported from adapter)
+// =============================================================================
 
-  -- Index for fast lookups
-  CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
-  CREATE INDEX IF NOT EXISTS idx_users_google_sub ON users(google_sub);
-  CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
+export const upsertUserByGoogleSub: typeof import('./sqlite').upsertUserByGoogleSub = 
+  useSqlite ? adapter.upsertUserByGoogleSub : wrapAsync(adapter.upsertUserByGoogleSub);
 
-  -- Pages table
-  CREATE TABLE IF NOT EXISTS pages (
-    id TEXT PRIMARY KEY,
-    user_id TEXT,
-    owner_id TEXT NOT NULL,
-    title TEXT,
-    slug TEXT UNIQUE,
-    content TEXT DEFAULT '[]',
-    background TEXT,
-    published_content TEXT,
-    published_background TEXT,
-    published_at TEXT,
-    published_revision INTEGER,
-    is_published INTEGER DEFAULT 0,
-    forked_from_id TEXT,
-    server_revision INTEGER DEFAULT 1,
-    schema_version INTEGER DEFAULT 1,
-    created_at TEXT DEFAULT (datetime('now')),
-    updated_at TEXT DEFAULT (datetime('now')),
-    FOREIGN KEY (user_id) REFERENCES users(id),
-    FOREIGN KEY (forked_from_id) REFERENCES pages(id)
-  );
+export const getUserById: typeof import('./sqlite').getUserById = 
+  useSqlite ? adapter.getUserById : wrapAsync(adapter.getUserById);
 
-  -- Index for fast lookups
-  CREATE INDEX IF NOT EXISTS idx_pages_user_id ON pages(user_id);
-  CREATE INDEX IF NOT EXISTS idx_pages_owner_id ON pages(owner_id);
-  CREATE INDEX IF NOT EXISTS idx_pages_slug ON pages(slug);
-  CREATE INDEX IF NOT EXISTS idx_pages_is_published ON pages(is_published);
+export const getUserByEmail: typeof import('./sqlite').getUserByEmail = 
+  useSqlite ? adapter.getUserByEmail : wrapAsync(adapter.getUserByEmail);
 
-  -- Migration: Add published content fields if they don't exist
-  -- SQLite doesn't have IF NOT EXISTS for columns, so we check pragma
-`);
+export const getUserByUsername: typeof import('./sqlite').getUserByUsername = 
+  useSqlite ? adapter.getUserByUsername : wrapAsync(adapter.getUserByUsername);
 
-// Migration: Add published_content columns if they don't exist
-const tableInfo = db.pragma('table_info(pages)') as { name: string }[];
-const columnNames = new Set(tableInfo.map(col => col.name));
+export const isUsernameTaken: typeof import('./sqlite').isUsernameTaken = 
+  useSqlite ? adapter.isUsernameTaken : wrapAsync(adapter.isUsernameTaken);
 
-if (!columnNames.has('published_content')) {
-  db.exec(`ALTER TABLE pages ADD COLUMN published_content TEXT`);
-}
-if (!columnNames.has('published_background')) {
-  db.exec(`ALTER TABLE pages ADD COLUMN published_background TEXT`);
-}
-if (!columnNames.has('published_at')) {
-  db.exec(`ALTER TABLE pages ADD COLUMN published_at TEXT`);
-}
-if (!columnNames.has('published_revision')) {
-  db.exec(`ALTER TABLE pages ADD COLUMN published_revision INTEGER`);
-}
+export const setUsername: typeof import('./sqlite').setUsername = 
+  useSqlite ? adapter.setUsername : wrapAsync(adapter.setUsername);
 
-db.exec(`
+// =============================================================================
+// Page Operations (re-exported from adapter)
+// =============================================================================
 
-  -- Feedback table
-  CREATE TABLE IF NOT EXISTS feedback (
-    id TEXT PRIMARY KEY,
-    page_id TEXT NOT NULL,
-    message TEXT NOT NULL,
-    email TEXT,
-    created_at TEXT DEFAULT (datetime('now')),
-    FOREIGN KEY (page_id) REFERENCES pages(id)
-  );
+export const createPage: typeof import('./sqlite').createPage = 
+  useSqlite ? adapter.createPage : wrapAsync(adapter.createPage);
 
-  -- Product feedback table
-  CREATE TABLE IF NOT EXISTS product_feedback (
-    id TEXT PRIMARY KEY,
-    message TEXT NOT NULL,
-    email TEXT,
-    created_at TEXT DEFAULT (datetime('now'))
-  );
-`);
+export const getPageById: typeof import('./sqlite').getPageById = 
+  useSqlite ? adapter.getPageById : wrapAsync(adapter.getPageById);
 
-// ============================================================================
-// Types
-// ============================================================================
+export const getPageBySlug: typeof import('./sqlite').getPageBySlug = 
+  useSqlite ? adapter.getPageBySlug : wrapAsync(adapter.getPageBySlug);
 
-export interface DbUser {
-  id: string;
-  email: string;
-  google_sub: string;
-  name: string | null;
-  avatar_url: string | null;
-  username: string | null;
-  created_at: string;
-  updated_at: string;
-}
+export const getPagesByUserId: typeof import('./sqlite').getPagesByUserId = 
+  useSqlite ? adapter.getPagesByUserId : wrapAsync(adapter.getPagesByUserId);
 
-export interface DbPage {
-  id: string;
-  user_id: string | null;
-  owner_id: string;
-  title: string | null;
-  slug: string | null;
-  content: string; // JSON string of blocks array (draft)
-  background: string | null; // JSON string of BackgroundConfig (draft)
-  published_content: string | null; // JSON string of blocks array (published snapshot)
-  published_background: string | null; // JSON string of BackgroundConfig (published snapshot)
-  published_at: string | null; // ISO timestamp of last publish
-  published_revision: number | null; // server_revision at time of publish
-  is_published: number;
-  forked_from_id: string | null;
-  server_revision: number;
-  schema_version: number;
-  created_at: string;
-  updated_at: string;
-}
+export const getPagesByOwnerId: typeof import('./sqlite').getPagesByOwnerId = 
+  useSqlite ? adapter.getPagesByOwnerId : wrapAsync(adapter.getPagesByOwnerId);
 
-export interface DbFeedback {
-  id: string;
-  page_id: string;
-  message: string;
-  email: string | null;
-  created_at: string;
-}
+export const getPublicPages: typeof import('./sqlite').getPublicPages = 
+  useSqlite ? adapter.getPublicPages : wrapAsync(adapter.getPublicPages);
 
-export interface DbProductFeedback {
-  id: string;
-  message: string;
-  email: string | null;
-  created_at: string;
-}
+export const updatePage: typeof import('./sqlite').updatePage = 
+  useSqlite ? adapter.updatePage : wrapAsync(adapter.updatePage);
 
-// ============================================================================
-// User Operations
-// ============================================================================
+export const publishPage: typeof import('./sqlite').publishPage = 
+  useSqlite ? adapter.publishPage : wrapAsync(adapter.publishPage);
 
-/**
- * Find or create user by Google sub (stable account identifier).
- * This is the main auth entry point.
- */
-export function upsertUserByGoogleSub(params: {
-  googleSub: string;
-  email: string;
-  name?: string;
-  avatarUrl?: string;
-}): DbUser {
-  const { googleSub, email, name, avatarUrl } = params;
+export const setPageSlug: typeof import('./sqlite').setPageSlug = 
+  useSqlite ? adapter.setPageSlug : wrapAsync(adapter.setPageSlug);
 
-  // Try to find existing user
-  const existing = db.prepare(`
-    SELECT * FROM users WHERE google_sub = ?
-  `).get(googleSub) as DbUser | undefined;
+export const forkPage: typeof import('./sqlite').forkPage = 
+  useSqlite ? adapter.forkPage : wrapAsync(adapter.forkPage);
 
-  if (existing) {
-    // Update email/name/avatar if changed
-    db.prepare(`
-      UPDATE users 
-      SET email = ?, name = ?, avatar_url = ?, updated_at = datetime('now')
-      WHERE id = ?
-    `).run(email.toLowerCase(), name || null, avatarUrl || null, existing.id);
+export const claimAnonymousPages: typeof import('./sqlite').claimAnonymousPages = 
+  useSqlite ? adapter.claimAnonymousPages : wrapAsync(adapter.claimAnonymousPages);
 
-    return getUserById(existing.id)!;
-  }
+export const createDefaultPage: typeof import('./sqlite').createDefaultPage = 
+  useSqlite ? adapter.createDefaultPage : wrapAsync(adapter.createDefaultPage);
 
-  // Check if email already exists (different google account)
-  const byEmail = db.prepare(`
-    SELECT * FROM users WHERE email = ?
-  `).get(email.toLowerCase()) as DbUser | undefined;
+// =============================================================================
+// Feedback Operations (re-exported from adapter)
+// =============================================================================
 
-  if (byEmail) {
-    // Link this google_sub to existing email account
-    db.prepare(`
-      UPDATE users 
-      SET google_sub = ?, name = COALESCE(?, name), avatar_url = COALESCE(?, avatar_url), updated_at = datetime('now')
-      WHERE id = ?
-    `).run(googleSub, name || null, avatarUrl || null, byEmail.id);
+export const addFeedback: typeof import('./sqlite').addFeedback = 
+  useSqlite ? adapter.addFeedback : wrapAsync(adapter.addFeedback);
 
-    return getUserById(byEmail.id)!;
-  }
+export const addProductFeedback: typeof import('./sqlite').addProductFeedback = 
+  useSqlite ? adapter.addProductFeedback : wrapAsync(adapter.addProductFeedback);
 
-  // Create new user
-  const id = uuidv4();
-  db.prepare(`
-    INSERT INTO users (id, email, google_sub, name, avatar_url)
-    VALUES (?, ?, ?, ?, ?)
-  `).run(id, email.toLowerCase(), googleSub, name || null, avatarUrl || null);
+// =============================================================================
+// Database initialization
+// =============================================================================
 
-  return getUserById(id)!;
-}
-
-export function getUserById(id: string): DbUser | null {
-  const user = db.prepare(`SELECT * FROM users WHERE id = ?`).get(id) as DbUser | undefined;
-  return user || null;
-}
-
-export function getUserByEmail(email: string): DbUser | null {
-  const user = db.prepare(`SELECT * FROM users WHERE email = ?`).get(email.toLowerCase()) as DbUser | undefined;
-  return user || null;
-}
-
-export function getUserByUsername(username: string): DbUser | null {
-  const user = db.prepare(`SELECT * FROM users WHERE username = ?`).get(username.toLowerCase()) as DbUser | undefined;
-  return user || null;
-}
-
-export function isUsernameTaken(username: string): boolean {
-  const row = db.prepare(`SELECT 1 FROM users WHERE username = ?`).get(username.toLowerCase());
-  return !!row;
-}
-
-export function setUsername(userId: string, username: string): { success: boolean; error?: string } {
-  // Validate username format
-  const usernameRegex = /^[a-z0-9_]{3,20}$/;
-  if (!usernameRegex.test(username)) {
-    return { success: false, error: 'Username must be 3-20 characters, lowercase letters, numbers, and underscores only' };
-  }
-
-  // Check if taken
-  if (isUsernameTaken(username)) {
-    return { success: false, error: 'Username is already taken' };
-  }
-
-  try {
-    db.prepare(`
-      UPDATE users SET username = ?, updated_at = datetime('now') WHERE id = ?
-    `).run(username.toLowerCase(), userId);
-    return { success: true };
-  } catch (err) {
-    // Unique constraint violation (race condition)
-    return { success: false, error: 'Username is already taken' };
+export async function initDatabase(): Promise<void> {
+  if (useSqlite) {
+    console.log('✅ SQLite database initialized');
+    // SQLite is already initialized on require
+  } else {
+    // Initialize PostgreSQL connection
+    const { initPostgres } = await import('./postgres');
+    initPostgres(config.databaseUrl);
   }
 }
 
-// ============================================================================
-// Page Operations
-// ============================================================================
+// =============================================================================
+// Helper to wrap async functions for consistent interface
+// =============================================================================
 
-export function createPage(ownerId: string, title?: string, userId?: string): DbPage {
-  const id = `page_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  
-  db.prepare(`
-    INSERT INTO pages (id, owner_id, user_id, title, content, is_published)
-    VALUES (?, ?, ?, ?, '[]', 0)
-  `).run(id, ownerId, userId || null, title || null);
+// Note: In production (PostgreSQL), operations are async.
+// In development (SQLite), operations are sync.
+// The resolvers handle both cases by awaiting results (await on sync just returns the value).
 
-  return getPageById(id)!;
+function wrapAsync<T extends (...args: unknown[]) => unknown>(fn: T): T {
+  // PostgreSQL operations are already async, just return them
+  return fn;
 }
-
-export function getPageById(id: string): DbPage | null {
-  const page = db.prepare(`SELECT * FROM pages WHERE id = ?`).get(id) as DbPage | undefined;
-  return page || null;
-}
-
-export function getPageBySlug(slug: string): DbPage | null {
-  const page = db.prepare(`SELECT * FROM pages WHERE slug = ?`).get(slug.toLowerCase()) as DbPage | undefined;
-  return page || null;
-}
-
-export function getPagesByUserId(userId: string): DbPage[] {
-  return db.prepare(`SELECT * FROM pages WHERE user_id = ? ORDER BY updated_at DESC`).all(userId) as DbPage[];
-}
-
-export function getPagesByOwnerId(ownerId: string): DbPage[] {
-  return db.prepare(`SELECT * FROM pages WHERE owner_id = ? ORDER BY updated_at DESC`).all(ownerId) as DbPage[];
-}
-
-export function getPublicPages(limit: number = 12): DbPage[] {
-  return db.prepare(`
-    SELECT * FROM pages WHERE is_published = 1 ORDER BY updated_at DESC LIMIT ?
-  `).all(limit) as DbPage[];
-}
-
-export function updatePage(
-  id: string,
-  updates: { title?: string; content?: string; background?: string },
-  baseServerRevision?: number
-): { page: DbPage | null; conflict: boolean } {
-  const page = getPageById(id);
-  if (!page) return { page: null, conflict: false };
-
-  // Check for conflict
-  if (baseServerRevision !== undefined && baseServerRevision !== page.server_revision) {
-    return { page, conflict: true };
-  }
-
-  const sets: string[] = [];
-  const values: (string | number | null)[] = [];
-
-  if (updates.title !== undefined) {
-    sets.push('title = ?');
-    values.push(updates.title);
-  }
-  if (updates.content !== undefined) {
-    sets.push('content = ?');
-    values.push(updates.content);
-  }
-  if (updates.background !== undefined) {
-    sets.push('background = ?');
-    values.push(updates.background);
-  }
-
-  sets.push('server_revision = server_revision + 1');
-  sets.push("updated_at = datetime('now')");
-
-  values.push(id);
-
-  db.prepare(`UPDATE pages SET ${sets.join(', ')} WHERE id = ?`).run(...values);
-
-  return { page: getPageById(id), conflict: false };
-}
-
-export interface PublishPageParams {
-  id: string;
-  content: string; // JSON blocks to publish
-  background?: string | null; // JSON background to publish
-  baseServerRevision: number; // For conflict detection
-  slug?: string;
-}
-
-export interface PublishPageResult {
-  page: DbPage | null;
-  conflict: boolean;
-  publishedRevision: number | null;
-  publishedAt: string | null;
-}
-
-/**
- * Publish a page by snapshotting the provided content.
- * This ensures the published version exactly matches what the client sent.
- * Validates baseServerRevision to prevent publishing stale content.
- */
-export function publishPage(params: PublishPageParams): PublishPageResult {
-  const { id, content, background, baseServerRevision, slug } = params;
-  
-  const page = getPageById(id);
-  if (!page) {
-    return { page: null, conflict: false, publishedRevision: null, publishedAt: null };
-  }
-
-  // Conflict detection: reject if client's base revision doesn't match server
-  // This prevents publishing stale content if saves happened in between
-  if (baseServerRevision !== page.server_revision) {
-    return {
-      page,
-      conflict: true,
-      publishedRevision: null,
-      publishedAt: null,
-    };
-  }
-
-  // If a slug is provided, clear it from any existing pages first
-  // This allows the new page to take over the username-based URL
-  if (slug) {
-    db.prepare(`
-      UPDATE pages 
-      SET slug = NULL, updated_at = datetime('now')
-      WHERE slug = ? AND id != ?
-    `).run(slug, id);
-  }
-
-  const publishedAt = new Date().toISOString();
-
-  // Atomically update:
-  // 1. Also update content/background (to ensure they're in sync)
-  // 2. Snapshot to published_content/published_background
-  // 3. Set published_at and published_revision
-  // 4. Set is_published = 1
-  db.prepare(`
-    UPDATE pages 
-    SET 
-      content = ?,
-      background = ?,
-      published_content = ?,
-      published_background = ?,
-      published_at = ?,
-      published_revision = server_revision,
-      is_published = 1,
-      slug = ?,
-      updated_at = datetime('now')
-    WHERE id = ?
-  `).run(
-    content,
-    background || null,
-    content,
-    background || null,
-    publishedAt,
-    slug || null,
-    id
-  );
-
-  const updatedPage = getPageById(id);
-  return {
-    page: updatedPage,
-    conflict: false,
-    publishedRevision: updatedPage?.published_revision ?? null,
-    publishedAt: updatedPage?.published_at ?? null,
-  };
-}
-
-export function setPageSlug(pageId: string, slug: string): { success: boolean; error?: string } {
-  // Validate slug format
-  const slugRegex = /^[a-z0-9_-]{1,50}$/;
-  if (!slugRegex.test(slug)) {
-    return { success: false, error: 'Invalid slug format' };
-  }
-
-  try {
-    db.prepare(`
-      UPDATE pages SET slug = ?, updated_at = datetime('now') WHERE id = ?
-    `).run(slug.toLowerCase(), pageId);
-    return { success: true };
-  } catch (err) {
-    return { success: false, error: 'Slug is already taken' };
-  }
-}
-
-export function forkPage(sourceId: string, newOwnerId: string, newUserId?: string): DbPage | null {
-  const source = getPageById(sourceId);
-  if (!source || !source.is_published) return null;
-
-  const id = `page_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  const title = source.title ? `${source.title} (fork)` : null;
-
-  // Fork from published_content (not draft content) to get the public version
-  const contentToFork = source.published_content || source.content;
-  const backgroundToFork = source.published_background || source.background;
-
-  db.prepare(`
-    INSERT INTO pages (id, owner_id, user_id, title, content, background, is_published, forked_from_id)
-    VALUES (?, ?, ?, ?, ?, ?, 0, ?)
-  `).run(id, newOwnerId, newUserId || null, title, contentToFork, backgroundToFork, sourceId);
-
-  return getPageById(id);
-}
-
-export function claimAnonymousPages(anonymousId: string, userId: string): void {
-  db.prepare(`
-    UPDATE pages 
-    SET owner_id = ?, user_id = ?, updated_at = datetime('now')
-    WHERE owner_id = ? AND is_published = 0 AND user_id IS NULL
-  `).run(userId, userId, anonymousId);
-}
-
-export function createDefaultPage(userId: string, title: string): DbPage {
-  const id = `page_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  
-  db.prepare(`
-    INSERT INTO pages (id, owner_id, user_id, title, content, is_published)
-    VALUES (?, ?, ?, ?, '[]', 0)
-  `).run(id, userId, userId, title);
-
-  return getPageById(id)!;
-}
-
-// ============================================================================
-// Feedback Operations
-// ============================================================================
-
-export function addFeedback(pageId: string, message: string, email?: string): DbFeedback {
-  const id = uuidv4();
-  
-  db.prepare(`
-    INSERT INTO feedback (id, page_id, message, email)
-    VALUES (?, ?, ?, ?)
-  `).run(id, pageId, message, email || null);
-
-  return db.prepare(`SELECT * FROM feedback WHERE id = ?`).get(id) as DbFeedback;
-}
-
-export function addProductFeedback(message: string, email?: string): DbProductFeedback {
-  const id = uuidv4();
-
-  db.prepare(`
-    INSERT INTO product_feedback (id, message, email)
-    VALUES (?, ?, ?)
-  `).run(id, message, email || null);
-
-  return db.prepare(`SELECT * FROM product_feedback WHERE id = ?`).get(id) as DbProductFeedback;
-}
-
-// ============================================================================
-// Export database for direct access if needed
-// ============================================================================
-
-export { db };
-

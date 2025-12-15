@@ -21,46 +21,71 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 | Framework | Next.js 14 + React 18 |
 | Language | TypeScript |
 | Data | GraphQL (Apollo Client + Server) |
-| Database | SQLite (better-sqlite3) |
+| Database | PostgreSQL (prod) / SQLite (dev) |
+| ORM | Drizzle ORM |
+| Storage | Supabase Storage (prod) / Local disk (dev) |
 | Server | Node.js + Express |
 | Auth | Passport.js + Google OAuth |
+| Hosting | Render |
 
-## Project Structure
+## Production Deployment
 
+### Prerequisites
+
+1. **Supabase Account** - For database and file storage
+2. **Render Account** - For hosting
+3. **Google Cloud Console** - For OAuth credentials
+
+### Step 1: Create Supabase Project
+
+1. Go to [supabase.com](https://supabase.com) and create a new project
+2. Note your project URL and service role key (Settings → API)
+3. Create a storage bucket named `uploads` and set it to public
+
+### Step 2: Configure Google OAuth
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
+2. Create a new OAuth 2.0 Client ID (Web application)
+3. Add authorized redirect URIs:
+   - `https://your-app.onrender.com/auth/google/callback`
+   - `http://localhost:3000/auth/google/callback` (for dev)
+
+### Step 3: Deploy to Render
+
+1. Push your code to GitHub
+2. Go to [render.com](https://render.com) and create a new Web Service
+3. Connect your GitHub repository
+4. Configure environment variables:
+
+| Variable | Value |
+|----------|-------|
+| `DATABASE_URL` | PostgreSQL connection string from Supabase |
+| `GOOGLE_CLIENT_ID` | From Google Cloud Console |
+| `GOOGLE_CLIENT_SECRET` | From Google Cloud Console |
+| `SESSION_SECRET` | (Render generates this) |
+| `SUPABASE_URL` | Your Supabase project URL |
+| `SUPABASE_SERVICE_KEY` | Supabase service role key |
+| `SUPABASE_STORAGE_BUCKET` | `uploads` |
+| `PUBLIC_URL` | Your Render app URL |
+| `CORS_ORIGIN` | Same as PUBLIC_URL |
+
+5. Deploy! The database schema will be applied automatically.
+
+### Step 4: Custom Domain (Optional)
+
+1. In Render → Settings → Custom Domains, add your domain
+2. Update DNS as instructed
+3. Update `PUBLIC_URL`, `CORS_ORIGIN`, and Google OAuth redirect URIs
+
+## Environment Variables
+
+Copy `.env.example` to `.env` and configure:
+
+```bash
+cp .env.example .env
 ```
-src/
-├── components/
-│   ├── editor/           # Page editor components
-│   │   ├── Editor.tsx    # Main editor orchestration
-│   │   ├── Canvas.tsx    # Draggable block canvas
-│   │   ├── Block.tsx     # Individual block (text/image/link)
-│   │   ├── Toolbar.tsx   # Add blocks, publish, share
-│   │   └── ShareModal.tsx
-│   └── viewer/           # Public page viewer
-│       ├── ViewerCanvas.tsx
-│       ├── ViewerBlock.tsx
-│       ├── FloatingAction.tsx
-│       └── FeedbackModal.tsx
-├── lib/
-│   ├── apollo/           # Apollo Client setup (SSR)
-│   ├── graphql/          # Queries and mutations
-│   ├── hooks/            # Custom hooks (autosave)
-│   └── upload.ts         # Client-side upload utility
-├── pages/
-│   ├── index.tsx         # Home - create new page
-│   ├── edit/[id].tsx     # Editor route
-│   └── p/[id].tsx        # Public viewer route
-├── server/
-│   ├── index.ts          # Express + Next.js server
-│   ├── auth/             # Passport magic link auth
-│   ├── graphql/          # Apollo Server + resolvers
-│   └── upload.ts         # Asset upload endpoint
-├── shared/
-│   └── types/            # Shared TypeScript types
-└── styles/               # CSS modules
-public/
-└── uploads/              # Uploaded assets (images, audio)
-```
+
+See `.env.example` for all available options.
 
 ## Available Scripts
 
@@ -71,270 +96,154 @@ public/
 | `npm start` | Start production server |
 | `npm run lint` | Run ESLint |
 | `npm run type-check` | Run TypeScript compiler check |
+| `npm run db:generate` | Generate database migrations |
+| `npm run db:migrate` | Run database migrations |
+| `npm run db:push` | Push schema to database |
+| `npm run db:studio` | Open Drizzle Studio |
+
+## Project Structure
+
+```
+src/
+├── components/
+│   ├── editor/           # Page editor components
+│   │   ├── Editor.tsx    # Main editor orchestration
+│   │   ├── Canvas.tsx    # Draggable block canvas
+│   │   ├── Block.tsx     # Individual block (text/image/link)
+│   │   └── ...
+│   └── viewer/           # Public page viewer
+│       ├── ViewerCanvas.tsx
+│       ├── ViewerBlock.tsx
+│       └── FloatingAction.tsx
+├── lib/
+│   ├── apollo/           # Apollo Client setup (SSR)
+│   ├── config.ts         # Typed environment config
+│   ├── graphql/          # Queries and mutations
+│   ├── hooks/            # Custom hooks (autosave)
+│   └── upload.ts         # Client-side upload utility
+├── pages/
+│   ├── index.tsx         # Home - create new page
+│   ├── edit/[id].tsx     # Editor route
+│   ├── p/[id].tsx        # Public viewer (by ID)
+│   └── u/[username].tsx  # Public viewer (by username)
+├── server/
+│   ├── index.ts          # Express + Next.js server
+│   ├── auth/             # Passport Google OAuth
+│   ├── db/               # Database (SQLite/PostgreSQL)
+│   ├── graphql/          # Apollo Server + resolvers
+│   ├── rateLimit.ts      # Rate limiting middleware
+│   ├── storage.ts        # File storage (local/Supabase)
+│   └── upload.ts         # Upload endpoint
+├── shared/
+│   └── types/            # Shared TypeScript types
+└── styles/               # CSS modules
+
+docs/
+├── ARCHITECTURE.md       # System architecture
+└── SHIP_CHECKLIST.md     # Production checklist
+```
+
+## Routes
+
+| Route | Description | Auth Required |
+|-------|-------------|---------------|
+| `/` | Create new page | No |
+| `/edit/[id]` | Edit page (draft or server) | Owner only |
+| `/p/[id]` | View published page by ID | No |
+| `/u/[username]` | View published page by username | No |
+| `/graphql` | GraphQL endpoint | No |
+| `/auth/google` | Google OAuth login | No |
+| `/auth/google/callback` | OAuth callback | No |
+| `/api/assets/upload` | Upload files | No |
+| `/health` | Health check | No |
 
 ## Core Features
 
 ### 1. Page Editor (`/edit/[id]`)
 
-- **Add blocks**: Double-click canvas (text) or use toolbar buttons
+- **Add blocks**: Click + buttons or double-click canvas
 - **Drag blocks**: Click and drag anywhere on a block
 - **Resize blocks**: Drag the corner handle when selected
-- **Delete blocks**: Click × button or press Delete key
+- **Style blocks**: Use the toolbar for text styling, effects
 - **Autosave**: Changes save automatically after 1 second
 - **Publish**: Click "Publish" to make page public
 
-### 2. Public Viewer (`/p/[id]`)
+### 2. Public Viewer (`/p/[id]` or `/u/[username]`)
 
-- **Server-side rendered** for fast loading
+- **Server-side rendered** for fast loading + SEO
 - **Read-only** view of published pages
+- **Share button**: Copy URL to clipboard
 - **Fork button**: "Make your own" creates editable copy
-- **Feedback**: Visitors can send messages to creators
 
 ### 3. Authentication
 
 Uses **Google OAuth** for authentication:
 
 1. Click "Publish" on your page
-2. Click "Continue with Google" in the auth modal
-3. Sign in with your Google account
-4. **First time only**: Choose your username and page title
-5. Your page is automatically published at `/u/{username}`
+2. Sign in with Google
+3. **First time**: Choose your username and page title
+4. Your page is published at `/u/{username}`
 
-**Setup**: See "Setting up Google OAuth" below for configuration.
+## Security Features
 
-## Routes
+- **Rate limiting** on all API endpoints
+- **Zod validation** for all user inputs
+- **Reserved usernames** (admin, api, etc.)
+- **Owner-only** page modifications
+- **Secure sessions** (httpOnly, secure cookies in prod)
+- **CORS** protection in production
 
-| Route | Description | Auth Required |
-|-------|-------------|---------------|
-| `/` | Home page - landing | No |
-| `/new` | Create/edit a new page (draft mode) | No |
-| `/edit/[id]` | Edit an existing page | Owner only |
-| `/p/[id]` | View published page by ID | No |
-| `/u/[username]` | View published page by username | No |
-| `/graphql` | GraphQL endpoint | No |
-| `/auth/google` | Google OAuth login | No |
-| `/auth/google/callback` | Google OAuth callback | No |
-| `/auth/status` | Get current auth status | No |
-| `/api/me` | Get current user profile | No |
-| `/api/onboarding` | Set username + create page | Yes |
-| `/api/publish` | Publish a page | Yes |
-| `/api/assets/upload` | Upload images/audio | No |
-| `/uploads/*` | Serve uploaded assets | No |
+## Analytics
 
-## GraphQL API
+Privacy-respecting analytics via [Plausible](https://plausible.io):
 
-### Queries
+1. Sign up at plausible.io
+2. Add your domain
+3. Set `NEXT_PUBLIC_PLAUSIBLE_DOMAIN` env var
 
-```graphql
-# Get current user
-query { me { id email } }
+No cookies, no personal data collected.
 
-# Get page (owner or published)
-query { page(id: "page_1") { id title blocks { ... } } }
-
-# Get public page only
-query { publicPage(id: "page_1") { id title blocks { ... } } }
-```
-
-### Mutations
-
-```graphql
-# Create new page
-mutation { createPage(input: { title: "My Page" }) { id } }
-
-# Update page
-mutation { updatePage(id: "page_1", input: { title: "New Title", blocks: [...] }) { id } }
-
-# Publish page (auth required)
-mutation { publishPage(id: "page_1") { id isPublished } }
-
-# Fork page (auth required)
-mutation { forkPage(id: "page_1") { id } }
-
-# Request magic link
-mutation { requestMagicLink(email: "you@example.com") { success } }
-
-# Send feedback
-mutation { sendFeedback(pageId: "page_1", message: "Great page!") { success } }
-```
-
-## Environment Variables
-
-Copy `.env.example` to `.env.local` and configure:
-
-```bash
-cp .env.example .env.local
-```
-
-```env
-# Server
-PORT=3000
-NODE_ENV=development
-
-# Session secret (change in production!)
-# Generate with: openssl rand -base64 32
-SESSION_SECRET=your-session-secret-at-least-32-characters-long
-
-# Google OAuth (required for authentication)
-GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
-GOOGLE_CLIENT_SECRET=your-google-client-secret
-
-# Database (optional - defaults to ./data/my-corner.db)
-# DATABASE_PATH=/path/to/your/database.db
-
-# CORS origin (production only)
-# CORS_ORIGIN=https://yourdomain.com
-```
-
-### Setting up Google OAuth
-
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Create a new project or select existing one
-3. Go to "APIs & Services" > "Credentials"
-4. Click "Create Credentials" > "OAuth client ID"
-5. Choose "Web application"
-6. Add authorized redirect URI: `http://localhost:3000/auth/google/callback`
-7. Copy Client ID and Client Secret to `.env.local`
-
-## Asset Uploads
-
-Images and audio files are uploaded to the server before being saved in page data. This keeps the page JSON small and fast.
-
-### How it works
-
-1. User drops/pastes/selects an image or audio file
-2. Client uploads file to `POST /api/assets/upload` (multipart/form-data)
-3. Server validates, stores file in `/public/uploads/`, returns URL
-4. Client stores only the URL in the block/page data
-
-### Upload endpoint
-
-```
-POST /api/assets/upload
-Content-Type: multipart/form-data
-
-file: <binary file data>
-```
-
-Response:
-```json
-{
-  "url": "/uploads/1702567890123-abc123.png",
-  "mime": "image/png",
-  "size": 245678,
-  "originalName": "my_image.png"
-}
-```
-
-### File limits
-
-| Type | Max Size | Allowed Formats |
-|------|----------|-----------------|
-| Images | 15 MB | PNG, JPG, WebP, GIF |
-| Audio | 25 MB | MP3, WAV, OGG, AAC, M4A |
-
-### File storage
-
-- **Development**: Files stored in `/public/uploads/` and served via `/uploads/*`
-- **Production (S3 migration)**: Update `src/server/upload.ts`:
-  1. Replace `multer.diskStorage` with `multer-s3`
-  2. Return full S3 URL instead of local path
-  3. Set appropriate bucket policies for public read access
-
-## Data Storage
-
-Uses **SQLite** with `better-sqlite3` for persistent storage. Database file is stored at `./data/my-corner.db` by default.
-
-### Database Schema
-
-**Users table:**
-- `id` (uuid primary key)
-- `email` (unique, not null)
-- `google_sub` (unique, not null) - stable Google account ID
-- `name` (from Google profile)
-- `avatar_url` (from Google profile)
-- `username` (unique) - chosen during onboarding
-- `created_at`, `updated_at` timestamps
-
-**Pages table:**
-- `id` (primary key)
-- `user_id` (foreign key to users)
-- `owner_id` (for anonymous session tracking)
-- `title`, `slug` (unique)
-- `content` (JSON blocks array)
-- `background` (JSON config)
-- `is_published` (boolean)
-- `server_revision`, `schema_version`
-- `created_at`, `updated_at` timestamps
-
-For production, you can switch to PostgreSQL by updating `src/server/db/index.ts`.
-
-## Security Notes
-
-- Unpublished pages are only accessible to their owner
-- Publishing requires authentication
-- Forking requires authentication
-- Session cookies are httpOnly and secure in production
-- CORS is restricted in production
-
-## User Flow
-
-```
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│   Create    │────▶│    Edit     │────▶│   Publish   │
-│    Page     │     │   (draft)   │     │   (auth)    │
-└─────────────┘     └─────────────┘     └──────┬──────┘
-                                               │
-                                               ▼
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│    Fork     │◀────│    View     │◀────│    Share    │
-│   (auth)    │     │  (public)   │     │    URL      │
-└─────────────┘     └─────────────┘     └─────────────┘
-```
-
-## Development Tips
-
-### Testing the full flow
-
-1. Go to `http://localhost:3000`
-2. Click "Create your page"
-3. Add some blocks, edit content
-4. Click "Publish"
-5. Sign in with Google
-6. **First time**: Choose your username and page title
-7. Share modal appears with public URL (`/u/{username}`)
-8. Open public URL in incognito
-9. Click "Make your own" to test forking
-
-### GraphQL Playground
-
-Visit `http://localhost:3000/graphql` to explore the API interactively.
-
-### Viewing feedback
-
-Feedback is logged to the console in development:
-
-```
-💬 New feedback for page page_1:
-   Message: This is great!
-   Email: viewer@example.com
-```
-
-## Troubleshooting
+## Common Issues
 
 ### "Page not found" when editing
-- The page may not exist or you don't own it
-- Check if you're authenticated
+- Check if you own the page
+- Try signing in with Google
 
 ### Publish fails
-- You need to be authenticated
-- Check console for magic link
-- Click the link to sign in, then try again
+- You must be signed in to publish
+- Check console for errors
 
 ### Changes not saving
 - Check browser console for errors
-- Ensure server is running
-- Look for "Saved" indicator in toolbar
+- Look for "Saved" indicator
+- Check network tab for 413 errors (content too large)
+
+### Images not uploading
+- Check file size (max 15MB)
+- Check file type (PNG, JPG, WebP, GIF only)
+- In production, check Supabase storage configuration
+
+## Local Development
+
+### Without Google OAuth
+
+You can run the app without OAuth configured - you just won't be able to publish:
+
+```bash
+npm run dev
+```
+
+### With SQLite (default in dev)
+
+Development uses SQLite by default. Data is stored in `./data/my-corner.db`.
+
+### With PostgreSQL locally
+
+Set `DATABASE_URL` in `.env` and unset `USE_SQLITE`:
+
+```env
+DATABASE_URL=postgresql://user:pass@localhost:5432/mycorner
+```
 
 ## License
 

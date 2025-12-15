@@ -8,21 +8,36 @@ import { expressMiddleware } from '@apollo/server/express4';
 import { configurePassport, authRoutes } from './auth';
 import { createUploadRouter } from './upload';
 import { createApiRouter } from './api';
+import { getConfig, validateConfig } from '../lib/config';
+import { initDatabase } from './db';
+import { generalApiLimit, authLimit, uploadLimit } from './rateLimit';
 
-const dev = process.env.NODE_ENV !== 'production';
-const port = parseInt(process.env.PORT || '3000', 10);
+// Validate configuration at startup
+validateConfig();
+const config = getConfig();
+
+const dev = config.isDev;
+const port = config.port;
 
 const app = next({ dev });
 const handle = app.getRequestHandler();
 
 async function main() {
+  // Initialize database
+  await initDatabase();
+
   await app.prepare();
 
   const server = express();
 
+  // Trust proxy for rate limiting behind reverse proxy
+  if (!dev) {
+    server.set('trust proxy', 1);
+  }
+
   // Core middleware
   server.use(cors({
-    origin: dev ? 'http://localhost:3000' : process.env.CORS_ORIGIN,
+    origin: config.corsOrigin || (dev ? 'http://localhost:3000' : undefined),
     credentials: true,
   }));
   
@@ -33,13 +48,14 @@ async function main() {
 
   // Session configuration
   server.use(session({
-    secret: process.env.SESSION_SECRET || 'dev-secret-change-in-production',
+    secret: config.sessionSecret,
     resave: false,
     saveUninitialized: true, // Allow anonymous sessions
     cookie: {
       secure: !dev,
       httpOnly: true,
       maxAge: 1000 * 60 * 60 * 24 * 7, // 1 week
+      sameSite: dev ? 'lax' : 'strict',
     },
   }));
 
@@ -56,14 +72,14 @@ async function main() {
     next();
   });
 
-  // Auth routes
-  server.use('/auth', authRoutes);
+  // Auth routes with rate limiting
+  server.use('/auth', authLimit, authRoutes);
 
   // Asset upload routes (multipart, before JSON middleware applies)
-  server.use('/api/assets', createUploadRouter());
+  server.use('/api/assets', uploadLimit, createUploadRouter());
 
   // API routes (me, onboarding, publish)
-  server.use('/api', createApiRouter());
+  server.use('/api', generalApiLimit, createApiRouter());
 
   // Apollo Server setup
   const apolloServer = createApolloServer();
@@ -71,6 +87,7 @@ async function main() {
 
   server.use(
     '/graphql',
+    generalApiLimit,
     expressMiddleware(apolloServer, {
       context: async ({ req, res }) => ({
         req,
@@ -81,6 +98,15 @@ async function main() {
     })
   );
 
+  // Health check endpoint
+  server.get('/health', (_req, res) => {
+    res.json({
+      status: 'ok',
+      env: config.nodeEnv,
+      timestamp: new Date().toISOString(),
+    });
+  });
+
   // Let Next.js handle all other routes
   server.all('*', (req, res) => {
     return handle(req, res);
@@ -89,6 +115,9 @@ async function main() {
   server.listen(port, () => {
     console.log(`🚀 Server ready at http://localhost:${port}`);
     console.log(`📊 GraphQL endpoint: http://localhost:${port}/graphql`);
+    if (!dev) {
+      console.log(`🌐 Public URL: ${config.publicUrl}`);
+    }
   });
 }
 

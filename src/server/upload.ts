@@ -1,33 +1,17 @@
+/**
+ * File upload router.
+ * Handles image uploads with validation.
+ */
+
 import { Router, Request, Response, NextFunction } from 'express';
 import multer, { FileFilterCallback } from 'multer';
-import path from 'path';
-import fs from 'fs';
-import crypto from 'crypto';
+import { uploadFile, generateFilename, isUsingSupabase } from './storage';
 
 const MAX_FILE_SIZE = 15 * 1024 * 1024; // 15MB
 const ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/gif'];
-const UPLOADS_DIR = path.join(process.cwd(), 'public', 'uploads');
 
-function ensureUploadsDir(): void {
-  if (!fs.existsSync(UPLOADS_DIR)) {
-    fs.mkdirSync(UPLOADS_DIR, { recursive: true });
-  }
-}
-
-function generateFilename(originalName: string): string {
-  const ext = path.extname(originalName).toLowerCase() || '';
-  return `${Date.now()}-${crypto.randomBytes(16).toString('hex')}${ext}`;
-}
-
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => {
-    ensureUploadsDir();
-    cb(null, UPLOADS_DIR);
-  },
-  filename: (_req, file, cb) => {
-    cb(null, generateFilename(file.originalname));
-  },
-});
+// Use memory storage - we'll pass buffer to storage adapter
+const storage = multer.memoryStorage();
 
 const fileFilter = (_req: Request, file: Express.Multer.File, cb: FileFilterCallback): void => {
   if (!ALLOWED_TYPES.includes(file.mimetype)) {
@@ -46,11 +30,7 @@ export interface UploadResponse {
   originalName: string;
 }
 
-function handleUploadError(err: Error, req: Request, res: Response, next: NextFunction): void {
-  if (req.file?.path && fs.existsSync(req.file.path)) {
-    fs.unlinkSync(req.file.path);
-  }
-
+function handleUploadError(err: Error, _req: Request, res: Response, next: NextFunction): void {
   if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
     res.status(413).json({ error: 'File too large. Maximum size is 15MB.', code: 'FILE_TOO_LARGE' });
     return;
@@ -82,20 +62,36 @@ export function createUploadRouter(): Router {
   router.post(
     '/upload',
     multerErrorHandler,
-    (req: Request, res: Response) => {
+    async (req: Request, res: Response) => {
       if (!req.file) {
         res.status(400).json({ error: 'No file provided.', code: 'NO_FILE' });
         return;
       }
 
+      const filename = generateFilename(req.file.originalname);
+      const result = await uploadFile(req.file.buffer, filename, req.file.mimetype);
+
+      if (!result.success) {
+        res.status(500).json({ error: result.error || 'Upload failed', code: 'UPLOAD_FAILED' });
+        return;
+      }
+
       res.status(201).json({
-        url: `/uploads/${req.file.filename}`,
+        url: result.url,
         mime: req.file.mimetype,
         size: req.file.size,
         originalName: req.file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 100),
       });
     }
   );
+
+  // Health check for storage
+  router.get('/health', (_req: Request, res: Response) => {
+    res.json({
+      storage: isUsingSupabase() ? 'supabase' : 'local',
+      status: 'ok',
+    });
+  });
 
   return router;
 }

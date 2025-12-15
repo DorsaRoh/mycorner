@@ -1,5 +1,7 @@
 import { Router } from 'express';
 import * as db from '../db';
+import { usernameSchema, isReservedUsername, validatePublishPageInput } from '../db/validation';
+import { publishLimit } from '../rateLimit';
 
 const router = Router();
 
@@ -36,14 +38,24 @@ router.get('/me', (req, res) => {
  * Check if username is available
  */
 router.get('/username/check', (req, res) => {
-  const username = (req.query.username as string || '').toLowerCase().trim();
+  const rawUsername = (req.query.username as string || '').trim();
   
-  // Validate format
-  const usernameRegex = /^[a-z0-9_]{3,20}$/;
-  if (!usernameRegex.test(username)) {
+  // Validate format with Zod
+  const parseResult = usernameSchema.safeParse(rawUsername);
+  if (!parseResult.success) {
     return res.json({
       available: false,
-      error: 'Username must be 3-20 characters, lowercase letters, numbers, and underscores only',
+      error: parseResult.error.issues?.[0]?.message || 'Invalid username format',
+    });
+  }
+
+  const username = parseResult.data;
+
+  // Check reserved usernames
+  if (isReservedUsername(username)) {
+    return res.json({
+      available: false,
+      error: 'This username is reserved',
     });
   }
 
@@ -59,7 +71,7 @@ router.get('/username/check', (req, res) => {
  * Sets username and creates default page with title
  * Body: { username: string, pageTitle: string }
  */
-router.post('/onboarding', (req, res) => {
+router.post('/onboarding', async (req, res) => {
   // Must be authenticated
   if (!req.isAuthenticated() || !req.user) {
     return res.status(401).json({ success: false, error: 'Authentication required' });
@@ -67,18 +79,20 @@ router.post('/onboarding', (req, res) => {
 
   const { username, pageTitle } = req.body;
 
-  // Validate username
-  if (!username || typeof username !== 'string') {
-    return res.status(400).json({ success: false, error: 'Username is required' });
-  }
-
-  const usernameClean = username.toLowerCase().trim();
-  const usernameRegex = /^[a-z0-9_]{3,20}$/;
-  if (!usernameRegex.test(usernameClean)) {
+  // Validate username with Zod
+  const parseResult = usernameSchema.safeParse(username);
+  if (!parseResult.success) {
     return res.status(400).json({ 
       success: false, 
-      error: 'Username must be 3-20 characters, lowercase letters, numbers, and underscores only' 
+      error: parseResult.error.issues?.[0]?.message || 'Invalid username' 
     });
+  }
+
+  const usernameClean = parseResult.data;
+
+  // Check reserved usernames
+  if (isReservedUsername(usernameClean)) {
+    return res.status(400).json({ success: false, error: 'This username is reserved' });
   }
 
   // Validate page title
@@ -88,16 +102,16 @@ router.post('/onboarding', (req, res) => {
   }
 
   // Try to set username
-  const result = db.setUsername(req.user.id, usernameClean);
+  const result = await db.setUsername(req.user.id, usernameClean);
   if (!result.success) {
     return res.status(400).json({ success: false, error: result.error });
   }
 
   // Create default page with the title
-  const page = db.createDefaultPage(req.user.id, title);
+  const page = await db.createDefaultPage(req.user.id, title);
 
   // Refresh user from DB
-  const updatedUser = db.getUserById(req.user.id);
+  const updatedUser = await db.getUserById(req.user.id);
 
   res.json({
     success: true,
@@ -120,7 +134,7 @@ router.post('/onboarding', (req, res) => {
  * Marks page as published and persists content snapshot
  * Body: { pageId: string, blocks: Block[], background?: BackgroundConfig, baseServerRevision: number }
  */
-router.post('/publish', (req, res) => {
+router.post('/publish', publishLimit, async (req, res) => {
   // Must be authenticated
   if (!req.isAuthenticated() || !req.user) {
     return res.status(401).json({ success: false, error: 'Authentication required' });
@@ -132,16 +146,14 @@ router.post('/publish', (req, res) => {
     return res.status(400).json({ success: false, error: 'pageId is required' });
   }
 
-  if (!blocks || !Array.isArray(blocks)) {
-    return res.status(400).json({ success: false, error: 'blocks array is required' });
-  }
-
-  if (typeof baseServerRevision !== 'number') {
-    return res.status(400).json({ success: false, error: 'baseServerRevision is required' });
+  // Validate input with Zod
+  const validation = validatePublishPageInput({ blocks, background, baseServerRevision });
+  if (!validation.valid) {
+    return res.status(400).json({ success: false, error: validation.error });
   }
 
   // Get the page
-  const page = db.getPageById(pageId);
+  const page = await db.getPageById(pageId);
   if (!page) {
     return res.status(404).json({ success: false, error: 'Page not found' });
   }
@@ -155,7 +167,7 @@ router.post('/publish', (req, res) => {
   const slug = req.user.username || undefined;
 
   // Publish the page with content snapshot
-  const result = db.publishPage({
+  const result = await db.publishPage({
     id: pageId,
     content: JSON.stringify(blocks),
     background: background ? JSON.stringify(background) : undefined,
@@ -201,3 +213,4 @@ router.post('/publish', (req, res) => {
 export function createApiRouter() {
   return router;
 }
+
