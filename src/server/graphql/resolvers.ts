@@ -15,6 +15,10 @@ interface BlockInput {
   effects?: Record<string, unknown>;
 }
 
+interface CreatePageInput {
+  title?: string;
+}
+
 interface UpdatePageInput {
   title?: string;
   blocks?: BlockInput[];
@@ -23,7 +27,21 @@ interface UpdatePageInput {
   baseServerRevision?: number;
 }
 
-function formatPage(pageId: string) {
+type FormattedPage = {
+  id: string;
+  owner: { id: string; email: string; displayName?: string; createdAt: string } | null;
+  title?: string;
+  isPublished: boolean;
+  blocks: StoredBlock[];
+  background?: StoredBackgroundConfig;
+  forkedFrom: FormattedPage | null;
+  createdAt: string;
+  updatedAt: string;
+  serverRevision: number;
+  schemaVersion: number;
+};
+
+function formatPage(pageId: string): FormattedPage | null {
   const page = store.getPage(pageId);
   if (!page) return null;
 
@@ -157,9 +175,29 @@ export const resolvers = {
         effects: block.effects,
       }));
 
+      // Convert background input to StoredBackgroundConfig
+      let background: StoredBackgroundConfig | undefined;
+      if (args.input.background) {
+        const bg = args.input.background;
+        if (bg.mode === 'solid' || bg.mode === 'gradient') {
+          background = {
+            mode: bg.mode,
+            solid: bg.solid,
+            gradient: bg.gradient ? {
+              type: bg.gradient.type === 'linear' || bg.gradient.type === 'radial' 
+                ? bg.gradient.type 
+                : 'linear',
+              colorA: bg.gradient.colorA,
+              colorB: bg.gradient.colorB,
+              angle: bg.gradient.angle,
+            } : undefined,
+          } as StoredBackgroundConfig;
+        }
+      }
+
       const result = store.updatePage(
         args.id, 
-        { title: args.input.title, blocks, background: args.input.background },
+        { title: args.input.title, blocks, background },
         args.input.baseServerRevision
       );
 

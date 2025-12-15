@@ -62,13 +62,26 @@ function handleUploadError(err: Error, req: Request, res: Response, next: NextFu
   next(err);
 }
 
+// Wrapper middleware to catch multer errors
+function multerErrorHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): void {
+  upload.single('file')(req, res, (err: unknown) => {
+    if (err) {
+      return handleUploadError(err as Error, req, res, next);
+    }
+    next();
+  });
+}
+
 export function createUploadRouter(): Router {
   const router = Router();
 
   router.post(
     '/upload',
-    upload.single('file'),
-    handleUploadError as (req: Request, res: Response, next: NextFunction) => void,
+    multerErrorHandler,
     (req: Request, res: Response) => {
       if (!req.file) {
         res.status(400).json({ error: 'No file provided.', code: 'NO_FILE' });
