@@ -1,9 +1,11 @@
 .canvas {
   position: relative;
   flex: 1;
+  width: 100%;
   height: 100%;
+  min-height: 0; /* Allow flex shrinking */
   background: var(--color-bg-pure);
-  overflow: visible;
+  overflow: hidden; /* Prevent accidental scrollbars */
   /* Prevent default touch behaviors for smoother mobile interaction */
   touch-action: none;
   -webkit-touch-callout: none;
@@ -154,6 +156,28 @@
     opacity: 1;
     transform: translateX(-50%) translateY(0);
   }
+}
+
+/* Debug overlay for canvas bounds visualization (dev only) */
+.debugOverlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  border: 2px dashed rgba(255, 0, 0, 0.3);
+}
+
+.debugInfo {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  background: rgba(0, 0, 0, 0.8);
+  color: #0f0;
+  font-family: monospace;
+  font-size: 10px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  white-space: pre;
 }
 
 /* Responsive adjustments */

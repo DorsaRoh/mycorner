@@ -8,29 +8,44 @@
  * 
  * This preserves relative layouts across all screen sizes.
  * 
+ * ## Implementation
+ * 
+ * The system uses width-based uniform scaling:
+ * - scale = containerWidth / REFERENCE_WIDTH
+ * - All coordinates and sizes are multiplied by this scale for rendering
+ * - All user interactions convert screen pixels to reference coordinates
+ * 
+ * ## Debug Mode
+ * 
+ * To enable canvas debug visualization in development:
+ * Open browser console and run: window.__CANVAS_DEBUG = true
+ * Then trigger a re-render (resize window or interact with canvas)
+ * 
  * ## Test Plan
  * 
  * ### Screen Size Tests
- * 1. Mobile (390x844): Objects scale down proportionally, text remains readable
+ * 1. Mobile (390x844): Objects scale down proportionally, text remains readable (min 10px)
  * 2. Laptop (1440x900): Objects render at ~1.2x scale, natural size
- * 3. Ultrawide (2560x1080): Objects scale up proportionally
+ * 3. Ultrawide (2560x1080): Objects scale up proportionally, text max 160px
  * 
  * ### Resize Tests
  * 1. Resize window while editing: Canvas re-renders without layout jump
- * 2. Resize during drag: Drag cancels safely (no stuck state)
+ * 2. Resize during drag: Marquee cancels safely (no stuck state)
  * 3. Orientation change on mobile: Layout adapts smoothly
  * 
  * ### Persistence Tests
  * 1. Save on laptop, reload on mobile: Same relative layout preserved
  * 2. Draft saved in localStorage: Coordinates in reference space
- * 3. Migration: Legacy pixel data converts to reference coords on load
+ * 3. All blocks use reference coordinates (1200x800 space)
  * 
  * ### Interaction Tests
  * 1. Drag moves in reference coords (small screens = less distance per px)
  * 2. Resize handles work correctly at all scales
- * 3. Marquee selection works across all screen sizes
+ * 3. Marquee selection works across all screen sizes (converts to ref coords)
  * 4. ObjectControls repositions when near screen edges
  * 5. CreationPalette stays within viewport bounds
+ * 6. Click-to-add places blocks at correct reference position
+ * 7. Drag-and-drop places blocks at correct reference position
  * 
  * ### Text Scaling Tests
  * 1. Font sizes scale with canvas but clamp between 10px-160px
@@ -52,6 +67,9 @@ export interface CanvasDimensions {
   scale: number;
   scaleX: number;
   scaleY: number;
+  // Offset to center content when aspect ratio differs from reference
+  offsetX: number;
+  offsetY: number;
 }
 
 export interface Rect {
@@ -70,17 +88,25 @@ export interface NormalizedRect {
 
 /**
  * Compute canvas dimensions and scale factors from container size.
- * Uses uniform scaling based on width to maintain aspect ratio of content.
+ * Uses uniform scaling (min of width/height ratios) to ensure content
+ * fits within the viewport while maintaining proportions - like object-fit: contain.
+ * Centers content when aspect ratio differs from reference.
  */
 export function getCanvasDimensions(containerWidth: number, containerHeight: number): CanvasDimensions {
-  // Use width-based scaling for consistent horizontal layout
-  // This means content scales uniformly based on width ratio
   const scaleX = containerWidth / REFERENCE_WIDTH;
   const scaleY = containerHeight / REFERENCE_HEIGHT;
   
-  // Use uniform scale based on width for consistent proportions
-  // This ensures objects maintain their aspect ratio
-  const scale = scaleX;
+  // Use minimum scale to ensure content fits within viewport (contain behavior)
+  // This preserves proportions across all aspect ratios
+  const scale = Math.min(scaleX, scaleY);
+  
+  // Calculate the scaled content size
+  const scaledContentWidth = REFERENCE_WIDTH * scale;
+  const scaledContentHeight = REFERENCE_HEIGHT * scale;
+  
+  // Center the content within the container
+  const offsetX = (containerWidth - scaledContentWidth) / 2;
+  const offsetY = (containerHeight - scaledContentHeight) / 2;
   
   return {
     width: containerWidth,
@@ -88,16 +114,19 @@ export function getCanvasDimensions(containerWidth: number, containerHeight: num
     scale,
     scaleX,
     scaleY,
+    offsetX,
+    offsetY,
   };
 }
 
 /**
  * Convert reference coordinates to pixel coordinates for rendering.
+ * Applies centering offset to position content correctly.
  */
 export function refToPx(rect: Rect, dims: CanvasDimensions): Rect {
   return {
-    x: rect.x * dims.scale,
-    y: rect.y * dims.scale,
+    x: rect.x * dims.scale + dims.offsetX,
+    y: rect.y * dims.scale + dims.offsetY,
     width: rect.width * dims.scale,
     height: rect.height * dims.scale,
   };
@@ -105,11 +134,12 @@ export function refToPx(rect: Rect, dims: CanvasDimensions): Rect {
 
 /**
  * Convert pixel coordinates to reference coordinates for storage.
+ * Removes centering offset before converting.
  */
 export function pxToRef(rect: Rect, dims: CanvasDimensions): Rect {
   return {
-    x: rect.x / dims.scale,
-    y: rect.y / dims.scale,
+    x: (rect.x - dims.offsetX) / dims.scale,
+    y: (rect.y - dims.offsetY) / dims.scale,
     width: rect.width / dims.scale,
     height: rect.height / dims.scale,
   };

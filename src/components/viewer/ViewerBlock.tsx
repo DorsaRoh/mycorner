@@ -19,13 +19,15 @@ interface ViewerBlockProps {
 
 // Memoized ViewerBlock - only rerenders when block changes
 export const ViewerBlock = memo(function ViewerBlock({ block, canvasDimensions }: ViewerBlockProps) {
-  // Default dimensions if not provided
+  // Default dimensions if not provided (uses reference size, scale = 1, no offset)
   const dims = canvasDimensions || {
     width: REFERENCE_WIDTH,
     height: REFERENCE_HEIGHT,
     scale: 1,
     scaleX: 1,
     scaleY: 1,
+    offsetX: 0,
+    offsetY: 0,
   };
   
   // Convert reference coordinates to pixels

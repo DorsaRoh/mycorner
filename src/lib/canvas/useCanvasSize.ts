@@ -46,9 +46,16 @@ export function useCanvasSize(options: UseCanvasSizeOptions = {}): UseCanvasSize
   const { debounceMs = 16, onResizeStart } = options;
   
   const containerRef = useRef<HTMLDivElement>(null!);
-  const [dimensions, setDimensions] = useState<CanvasDimensions>(() => 
-    getCanvasDimensions(REFERENCE_WIDTH, REFERENCE_HEIGHT)
-  );
+  // Initialize with reference size (scale=1, no offset)
+  const [dimensions, setDimensions] = useState<CanvasDimensions>(() => ({
+    width: REFERENCE_WIDTH,
+    height: REFERENCE_HEIGHT,
+    scale: 1,
+    scaleX: 1,
+    scaleY: 1,
+    offsetX: 0,
+    offsetY: 0,
+  }));
   const [isResizing, setIsResizing] = useState(false);
   
   const resizeTimeoutRef = useRef<number | null>(null);

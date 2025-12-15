@@ -105,13 +105,15 @@ export const Block = memo(function Block({
   const [interactionState, setInteractionState] = useState<'idle' | 'dragging' | 'resizing'>('idle');
   const [hoveredEdge, setHoveredEdge] = useState<ResizeEdge>(null);
   
-  // Default dimensions if not provided (uses reference size, scale = 1)
+  // Default dimensions if not provided (uses reference size, scale = 1, no offset)
   const dims = canvasDimensions || {
     width: REFERENCE_WIDTH,
     height: REFERENCE_HEIGHT,
     scale: 1,
     scaleX: 1,
     scaleY: 1,
+    offsetX: 0,
+    offsetY: 0,
   };
   
   // Refs for smooth interaction (no state updates during drag/resize)
@@ -129,6 +131,8 @@ export const Block = memo(function Block({
     isMultiDrag: false,
     multiDragInitialPositions: new Map<string, { x: number; y: number }>(),
     scale: 1,
+    offsetX: 0,
+    offsetY: 0,
   });
 
   // Handle double-click to enter edit mode
@@ -229,6 +233,8 @@ export const Block = memo(function Block({
       isMultiDrag: isPartOfMultiSelection && !edge,
       multiDragInitialPositions,
       scale: dims.scale,
+      offsetX: dims.offsetX,
+      offsetY: dims.offsetY,
     };
 
     // For TEXT/LINK: edges are for font-size resizing, middle is for dragging
@@ -293,9 +299,9 @@ export const Block = memo(function Block({
           const newRefX = Math.max(0, ref.blockX + dx);
           const newRefY = Math.max(0, ref.blockY + dy);
           
-          // Apply to DOM in pixels for visual feedback
-          blockRef.current.style.left = `${newRefX * scale}px`;
-          blockRef.current.style.top = `${newRefY * scale}px`;
+          // Apply to DOM in pixels for visual feedback (include offset for centering)
+          blockRef.current.style.left = `${newRefX * scale + ref.offsetX}px`;
+          blockRef.current.style.top = `${newRefY * scale + ref.offsetY}px`;
         } else if (interactionState === 'resizing') {
           const edge = ref.edge;
           const isTextOrLink = block.type === 'TEXT' || block.type === 'LINK';
@@ -360,9 +366,9 @@ export const Block = memo(function Block({
               newY = ref.blockY - actualDy;
             }
 
-            // Apply to DOM in pixels for smooth resizing
-            blockRef.current.style.left = `${newX * scale}px`;
-            blockRef.current.style.top = `${newY * scale}px`;
+            // Apply to DOM in pixels for smooth resizing (include offset for centering)
+            blockRef.current.style.left = `${newX * scale + ref.offsetX}px`;
+            blockRef.current.style.top = `${newY * scale + ref.offsetY}px`;
             blockRef.current.style.width = `${newWidth * scale}px`;
             blockRef.current.style.height = `${newHeight * scale}px`;
           }
