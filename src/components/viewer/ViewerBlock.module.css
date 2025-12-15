@@ -1,12 +1,12 @@
 .block {
   position: absolute;
   border-radius: var(--radius);
-  overflow: hidden;
 }
 
 /* Text block */
 .text {
   background: transparent;
+  overflow: visible;
 }
 
 .textContent {
@@ -15,10 +15,11 @@
   color: var(--color-text);
   font-family: var(--font-sans);
   font-size: 1rem;
-  line-height: 1.6;
+  line-height: 1.4;
   /* Padding is set inline via getTextStyles for proportional scaling */
   white-space: pre-wrap;
   word-break: break-word;
+  cursor: default;
 }
 
 .empty {
@@ -36,6 +37,8 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
+  display: block;
+  border-radius: inherit;
 }
 
 /* ========================================
@@ -63,10 +66,11 @@
   height: 100%;
   display: flex;
   align-items: center;
+  /* Padding is set inline via getTextStyles for proportional scaling */
   gap: 4px;
+  cursor: pointer;
   color: var(--color-text);
   text-decoration: none;
-  /* Padding is set inline via getTextStyles for proportional scaling */
   font-family: var(--font-sans);
   font-size: 1rem;
   line-height: 1.5;
@@ -81,6 +85,8 @@
   text-decoration: underline;
   text-underline-offset: 2px;
   text-decoration-thickness: 1px;
+  text-decoration-color: currentColor;
+  opacity: 0.8;
   white-space: pre-wrap;
   word-break: break-word;
 }

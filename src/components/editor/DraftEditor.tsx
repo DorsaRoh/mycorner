@@ -12,9 +12,9 @@ import {
   deleteDraft,
   getActiveDraftId,
   setActiveDraftId,
-  setPendingPublish,
-  getPendingPublish,
-  clearPendingPublish,
+  setAuthContinuation,
+  getAuthContinuation,
+  clearAuthContinuation,
   hasStarterBeenDismissed,
   setStarterDismissed,
 } from '@/lib/draft';
@@ -360,8 +360,12 @@ export function DraftEditor({ initialDraftId }: DraftEditorProps) {
     const { data: freshMe } = await refetchMe();
     
     if (!freshMe?.me) {
-      // Show auth gate
-      setPendingPublish(draftId);
+      // Show auth gate - store continuation
+      setAuthContinuation({
+        intent: 'publish',
+        draftId,
+        returnTo: `/edit/${draftId}`,
+      });
       setShowAuthGate(true);
       return;
     }
@@ -424,7 +428,7 @@ export function DraftEditor({ initialDraftId }: DraftEditorProps) {
       if (publishData?.publishPage?.isPublished) {
         // Clear local draft
         deleteDraft(draftId);
-        clearPendingPublish();
+        clearAuthContinuation();
 
         // Redirect to published page
         router.push(`/p/${pageId}`);
@@ -441,11 +445,11 @@ export function DraftEditor({ initialDraftId }: DraftEditorProps) {
   useEffect(() => {
     if (meLoading || pendingPublishHandled.current) return;
     
-    const pending = getPendingPublish();
-    if (pending && meData?.me && draftId === pending.draftId) {
+    const continuation = getAuthContinuation();
+    if (continuation?.intent === 'publish' && meData?.me && draftId === continuation.draftId) {
       // User just authenticated, continue publish
       pendingPublishHandled.current = true;
-      clearPendingPublish();
+      clearAuthContinuation();
       handlePublish();
     }
   }, [meData?.me, meLoading, draftId, handlePublish]);
@@ -788,8 +792,9 @@ export function DraftEditor({ initialDraftId }: DraftEditorProps) {
       <AuthGate
         isOpen={showAuthGate}
         onClose={() => setShowAuthGate(false)}
+        draftId={draftId}
         onAuthStart={() => {
-          // The pending publish is already set, just close the modal
+          // Auth continuation is already set, just close the modal
           // Auth will redirect and we'll handle it on return
         }}
       />

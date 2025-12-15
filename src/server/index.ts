@@ -7,6 +7,7 @@ import { createApolloServer } from './graphql';
 import { expressMiddleware } from '@apollo/server/express4';
 import { configurePassport, authRoutes } from './auth';
 import { createUploadRouter } from './upload';
+import { createApiRouter } from './api';
 
 const dev = process.env.NODE_ENV !== 'production';
 const port = parseInt(process.env.PORT || '3000', 10);
@@ -60,6 +61,9 @@ async function main() {
 
   // Asset upload routes (multipart, before JSON middleware applies)
   server.use('/api/assets', createUploadRouter());
+
+  // API routes (me, onboarding, publish)
+  server.use('/api', createApiRouter());
 
   // Apollo Server setup
   const apolloServer = createApolloServer();

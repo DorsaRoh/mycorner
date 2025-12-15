@@ -88,25 +88,22 @@ export interface NormalizedRect {
 
 /**
  * Compute canvas dimensions and scale factors from container size.
- * Uses uniform scaling (min of width/height ratios) to ensure content
- * fits within the viewport while maintaining proportions - like object-fit: contain.
- * Centers content when aspect ratio differs from reference.
+ * Uses width-based scaling only to ensure consistent rendering between
+ * editor and viewer regardless of container height differences.
+ * This means content may extend vertically beyond the viewport on tall pages.
  */
 export function getCanvasDimensions(containerWidth: number, containerHeight: number): CanvasDimensions {
   const scaleX = containerWidth / REFERENCE_WIDTH;
   const scaleY = containerHeight / REFERENCE_HEIGHT;
   
-  // Use minimum scale to ensure content fits within viewport (contain behavior)
-  // This preserves proportions across all aspect ratios
-  const scale = Math.min(scaleX, scaleY);
+  // Use width-only scaling for consistent rendering across editor and viewer
+  // Height differences (e.g., toolbar in editor) should not affect layout
+  const scale = scaleX;
   
-  // Calculate the scaled content size
-  const scaledContentWidth = REFERENCE_WIDTH * scale;
-  const scaledContentHeight = REFERENCE_HEIGHT * scale;
-  
-  // Center the content within the container
-  const offsetX = (containerWidth - scaledContentWidth) / 2;
-  const offsetY = (containerHeight - scaledContentHeight) / 2;
+  // No horizontal centering needed with width-based scaling
+  // Content starts at left edge and extends downward
+  const offsetX = 0;
+  const offsetY = 0;
   
   return {
     width: containerWidth,

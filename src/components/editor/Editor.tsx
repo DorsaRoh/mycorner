@@ -12,17 +12,38 @@ import {
   saveDraft,
   deleteDraft,
   setActiveDraftId,
-  setPendingPublish,
-  getPendingPublish,
-  clearPendingPublish,
+  setAuthContinuation,
+  getAuthContinuation,
+  clearAuthContinuation,
   hasStarterBeenDismissed,
   setStarterDismissed,
 } from '@/lib/draft/storage';
 import { routes, getPublicUrl, isDraftId } from '@/lib/routes';
+
+// Helper to recursively strip __typename from objects (Apollo Client adds these for caching)
+function stripTypename<T>(obj: T): T {
+  if (obj === null || obj === undefined) {
+    return obj;
+  }
+  if (Array.isArray(obj)) {
+    return obj.map(stripTypename) as T;
+  }
+  if (typeof obj === 'object') {
+    const result: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(obj)) {
+      if (key !== '__typename') {
+        result[key] = stripTypename(value);
+      }
+    }
+    return result as T;
+  }
+  return obj;
+}
 import { Canvas } from './Canvas';
 import { BackgroundPanel } from './BackgroundPanel';
 import { AuthGate } from './AuthGate';
 import { PublishToast } from './PublishToast';
+import { OnboardingModal } from './OnboardingModal';
 import styles from './Editor.module.css';
 
 import { isImageUrl, serializeLinkContent } from '@/shared/utils/blockStyles';
@@ -172,6 +193,9 @@ const ME_QUERY = gql`
     me {
       id
       email
+      name
+      username
+      avatarUrl
     }
   }
 `;
@@ -184,6 +208,7 @@ interface EditorProps {
   initialBackground?: BackgroundConfig;
   initialPublished?: boolean;
   initialServerRevision?: number;
+  initialPublishedRevision?: number | null;
 }
 
 export function Editor({ 
@@ -194,6 +219,7 @@ export function Editor({
   initialBackground,
   initialPublished = false,
   initialServerRevision = 1,
+  initialPublishedRevision = null,
 }: EditorProps) {
   const router = useRouter();
   const [blocks, setBlocks] = useState<BlockType[]>(initialBlocks);
@@ -203,7 +229,9 @@ export function Editor({
   const [title, setTitle] = useState(initialTitle);
   const [background, setBackground] = useState<BackgroundConfig | undefined>(initialBackground);
   const [isPublished, setIsPublished] = useState(initialPublished);
+  const [publishedRevision, setPublishedRevision] = useState<number | null>(initialPublishedRevision);
   const [publishing, setPublishing] = useState(false);
+  const [publishError, setPublishError] = useState<string | null>(null);
   const [showAuthGate, setShowAuthGate] = useState(false);
   const [showBackgroundPanel, setShowBackgroundPanel] = useState(false);
   const [showConflictModal, setShowConflictModal] = useState(false);
@@ -211,6 +239,8 @@ export function Editor({
   const [starterMode, setStarterMode] = useState(false);
   const [publishedUrl, setPublishedUrl] = useState<string | null>(null);
   const [showPublishToast, setShowPublishToast] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [pendingPublishAfterOnboarding, setPendingPublishAfterOnboarding] = useState(false);
   
   // For draft mode: local save indicator
   const [draftSaveIndicator, setDraftSaveIndicator] = useState<'idle' | 'saving' | 'saved'>('idle');
@@ -231,9 +261,9 @@ export function Editor({
 
   // Queries and mutations
   const { data: meData, loading: meLoading, refetch: refetchMe } = useQuery(ME_QUERY);
-  const [createPage] = useMutation(CREATE_PAGE);
-  const [updatePage] = useMutation(UPDATE_PAGE);
-  const [publishPage] = useMutation(PUBLISH_PAGE);
+  const [createPage] = useMutation(CREATE_PAGE, { errorPolicy: 'all' });
+  const [updatePage] = useMutation(UPDATE_PAGE, { errorPolicy: 'all' });
+  const [publishPage] = useMutation(PUBLISH_PAGE, { errorPolicy: 'all' });
 
   // Initialize draft from localStorage for draft mode
   useEffect(() => {
@@ -273,9 +303,11 @@ export function Editor({
           input: {
             title: titleRef.current || null,
             blocks: blocksRef.current.map(({ id, type, x, y, width, height, content, style, effects }) => ({
-              id, type, x, y, width, height, content, style, effects,
+              id, type, x, y, width, height, content,
+              style: stripTypename(style),
+              effects: stripTypename(effects),
             })),
-            background: backgroundRef.current,
+            background: stripTypename(backgroundRef.current),
             localRevision,
             baseServerRevision,
           },
@@ -314,6 +346,11 @@ export function Editor({
     }
   }, [pageId, updatePage]);
 
+  // Stable conflict handler to avoid dependency issues
+  const handleConflict = useCallback(() => {
+    setShowConflictModal(true);
+  }, []);
+
   // Initialize save controller for server mode
   const {
     saveState,
@@ -321,12 +358,14 @@ export function Editor({
     markDirty,
     saveNow,
     retry,
+    serverRevision,
+    getServerRevision,
   } = useSaveController({
     debounceMs: 1000,
     onSave: handleServerSave,
     initialServerRevision,
-    onConflict: () => setShowConflictModal(true),
-    debug: process.env.NODE_ENV === 'development',
+    onConflict: handleConflict,
+    debug: false, // Disable debug logging to reduce console noise
     enabled: mode === 'server',
   });
 
@@ -376,101 +415,363 @@ export function Editor({
     };
   }, [mode, pageId, title, blocks, background]);
 
-  // Handle publish - unified for both modes
-  const handlePublish = useCallback(async () => {
-    // Check if user is authenticated
-    const { data: freshMe } = await refetchMe();
+  /**
+   * Force save the current draft to localStorage immediately.
+   * This ensures the draft is persisted before navigating away (e.g., for auth).
+   */
+  const forceSaveDraft = useCallback(() => {
+    if (mode !== 'draft') return;
     
-    if (!freshMe?.me) {
-      // Store pending publish and show auth gate
-      setPendingPublish(pageId);
+    // Clear any pending debounced save
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = null;
+    }
+    
+    // Save immediately
+    const draft: DraftData = {
+      id: pageId,
+      title: titleRef.current,
+      blocks: blocksRef.current,
+      background: backgroundRef.current,
+      createdAt: getDraft(pageId)?.createdAt || Date.now(),
+      updatedAt: Date.now(),
+    };
+    saveDraft(draft);
+  }, [mode, pageId]);
+
+  // Handle publish - unified for both modes
+  // Key change: We pass content directly in the publish request to ensure
+  // the published version exactly matches what the user sees in the editor.
+  const handlePublish = useCallback(async () => {
+    // Check if user is authenticated - try refetch, fall back to cached data
+    let isAuthenticated = false;
+    try {
+      const { data: freshMe } = await refetchMe();
+      isAuthenticated = !!freshMe?.me;
+    } catch (error) {
+      // Refetch failed (network error, etc.) - fall back to cached meData
+      console.warn('Auth check refetch failed, using cached data:', error);
+      isAuthenticated = !!meData?.me;
+    }
+    
+    if (!isAuthenticated) {
+      // Force save draft before auth redirect to ensure content is persisted
+      forceSaveDraft();
+      
+      // Store auth continuation with intent to publish
+      setAuthContinuation({
+        intent: 'publish',
+        draftId: pageId,
+        returnTo: `/edit/${pageId}`,
+      });
       setShowAuthGate(true);
       return;
     }
 
     setPublishing(true);
+    setPublishError(null);
 
     try {
       let serverPageId = pageId;
+      let currentServerRevision = initialServerRevision;
+
+      // Get current content from refs (always use the latest editor state)
+      const blocksToPublish = blocksRef.current;
+      const titleToPublish = titleRef.current || '';
+      const backgroundToPublish = backgroundRef.current;
 
       if (mode === 'draft' || isDraftId(pageId)) {
-        // Draft mode: create page on server first
+        // Draft mode: create page on server first, then publish with content
         const draft = getDraft(pageId);
+        const finalBlocks = blocksToPublish.length > 0 ? blocksToPublish : (draft?.blocks || []);
+        const finalTitle = titleToPublish || draft?.title || '';
+        const finalBackground = backgroundToPublish ?? draft?.background;
         
         // Create page
-        const { data: createData } = await createPage({
-          variables: { input: { title: title || undefined } },
+        const createResult = await createPage({
+          variables: { input: { title: finalTitle || undefined } },
         });
 
-        if (!createData?.createPage?.id) {
+        if (createResult.errors?.length) {
+          throw new Error(createResult.errors[0].message || 'Failed to create page');
+        }
+        if (!createResult.data?.createPage?.id) {
           throw new Error('Failed to create page');
         }
 
-        serverPageId = createData.createPage.id;
+        serverPageId = createResult.data.createPage.id;
+        currentServerRevision = 1; // New page starts at revision 1
 
-        // Update with blocks and background
-        await updatePage({
+        // For draft mode, we need to save content first to get a valid server revision
+        const updateResult = await updatePage({
           variables: {
             id: serverPageId,
             input: {
-              title: title || undefined,
-              blocks: blocks.map(({ id, type, x, y, width, height, content, style, effects }) => ({
-                id, type, x, y, width, height, content, style, effects,
+              title: finalTitle || undefined,
+              blocks: finalBlocks.map(({ id, type, x, y, width, height, content, style, effects }) => ({
+                id, type, x, y, width, height, content,
+                style: stripTypename(style),
+                effects: stripTypename(effects),
               })),
-              background,
+              background: stripTypename(finalBackground),
+              baseServerRevision: 1,
             },
           },
         });
-      } else {
-        // Server mode: just save first
-        await saveNow();
-      }
 
-      // Publish the page
-      const { data: publishData } = await publishPage({
-        variables: { id: serverPageId },
-      });
-
-      if (publishData?.publishPage?.isPublished) {
-        // Success!
-        setIsPublished(true);
+        if (updateResult.errors?.length) {
+          throw new Error(updateResult.errors[0].message || 'Failed to save page');
+        }
         
-        // Clear draft if we were in draft mode
-        if (mode === 'draft' || isDraftId(pageId)) {
-          deleteDraft(pageId);
-          clearPendingPublish();
+        // Get the new server revision after update
+        currentServerRevision = updateResult.data?.updatePage?.currentServerRevision ?? 2;
+
+        // Now publish with the exact content we just saved
+        const publishResult = await publishPage({
+          variables: { 
+            id: serverPageId,
+            input: {
+              blocks: finalBlocks.map(({ id, type, x, y, width, height, content, style, effects }) => ({
+                id, type, x, y, width, height, content,
+                style: stripTypename(style),
+                effects: stripTypename(effects),
+              })),
+              background: stripTypename(finalBackground),
+              baseServerRevision: currentServerRevision,
+            },
+          },
+        });
+
+        if (publishResult.errors?.length) {
+          throw new Error(publishResult.errors[0].message || 'Failed to publish page');
         }
 
-        // Show success toast with public URL
-        const publicUrl = getPublicUrl(serverPageId);
-        setPublishedUrl(publicUrl);
-        setShowPublishToast(true);
+        const publishData = publishResult.data?.publishPage;
+        if (publishData?.conflict) {
+          throw new Error('Content changed during publish. Please try again.');
+        }
 
-        // If we were a draft, navigate to the server page URL
-        if (mode === 'draft' || isDraftId(pageId)) {
+        if (publishData?.page) {
+          setIsPublished(true);
+          setPublishedRevision(publishData.publishedRevision);
+          
+          // Clear draft
+          deleteDraft(pageId);
+          clearAuthContinuation();
+
+          // Use the public URL from the server response
+          const publicUrl = publishData.publicUrl 
+            ? `${window.location.origin}${publishData.publicUrl}`
+            : getPublicUrl(serverPageId);
+          setPublishedUrl(publicUrl);
+          setShowPublishToast(true);
+
+          // Navigate to the server page URL
           router.replace(routes.edit(serverPageId));
+        } else {
+          throw new Error('Failed to publish page');
         }
       } else {
-        throw new Error('Failed to publish page');
+        // Server mode: flush pending saves first, then publish with current content
+        // saveNow() returns the latest server revision directly
+        currentServerRevision = await saveNow();
+
+        // Publish with the exact content currently in the editor
+        const publishResult = await publishPage({
+          variables: { 
+            id: serverPageId,
+            input: {
+              blocks: blocksToPublish.map(({ id, type, x, y, width, height, content, style, effects }) => ({
+                id, type, x, y, width, height, content,
+                style: stripTypename(style),
+                effects: stripTypename(effects),
+              })),
+              background: stripTypename(backgroundToPublish),
+              baseServerRevision: currentServerRevision,
+            },
+          },
+        });
+
+        if (publishResult.errors?.length) {
+          throw new Error(publishResult.errors[0].message || 'Failed to publish page');
+        }
+
+        const publishData = publishResult.data?.publishPage;
+        
+        if (publishData?.conflict) {
+          // Conflict detected - server had newer content
+          // This shouldn't happen after saveNow(), but handle it gracefully
+          setPublishError('Content was modified. Please try again.');
+          return;
+        }
+
+        if (publishData?.page) {
+          setIsPublished(true);
+          setPublishedRevision(publishData.publishedRevision);
+
+          // Get username for URL
+          let username: string | undefined;
+          try {
+            const { data: freshMeData } = await refetchMe();
+            username = freshMeData?.me?.username;
+          } catch {
+            username = meData?.me?.username;
+          }
+
+          // Use the public URL from the server response, or construct one
+          const publicUrl = publishData.publicUrl 
+            ? `${window.location.origin}${publishData.publicUrl}`
+            : getPublicUrl(serverPageId, username);
+          setPublishedUrl(publicUrl);
+          setShowPublishToast(true);
+        } else {
+          throw new Error('Failed to publish page');
+        }
       }
     } catch (error) {
       console.error('Publish failed:', error);
+      const message = error instanceof Error ? error.message : 'An error occurred while publishing';
+      setPublishError(message);
     } finally {
       setPublishing(false);
     }
-  }, [mode, pageId, title, blocks, background, refetchMe, createPage, updatePage, publishPage, saveNow, router]);
+  }, [mode, pageId, meData?.me, refetchMe, createPage, updatePage, publishPage, saveNow, router, forceSaveDraft, initialServerRevision]);
 
-  // Check for pending publish after auth
+  // Check for pending publish after auth or show onboarding
   useEffect(() => {
     if (meLoading || pendingPublishHandled.current) return;
     
-    const pending = getPendingPublish();
-    if (pending && meData?.me && pageId === pending.draftId) {
-      pendingPublishHandled.current = true;
-      clearPendingPublish();
-      handlePublish();
+    // Check if user needs onboarding (URL has ?onboarding=true or user has no username)
+    const urlParams = new URLSearchParams(window.location.search);
+    const needsOnboarding = urlParams.get('onboarding') === 'true' || (meData?.me && !meData.me.username);
+    
+    // Clean up URL params if present
+    if (urlParams.has('onboarding') || urlParams.has('error')) {
+      urlParams.delete('onboarding');
+      urlParams.delete('error');
+      const newUrl = urlParams.toString() 
+        ? `${window.location.pathname}?${urlParams.toString()}`
+        : window.location.pathname;
+      window.history.replaceState({}, '', newUrl);
     }
-  }, [meData?.me, meLoading, pageId, handlePublish]);
+    
+    // Get auth continuation
+    const continuation = getAuthContinuation();
+    
+    // Handle authenticated user returning from OAuth
+    if (meData?.me) {
+      // Check if we need to navigate to the correct draft first
+      if (continuation && continuation.draftId !== pageId) {
+        // User landed on wrong page - navigate to the continuation's page
+        router.replace(`/edit/${continuation.draftId}`);
+        return;
+      }
+      
+      if (needsOnboarding) {
+        setShowOnboarding(true);
+        // If there's a pending publish, mark it for after onboarding
+        if (continuation?.intent === 'publish' && continuation.draftId === pageId) {
+          setPendingPublishAfterOnboarding(true);
+        }
+      } else if (continuation?.intent === 'publish' && continuation.draftId === pageId) {
+        // User is authenticated, onboarded, and has pending publish - execute it
+        pendingPublishHandled.current = true;
+        clearAuthContinuation();
+        handlePublish();
+      }
+    }
+  }, [meData?.me, meLoading, pageId, handlePublish, router]);
+
+  // Handle onboarding completion
+  const handleOnboardingComplete = useCallback(async (username: string, pageTitle: string, newPageId: string) => {
+    setShowOnboarding(false);
+    await refetchMe();
+    
+    if (pendingPublishAfterOnboarding) {
+      setPendingPublishAfterOnboarding(false);
+      pendingPublishHandled.current = true;
+      clearAuthContinuation();
+      
+      // Get the draft content that was being edited
+      const draft = getDraft(pageId);
+      const blocksToPublish = draft?.blocks || blocksRef.current;
+      const backgroundToPublish = draft?.background || backgroundRef.current;
+      const titleToPublish = draft?.title || titleRef.current || pageTitle;
+      
+      setPublishing(true);
+      setPublishError(null);
+      
+      try {
+        // Update the onboarding-created page with our draft content
+        const updateResult = await updatePage({
+          variables: {
+            id: newPageId,
+            input: {
+              title: titleToPublish || undefined,
+              blocks: blocksToPublish.map(({ id, type, x, y, width, height, content, style, effects }) => ({
+                id, type, x, y, width, height, content,
+                style: stripTypename(style),
+                effects: stripTypename(effects),
+              })),
+              background: stripTypename(backgroundToPublish),
+              baseServerRevision: 1, // New page starts at revision 1
+            },
+          },
+        });
+        
+        // Get the new server revision
+        const newServerRevision = updateResult.data?.updatePage?.currentServerRevision ?? 2;
+        
+        // Publish the page with content snapshot
+        const { data: publishData } = await publishPage({
+          variables: { 
+            id: newPageId,
+            input: {
+              blocks: blocksToPublish.map(({ id, type, x, y, width, height, content, style, effects }) => ({
+                id, type, x, y, width, height, content,
+                style: stripTypename(style),
+                effects: stripTypename(effects),
+              })),
+              background: stripTypename(backgroundToPublish),
+              baseServerRevision: newServerRevision,
+            },
+          },
+        });
+        
+        if (publishData?.publishPage?.page) {
+          setIsPublished(true);
+          setPublishedRevision(publishData.publishPage.publishedRevision);
+          
+          // Clean up the draft
+          deleteDraft(pageId);
+          
+          // Use the public URL from the response
+          const publicUrl = publishData.publishPage.publicUrl 
+            ? `${window.location.origin}${publishData.publishPage.publicUrl}`
+            : getPublicUrl(newPageId, username);
+          setPublishedUrl(publicUrl);
+          setShowPublishToast(true);
+          
+          // Navigate to the published page's edit URL
+          router.replace(routes.edit(newPageId));
+        } else if (publishData?.publishPage?.conflict) {
+          throw new Error('Content conflict during publish');
+        } else {
+          throw new Error('Failed to publish page');
+        }
+      } catch (error) {
+        console.error('Publish after onboarding failed:', error);
+        setPublishing(false);
+        setPublishError(error instanceof Error ? error.message : 'Publish failed');
+        // Navigate to the new page anyway so user can retry
+        router.push(routes.edit(newPageId));
+      }
+    } else {
+      // No pending publish - just navigate to the new page created during onboarding
+      router.push(routes.edit(newPageId));
+    }
+  }, [pendingPublishAfterOnboarding, pageId, updatePage, publishPage, router, refetchMe]);
 
   const generateBlockId = useCallback(() => {
     return `block_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -760,13 +1061,66 @@ export function Editor({
             />
           )}
         </div>
-        <button
-          className={styles.inviteBtn}
-          onClick={handlePublish}
-          disabled={publishing}
-        >
-          {publishing ? 'Publishing...' : isPublished ? 'Published ✓' : 'Publish'}
-        </button>
+        {/* Publish button with proper states */}
+        {(() => {
+          // Determine publish button state:
+          // - publishing: show "Publishing..."
+          // - error: show error with retry option
+          // - isPublished && no changes since publish: show "Published ✓"
+          // - isPublished && changes since publish: show "Update" (unpublished changes)
+          // - not published: show "Publish"
+          
+          const hasUnpublishedChanges = isPublished && 
+            publishedRevision !== null && 
+            serverRevision > publishedRevision;
+          
+          if (publishing) {
+            return (
+              <button className={styles.inviteBtn} disabled>
+                Publishing…
+              </button>
+            );
+          }
+          
+          if (publishError) {
+            return (
+              <button 
+                className={`${styles.inviteBtn} ${styles.publishError}`}
+                onClick={() => { setPublishError(null); handlePublish(); }}
+              >
+                Retry publish
+              </button>
+            );
+          }
+          
+          if (isPublished && !hasUnpublishedChanges) {
+            return (
+              <button 
+                className={`${styles.inviteBtn} ${styles.publishedBtn}`}
+                onClick={handlePublish}
+              >
+                Published ✓
+              </button>
+            );
+          }
+          
+          if (hasUnpublishedChanges) {
+            return (
+              <button 
+                className={`${styles.inviteBtn} ${styles.unpublishedChanges}`}
+                onClick={handlePublish}
+              >
+                Update
+              </button>
+            );
+          }
+          
+          return (
+            <button className={styles.inviteBtn} onClick={handlePublish}>
+              Publish
+            </button>
+          );
+        })()}
       </div>
 
       {/* Published URL indicator (minimal) */}
@@ -837,8 +1191,9 @@ export function Editor({
       <AuthGate
         isOpen={showAuthGate}
         onClose={() => setShowAuthGate(false)}
+        draftId={pageId}
         onAuthStart={() => {
-          // Pending publish is already set, auth will handle return
+          // Auth continuation is already set, auth will handle return
         }}
       />
 
@@ -846,6 +1201,12 @@ export function Editor({
         isOpen={showPublishToast}
         url={publishedUrl}
         onClose={() => setShowPublishToast(false)}
+      />
+
+      <OnboardingModal
+        isOpen={showOnboarding}
+        userName={meData?.me?.name}
+        onComplete={handleOnboardingComplete}
       />
     </div>
   );

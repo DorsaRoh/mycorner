@@ -41,3 +41,11 @@ Thumbs.db
 *.pem
 .vercel
 
+# Database
+data/
+*.db
+*.db-*
+
+# Uploads
+public/uploads/
+

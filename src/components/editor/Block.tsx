@@ -168,10 +168,26 @@ export const Block = memo(function Block({
     onUpdate({ style: newStyle });
   }, [onUpdate]);
 
-  // Calculate inline styles
+  // Compute pixel positions from reference coordinates
+  const pxRect = useMemo(() => refToPx(
+    { x: block.x, y: block.y, width: block.width, height: block.height },
+    dims
+  ), [block.x, block.y, block.width, block.height, dims]);
+
+  // Calculate inline styles using pixel dimensions (same as ViewerBlock)
   const blockStyles = useMemo(() => {
-    return getBlockStyles(block.style, block.width, block.height);
-  }, [block.style, block.width, block.height]);
+    const { outer, inner } = getBlockStyles(block.style, pxRect.width, pxRect.height);
+    // For TEXT and LINK blocks, we don't want overflow: hidden as it clips the content
+    const isTextOrLink = block.type === 'TEXT' || block.type === 'LINK';
+    const mergedStyles = {
+      ...outer,
+      ...inner,
+    };
+    if (isTextOrLink) {
+      delete mergedStyles.overflow;
+    }
+    return mergedStyles;
+  }, [block.style, block.type, pxRect.width, pxRect.height]);
 
   // Handle mouse move for edge detection (hover cursor)
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
@@ -617,12 +633,6 @@ export const Block = memo(function Block({
     isEditing ? styles.editing : '',
   ].filter(Boolean).join(' ');
 
-  // Compute pixel positions from reference coordinates
-  const pxRect = useMemo(() => refToPx(
-    { x: block.x, y: block.y, width: block.width, height: block.height },
-    dims
-  ), [block.x, block.y, block.width, block.height, dims]);
-  
   // Scale font size for rendering
   const scaledFontSize = useMemo(() => {
     const baseFontSize = block.style?.fontSize || DEFAULT_STYLE.fontSize || 16;
@@ -639,7 +649,7 @@ export const Block = memo(function Block({
         width: pxRect.width,
         height: pxRect.height,
         cursor: cursorStyle,
-        ...blockStyles.outer,
+        ...blockStyles,
       }}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
@@ -647,21 +657,19 @@ export const Block = memo(function Block({
       onDoubleClick={handleDoubleClick}
       onTouchStart={handleTouchStart}
     >
-      <div className={styles.blockInner} style={blockStyles.inner}>
-        <BlockContent
-          type={block.type}
-          content={block.content}
-          style={block.style}
-          scaledFontSize={scaledFontSize}
-          canvasScale={dims.scale}
-          onChange={handleContentChange}
-          onImageLoad={handleImageLoad}
-          onTextMeasure={handleTextMeasure}
-          selected={selected}
-          isEditing={isEditing}
-          onSetEditing={onSetEditing}
-        />
-      </div>
+      <BlockContent
+        type={block.type}
+        content={block.content}
+        style={block.style}
+        scaledFontSize={scaledFontSize}
+        canvasScale={dims.scale}
+        onChange={handleContentChange}
+        onImageLoad={handleImageLoad}
+        onTextMeasure={handleTextMeasure}
+        selected={selected}
+        isEditing={isEditing}
+        onSetEditing={onSetEditing}
+      />
 
       {selected && (block.type === 'IMAGE' || block.type === 'TEXT' || block.type === 'LINK') && (
         <ObjectControls

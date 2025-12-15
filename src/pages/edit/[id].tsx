@@ -85,6 +85,7 @@ export default function EditPage() {
         initialBackground={page.background}
         initialPublished={page.isPublished}
         initialServerRevision={page.serverRevision ?? 1}
+        initialPublishedRevision={page.publishedRevision ?? null}
       />
     </>
   );

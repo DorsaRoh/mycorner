@@ -1,36 +1,13 @@
 import { Router } from 'express';
 import passport from 'passport';
+import * as db from '../db';
 
 const router = Router();
 
-/**
- * GET /auth/verify?token=xxx
- * Verifies magic link and logs user in
- */
-router.get('/verify', (req, res, next) => {
-  passport.authenticate('magic-link', (err: Error | null, user: Express.User | false) => {
-    if (err) {
-      return res.redirect('/?error=auth_error');
-    }
-    if (!user) {
-      return res.redirect('/?error=invalid_token');
-    }
-
-    req.logIn(user, (loginErr) => {
-      if (loginErr) {
-        return res.redirect('/?error=login_error');
-      }
-      // Clear anonymous session ID after successful claim
-      delete req.session.anonymousId;
-      
-      // Redirect to return URL if present
-      const returnTo = req.session.returnTo || '/';
-      delete req.session.returnTo;
-      
-      return res.redirect(returnTo);
-    });
-  })(req, res, next);
-});
+// Check if Google OAuth is configured
+function isGoogleConfigured(): boolean {
+  return !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
+}
 
 /**
  * GET /auth/google?returnTo=...
@@ -39,6 +16,12 @@ router.get('/verify', (req, res, next) => {
  *   - returnTo: URL to return to after auth (e.g., /edit/draft_123)
  */
 router.get('/google', (req, res, next) => {
+  // Check if Google OAuth is configured
+  if (!isGoogleConfigured()) {
+    const returnTo = req.query.returnTo as string || '/new';
+    return res.redirect(`${returnTo}?error=google_not_configured`);
+  }
+
   // Store return URL from query param
   const returnTo = req.query.returnTo as string | undefined;
   
@@ -57,8 +40,13 @@ router.get('/google', (req, res, next) => {
 /**
  * GET /auth/google/callback
  * Google OAuth callback
+ * After successful auth, check if user needs onboarding
  */
 router.get('/google/callback', (req, res, next) => {
+  if (!isGoogleConfigured()) {
+    return res.redirect('/new?error=google_not_configured');
+  }
+
   passport.authenticate('google', (err: Error | null, user: Express.User | false) => {
     if (err) {
       console.error('Google auth error:', err);
@@ -80,9 +68,16 @@ router.get('/google/callback', (req, res, next) => {
       // Clear anonymous session ID after successful auth
       delete req.session.anonymousId;
       
-      // Redirect back to the editor (where pending publish will be handled)
-      const returnTo = req.session.returnTo || '/new';
+      // Get return URL
+      let returnTo = req.session.returnTo || '/new';
       delete req.session.returnTo;
+      
+      // Check if user needs onboarding (no username)
+      if (!user.username) {
+        // Add onboarding flag to the redirect URL
+        const separator = returnTo.includes('?') ? '&' : '?';
+        returnTo = `${returnTo}${separator}onboarding=true`;
+      }
       
       return res.redirect(returnTo);
     });
@@ -103,14 +98,41 @@ router.post('/logout', (req, res) => {
 });
 
 /**
+ * GET /auth/logout
+ * Alternative logout via GET (for simple links)
+ */
+router.get('/logout', (req, res) => {
+  req.logout((err) => {
+    if (err) {
+      return res.redirect('/?error=logout_failed');
+    }
+    res.redirect('/');
+  });
+});
+
+/**
  * GET /auth/status
- * Returns current auth status (for debugging)
+ * Returns current auth status and user profile
  */
 router.get('/status', (req, res) => {
+  if (!req.isAuthenticated() || !req.user) {
+    return res.json({
+      authenticated: false,
+      user: null,
+      needsOnboarding: false,
+    });
+  }
+
   res.json({
-    authenticated: req.isAuthenticated(),
-    user: req.user ? { id: req.user.id, email: req.user.email } : null,
-    anonymousId: req.session.anonymousId,
+    authenticated: true,
+    user: {
+      id: req.user.id,
+      email: req.user.email,
+      name: req.user.name,
+      username: req.user.username,
+      avatarUrl: req.user.avatar_url,
+    },
+    needsOnboarding: !req.user.username,
   });
 });
 

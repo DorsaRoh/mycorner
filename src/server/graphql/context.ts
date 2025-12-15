@@ -1,5 +1,5 @@
 import type { Request, Response } from 'express';
-import type { StoredUser } from './store';
+import type { DbUser } from '../db';
 
 /**
  * GraphQL context available to all resolvers
@@ -7,7 +7,7 @@ import type { StoredUser } from './store';
 export interface GraphQLContext {
   req: Request;
   res: Response;
-  user?: StoredUser;
+  user?: DbUser;
   anonymousId?: string;
 }
 
@@ -21,9 +21,13 @@ export function getOwnerId(context: GraphQLContext): string {
 
 /**
  * Check if the current context can modify a page
+ * Checks both owner_id and user_id for ownership
  */
-export function canModifyPage(context: GraphQLContext, pageOwnerId: string): boolean {
+export function canModifyPage(context: GraphQLContext, pageOwnerId: string, pageUserId?: string | null): boolean {
+  // Check against owner_id
   if (context.user?.id === pageOwnerId) return true;
   if (context.anonymousId === pageOwnerId) return true;
+  // Also check against user_id (for pages created by authenticated users)
+  if (pageUserId && context.user?.id === pageUserId) return true;
   return false;
 }

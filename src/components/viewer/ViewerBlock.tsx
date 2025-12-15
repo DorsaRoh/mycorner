@@ -45,11 +45,17 @@ export const ViewerBlock = memo(function ViewerBlock({ block, canvasDimensions }
   const blockStyles = useMemo(() => {
     const { outer, inner } = getBlockStyles(block.style, pxRect.width, pxRect.height);
     // For viewer, we merge outer styles (shadow goes on wrapper, border-radius/overflow on content)
-    return {
+    // But for TEXT and LINK blocks, we don't want overflow: hidden as it clips the content
+    const isTextOrLink = block.type === 'TEXT' || block.type === 'LINK';
+    const mergedStyles = {
       ...outer,
       ...inner,
     };
-  }, [block.style, pxRect.width, pxRect.height]);
+    if (isTextOrLink) {
+      delete mergedStyles.overflow;
+    }
+    return mergedStyles;
+  }, [block.style, block.type, pxRect.width, pxRect.height]);
 
   return (
     <div

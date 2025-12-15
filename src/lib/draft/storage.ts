@@ -106,37 +106,49 @@ export function getAllDraftIds(): string[] {
 }
 
 /**
- * Pending publish data - stored when auth is triggered during publish
+ * Auth continuation data - stores intent and context when auth is triggered.
+ * This allows resuming the user's action after OAuth redirect.
  */
-export interface PendingPublish {
+export interface AuthContinuation {
+  /** What action to continue after auth */
+  intent: 'publish';
+  /** The draft ID being edited */
   draftId: string;
+  /** Route to return to (e.g., /edit/draft_xxx) */
+  returnTo: string;
+  /** When this continuation was created */
   timestamp: number;
+  /** Local revision number to guard against stale continuations */
+  localRevision?: number;
 }
 
+const AUTH_CONTINUATION_KEY = 'mycorner:authContinuation';
+const CONTINUATION_EXPIRY_MS = 15 * 60 * 1000; // 15 minutes
+
 /**
- * Set pending publish (to be continued after auth)
+ * Set auth continuation for resuming after OAuth
  */
-export function setPendingPublish(draftId: string): void {
+export function setAuthContinuation(continuation: Omit<AuthContinuation, 'timestamp'>): void {
   if (typeof window === 'undefined') return;
-  const data: PendingPublish = {
-    draftId,
+  const data: AuthContinuation = {
+    ...continuation,
     timestamp: Date.now(),
   };
-  sessionStorage.setItem(PENDING_PUBLISH_KEY, JSON.stringify(data));
+  sessionStorage.setItem(AUTH_CONTINUATION_KEY, JSON.stringify(data));
 }
 
 /**
- * Get pending publish data
+ * Get auth continuation if valid and not expired
  */
-export function getPendingPublish(): PendingPublish | null {
+export function getAuthContinuation(): AuthContinuation | null {
   if (typeof window === 'undefined') return null;
   try {
-    const data = sessionStorage.getItem(PENDING_PUBLISH_KEY);
+    const data = sessionStorage.getItem(AUTH_CONTINUATION_KEY);
     if (!data) return null;
-    const parsed = JSON.parse(data) as PendingPublish;
+    const parsed = JSON.parse(data) as AuthContinuation;
     // Expire after 15 minutes
-    if (Date.now() - parsed.timestamp > 15 * 60 * 1000) {
-      clearPendingPublish();
+    if (Date.now() - parsed.timestamp > CONTINUATION_EXPIRY_MS) {
+      clearAuthContinuation();
       return null;
     }
     return parsed;
@@ -146,11 +158,30 @@ export function getPendingPublish(): PendingPublish | null {
 }
 
 /**
- * Clear pending publish
+ * Clear auth continuation
  */
-export function clearPendingPublish(): void {
+export function clearAuthContinuation(): void {
   if (typeof window === 'undefined') return;
-  sessionStorage.removeItem(PENDING_PUBLISH_KEY);
+  sessionStorage.removeItem(AUTH_CONTINUATION_KEY);
+}
+
+// Legacy aliases for backwards compatibility
+export type PendingPublish = AuthContinuation;
+
+export function setPendingPublish(draftId: string, returnTo?: string): void {
+  setAuthContinuation({
+    intent: 'publish',
+    draftId,
+    returnTo: returnTo || `/edit/${draftId}`,
+  });
+}
+
+export function getPendingPublish(): AuthContinuation | null {
+  return getAuthContinuation();
+}
+
+export function clearPendingPublish(): void {
+  clearAuthContinuation();
 }
 
 /**

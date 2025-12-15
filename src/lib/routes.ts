@@ -3,9 +3,14 @@ export const routes = {
   new: () => '/new',
   edit: (pageId: string) => `/edit/${pageId}`,
   public: (pageId: string) => `/p/${pageId}`,
+  user: (username: string) => `/u/${username}`,
 } as const;
 
-export function getPublicUrl(pageId: string): string {
+export function getPublicUrl(pageId: string, username?: string): string {
+  if (username) {
+    if (typeof window === 'undefined') return `/u/${username}`;
+    return `${window.location.origin}/u/${username}`;
+  }
   if (typeof window === 'undefined') return `/p/${pageId}`;
   return `${window.location.origin}/p/${pageId}`;
 }

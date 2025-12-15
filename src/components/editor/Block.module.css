@@ -116,18 +116,11 @@
   cursor: text;
 }
 
-/* Inner wrapper for content */
-.blockInner {
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-  border-radius: inherit;
-}
-
 /* Text block */
 .text {
   background: transparent;
   box-shadow: none;
+  overflow: visible;
 }
 
 .text:hover:not(.selected) {
@@ -137,10 +130,6 @@
 /* Text blocks use the same dashed border */
 .text.selected {
   box-shadow: none;
-}
-
-.text .blockInner {
-  overflow: visible;
 }
 
 .textContent {
@@ -184,6 +173,7 @@
 .image {
   background: transparent;
   border-radius: 0;
+  overflow: visible;
 }
 
 .imageContent {
@@ -222,6 +212,7 @@
 .link {
   background: transparent;
   box-shadow: none;
+  overflow: visible;
 }
 
 .link:hover:not(.selected) {
@@ -231,10 +222,6 @@
 /* Link blocks only show the outer halo, not the inner box-shadow */
 .link.selected {
   box-shadow: none;
-}
-
-.link .blockInner {
-  overflow: visible;
 }
 
 /* Link display mode */

@@ -8,16 +8,6 @@
   position: relative;
 }
 
-/* Safe area support for mobile */
-@supports (padding: env(safe-area-inset-top)) {
-  .editor {
-    padding-top: env(safe-area-inset-top);
-    padding-bottom: env(safe-area-inset-bottom);
-    padding-left: env(safe-area-inset-left);
-    padding-right: env(safe-area-inset-right);
-  }
-}
-
 /* Top right controls container */
 .topRightControls {
   position: fixed;
@@ -66,6 +56,34 @@
 .inviteBtn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+/* Published state - subtle success indication */
+.publishedBtn {
+  color: var(--color-text-muted);
+}
+
+/* Unpublished changes - gentle prompt to update */
+.unpublishedChanges {
+  background: rgba(255, 255, 255, 0.9);
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.unpublishedChanges:hover:not(:disabled) {
+  background: var(--color-accent);
+  color: white;
+}
+
+/* Publish error state */
+.inviteBtn.publishError {
+  background: rgba(255, 240, 240, 0.9);
+  border-color: rgba(200, 80, 80, 0.3);
+  color: rgb(180, 60, 60);
+}
+
+.inviteBtn.publishError:hover {
+  background: rgba(255, 230, 230, 0.95);
 }
 
 /* Background button wrapper for positioning panel */

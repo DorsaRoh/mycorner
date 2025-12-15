@@ -21,8 +21,9 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 | Framework | Next.js 14 + React 18 |
 | Language | TypeScript |
 | Data | GraphQL (Apollo Client + Server) |
+| Database | SQLite (better-sqlite3) |
 | Server | Node.js + Express |
-| Auth | Passport.js (magic link) |
+| Auth | Passport.js + Google OAuth |
 
 ## Project Structure
 
@@ -91,22 +92,15 @@ public/
 
 ### 3. Authentication
 
-Supports two authentication methods:
+Uses **Google OAuth** for authentication:
 
-#### Google OAuth (Recommended)
 1. Click "Publish" on your page
 2. Click "Continue with Google" in the auth modal
 3. Sign in with your Google account
-4. Your page is automatically published
+4. **First time only**: Choose your username and page title
+5. Your page is automatically published at `/u/{username}`
 
-**Setup**: Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in `.env.local`
-
-#### Magic Link (Fallback)
-1. Enter your email
-2. Check console for login link (dev) or email (prod)
-3. Click link to authenticate
-
-**Note**: In development, magic links are logged to the console instead of being emailed.
+**Setup**: See "Setting up Google OAuth" below for configuration.
 
 ## Routes
 
@@ -115,11 +109,15 @@ Supports two authentication methods:
 | `/` | Home page - landing | No |
 | `/new` | Create/edit a new page (draft mode) | No |
 | `/edit/[id]` | Edit an existing page | Owner only |
-| `/p/[id]` | View published page | No |
+| `/p/[id]` | View published page by ID | No |
+| `/u/[username]` | View published page by username | No |
 | `/graphql` | GraphQL endpoint | No |
 | `/auth/google` | Google OAuth login | No |
 | `/auth/google/callback` | Google OAuth callback | No |
-| `/auth/verify` | Magic link verification | No |
+| `/auth/status` | Get current auth status | No |
+| `/api/me` | Get current user profile | No |
+| `/api/onboarding` | Set username + create page | Yes |
+| `/api/publish` | Publish a page | Yes |
 | `/api/assets/upload` | Upload images/audio | No |
 | `/uploads/*` | Serve uploaded assets | No |
 
@@ -162,22 +160,30 @@ mutation { sendFeedback(pageId: "page_1", message: "Great page!") { success } }
 
 ## Environment Variables
 
-Create a `.env.local` file in the project root:
+Copy `.env.example` to `.env.local` and configure:
+
+```bash
+cp .env.example .env.local
+```
 
 ```env
 # Server
 PORT=3000
 NODE_ENV=development
 
-# Session (change in production!)
-SESSION_SECRET=your-secret-key-at-least-32-characters
+# Session secret (change in production!)
+# Generate with: openssl rand -base64 32
+SESSION_SECRET=your-session-secret-at-least-32-characters-long
 
-# Google OAuth (required for Google sign-in)
-GOOGLE_CLIENT_ID=your-google-client-id
+# Google OAuth (required for authentication)
+GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=your-google-client-secret
 
-# CORS (production only)
-CORS_ORIGIN=https://yourdomain.com
+# Database (optional - defaults to ./data/my-corner.db)
+# DATABASE_PATH=/path/to/your/database.db
+
+# CORS origin (production only)
+# CORS_ORIGIN=https://yourdomain.com
 ```
 
 ### Setting up Google OAuth
@@ -237,11 +243,31 @@ Response:
 
 ## Data Storage
 
-Currently uses **in-memory storage** for development. Data resets when server restarts.
+Uses **SQLite** with `better-sqlite3` for persistent storage. Database file is stored at `./data/my-corner.db` by default.
 
-For production, integrate a database:
-- Add Prisma with PostgreSQL
-- Update `src/server/graphql/store.ts` to use database
+### Database Schema
+
+**Users table:**
+- `id` (uuid primary key)
+- `email` (unique, not null)
+- `google_sub` (unique, not null) - stable Google account ID
+- `name` (from Google profile)
+- `avatar_url` (from Google profile)
+- `username` (unique) - chosen during onboarding
+- `created_at`, `updated_at` timestamps
+
+**Pages table:**
+- `id` (primary key)
+- `user_id` (foreign key to users)
+- `owner_id` (for anonymous session tracking)
+- `title`, `slug` (unique)
+- `content` (JSON blocks array)
+- `background` (JSON config)
+- `is_published` (boolean)
+- `server_revision`, `schema_version`
+- `created_at`, `updated_at` timestamps
+
+For production, you can switch to PostgreSQL by updating `src/server/db/index.ts`.
 
 ## Security Notes
 
@@ -274,10 +300,11 @@ For production, integrate a database:
 2. Click "Create your page"
 3. Add some blocks, edit content
 4. Click "Publish"
-5. Check terminal for magic link, click it
-6. Share modal appears with public URL
-7. Open public URL in incognito
-8. Click "Make your own" to test forking
+5. Sign in with Google
+6. **First time**: Choose your username and page title
+7. Share modal appears with public URL (`/u/{username}`)
+8. Open public URL in incognito
+9. Click "Make your own" to test forking
 
 ### GraphQL Playground
 

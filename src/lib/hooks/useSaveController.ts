@@ -66,8 +66,8 @@ export interface SaveController {
   /** Mark document as dirty (local change occurred) */
   markDirty: () => void;
   
-  /** Trigger immediate save (flush) */
-  saveNow: () => Promise<void>;
+  /** Trigger immediate save (flush). Returns the latest server revision after save. */
+  saveNow: () => Promise<number>;
   
   /** Retry failed save */
   retry: () => void;
@@ -80,6 +80,9 @@ export interface SaveController {
   
   /** Last error message */
   lastError: string | null;
+  
+  /** Get the current server revision (always up-to-date, unlike state) */
+  getServerRevision: () => number;
 }
 
 export function useSaveController({
@@ -108,9 +111,12 @@ export function useSaveController({
   const [localRevision, setLocalRevision] = useState(0);
   const [serverRevision, setServerRevision] = useState(initialServerRevision);
   
-  // Store onSave in ref to avoid dependency issues
+  // Store callbacks in refs to avoid dependency issues
   const onSaveRef = useRef(onSave);
   onSaveRef.current = onSave;
+  
+  const onConflictRef = useRef(onConflict);
+  onConflictRef.current = onConflict;
   
   const log = useCallback((...args: unknown[]) => {
     if (debug) {
@@ -167,6 +173,14 @@ export function useSaveController({
       // Check if this response is stale (newer local revision exists)
       if (localRevisionRef.current > revisionToSave) {
         log(`Stale response for revision ${revisionToSave}, current is ${localRevisionRef.current}`);
+        
+        // Still update server revision from successful response to prevent conflicts
+        // on the next save attempt (the server did accept this save)
+        if (result.success && result.serverRevision !== undefined) {
+          serverRevisionRef.current = result.serverRevision;
+          setServerRevision(result.serverRevision);
+        }
+        
         isSavingRef.current = false;
         pendingRevisionRef.current = null;
         // Trigger another save for the newer revision
@@ -197,7 +211,7 @@ export function useSaveController({
             serverRevisionRef.current = error.serverRevision;
             setServerRevision(error.serverRevision);
           }
-          onConflict?.(error.serverRevision ?? serverRevisionRef.current);
+          onConflictRef.current?.(error.serverRevision ?? serverRevisionRef.current);
           setLastError('Document changed elsewhere');
         } else if (error?.code === 'PAYLOAD_TOO_LARGE') {
           setLastError('Document too large');
@@ -229,7 +243,7 @@ export function useSaveController({
       setSaveState('error');
       return false;
     }
-  }, [log, onConflict]);
+  }, [log]);
   
   /**
    * Schedule a debounced save
@@ -275,11 +289,11 @@ export function useSaveController({
   }, [enabled, log, scheduleSave]);
   
   /**
-   * Immediate save (flush)
+   * Immediate save (flush). Returns the latest server revision.
    */
-  const saveNow = useCallback(async () => {
+  const saveNow = useCallback(async (): Promise<number> => {
     // Skip if disabled
-    if (!enabled) return;
+    if (!enabled) return serverRevisionRef.current;
     
     // Clear any pending debounce
     if (debounceTimerRef.current) {
@@ -289,7 +303,7 @@ export function useSaveController({
     
     if (!isDirtyRef.current && !isSavingRef.current) {
       log('No changes to save');
-      return;
+      return serverRevisionRef.current;
     }
     
     // Wait for current save to complete if in progress
@@ -308,11 +322,30 @@ export function useSaveController({
       });
     }
     
-    // If still dirty, save now
-    if (isDirtyRef.current) {
-      await performSave(localRevisionRef.current);
+    // Retry loop to ensure all changes are saved (handles stale responses and conflicts)
+    const maxRetries = 3;
+    for (let attempt = 0; attempt < maxRetries && isDirtyRef.current; attempt++) {
+      log(`Save attempt ${attempt + 1}/${maxRetries}`);
+      const success = await performSave(localRevisionRef.current);
+      if (success) {
+        break;
+      }
+      // Small delay before retry to let state settle
+      if (attempt < maxRetries - 1 && isDirtyRef.current) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
     }
+    
+    // Return the latest server revision from the ref (always up-to-date)
+    return serverRevisionRef.current;
   }, [enabled, log, performSave]);
+  
+  /**
+   * Get the current server revision (always up-to-date, unlike state)
+   */
+  const getServerRevision = useCallback(() => {
+    return serverRevisionRef.current;
+  }, []);
   
   /**
    * Retry failed save
@@ -386,5 +419,6 @@ export function useSaveController({
     localRevision,
     serverRevision,
     lastError,
-  }), [saveState, isOffline, markDirty, saveNow, retry, localRevision, serverRevision, lastError]);
+    getServerRevision,
+  }), [saveState, isOffline, markDirty, saveNow, retry, localRevision, serverRevision, lastError, getServerRevision]);
 }

@@ -13,6 +13,7 @@ const BLOCK_STYLE_FRAGMENT = `
     fontWeight
     color
     textOpacity
+    textAlign
   }
 `;
 
@@ -110,6 +111,8 @@ export const GET_PAGE = gql`
         ${BLOCK_EFFECTS_FRAGMENT}
       }
       ${BACKGROUND_FRAGMENT}
+      publishedAt
+      publishedRevision
       createdAt
       updatedAt
       serverRevision
@@ -119,10 +122,20 @@ export const GET_PAGE = gql`
 `;
 
 export const PUBLISH_PAGE = gql`
-  mutation PublishPage($id: ID!) {
-    publishPage(id: $id) {
-      id
-      isPublished
+  mutation PublishPage($id: ID!, $input: PublishPageInput!) {
+    publishPage(id: $id, input: $input) {
+      page {
+        id
+        isPublished
+        publishedAt
+        publishedRevision
+        serverRevision
+      }
+      conflict
+      currentServerRevision
+      publishedRevision
+      publishedAt
+      publicUrl
     }
   }
 `;

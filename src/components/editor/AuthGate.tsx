@@ -6,20 +6,49 @@ interface AuthGateProps {
   isOpen: boolean;
   onClose: () => void;
   onAuthStart?: () => void;
+  /** The draft ID being edited, for preserving in return URL */
+  draftId?: string;
 }
 
-export function AuthGate({ isOpen, onClose, onAuthStart }: AuthGateProps) {
+export function AuthGate({ isOpen, onClose, onAuthStart, draftId }: AuthGateProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Check for error in URL params
+  useEffect(() => {
+    if (isOpen) {
+      const urlParams = new URLSearchParams(window.location.search);
+      const errorParam = urlParams.get('error');
+      if (errorParam === 'google_not_configured') {
+        setError('Google OAuth is not configured. Please set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in your .env.local file.');
+        // Clean up URL
+        urlParams.delete('error');
+        const newUrl = urlParams.toString() 
+          ? `${window.location.pathname}?${urlParams.toString()}`
+          : window.location.pathname;
+        window.history.replaceState({}, '', newUrl);
+      } else if (errorParam) {
+        setError('Authentication failed. Please try again.');
+        urlParams.delete('error');
+        const newUrl = urlParams.toString() 
+          ? `${window.location.pathname}?${urlParams.toString()}`
+          : window.location.pathname;
+        window.history.replaceState({}, '', newUrl);
+      }
+    }
+  }, [isOpen]);
 
   const handleGoogleAuth = useCallback(() => {
     setLoading(true);
+    setError(null);
     onAuthStart?.();
     
-    // Build return URL with current page path
-    const returnTo = encodeURIComponent(router.asPath);
+    // Build return URL - use draftId if available, otherwise current path
+    const returnPath = draftId ? `/edit/${draftId}` : router.asPath.split('?')[0];
+    const returnTo = encodeURIComponent(returnPath);
     window.location.href = `/auth/google?returnTo=${returnTo}`;
-  }, [onAuthStart, router.asPath]);
+  }, [onAuthStart, router.asPath, draftId]);
 
   // Close on Escape
   useEffect(() => {
@@ -44,6 +73,12 @@ export function AuthGate({ isOpen, onClose, onAuthStart }: AuthGateProps) {
         <p className={styles.subtitle}>
           Your page will be saved to your account and shareable with anyone.
         </p>
+
+        {error && (
+          <div className={styles.error}>
+            {error}
+          </div>
+        )}
 
         <button
           className={styles.googleBtn}
@@ -84,3 +119,4 @@ export function AuthGate({ isOpen, onClose, onAuthStart }: AuthGateProps) {
     </div>
   );
 }
+
