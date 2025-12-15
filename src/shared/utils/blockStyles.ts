@@ -3,8 +3,8 @@
  * Used by both editor Block.tsx and viewer ViewerBlock.tsx
  */
 
-import type { BlockStyle } from '@/shared/types';
-import { DEFAULT_STYLE } from '@/shared/types';
+import type { BlockStyle } from '../types';
+import { DEFAULT_STYLE } from '../types';
 
 /**
  * Convert BlockStyle to inline CSS styles for block container

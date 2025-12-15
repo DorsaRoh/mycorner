@@ -3,7 +3,7 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Install dependencies (include dev for ts-node)
+# Install dependencies (include dev for TypeScript compilation)
 COPY package*.json ./
 RUN npm ci --include=dev
 
@@ -28,8 +28,7 @@ COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
-COPY --from=builder /app/src ./src
-COPY --from=builder /app/tsconfig*.json ./
+COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/next.config.js ./
 
 # Set correct permissions
@@ -44,4 +43,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1
 
 # Start server (env vars injected by platform)
-CMD ["node", "node_modules/.bin/ts-node", "--project", "tsconfig.server.json", "src/server/index.ts"]
+CMD ["node", "dist/src/server/index.js"]
