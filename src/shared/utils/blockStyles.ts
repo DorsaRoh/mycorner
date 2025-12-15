@@ -244,3 +244,24 @@ export function getBackgroundStyles(background?: {
 
   return { canvasStyle, bgImageStyle };
 }
+
+/**
+ * Generate a very subtle lighter overlay color for the margin zones.
+ * Nearly invisible - just a hint to indicate the safe area boundary.
+ */
+export function getMarginOverlayColor(background?: {
+  mode: 'solid' | 'gradient' | 'image';
+  solid?: { color: string };
+  gradient?: { type: 'linear' | 'radial'; colorA: string; colorB: string; angle: number };
+  image?: { url: string; fit: 'cover' | 'contain' | 'fill' | 'tile'; position: string; opacity: number };
+}): string {
+  const brightness = getBackgroundBrightness(background);
+  
+  // Very subtle overlay - barely visible, just a hint
+  if (brightness === 'dark') {
+    return 'rgba(255, 255, 255, 0.03)';
+  } else {
+    return 'rgba(255, 255, 255, 0.15)';
+  }
+}
+

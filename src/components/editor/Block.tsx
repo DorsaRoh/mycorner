@@ -7,6 +7,7 @@ import {
   refToPx,
   pxToRef,
   scaleFontSize,
+  clampToSafeZone,
   REFERENCE_WIDTH,
   REFERENCE_HEIGHT,
 } from '@/lib/canvas';
@@ -82,6 +83,7 @@ interface BlockProps {
   allBlocks?: BlockType[];
   onDelete: () => void;
   onSetEditing?: (editing: boolean) => void;
+  onInteractionStart?: () => void;
 }
 
 // Memoized Block component - only rerenders when its own props change
@@ -100,6 +102,7 @@ export const Block = memo(function Block({
   allBlocks = [],
   onDelete,
   onSetEditing,
+  onInteractionStart,
 }: BlockProps) {
   const blockRef = useRef<HTMLDivElement>(null);
   const [interactionState, setInteractionState] = useState<'idle' | 'dragging' | 'resizing'>('idle');
@@ -177,17 +180,16 @@ export const Block = memo(function Block({
   // Calculate inline styles using pixel dimensions (same as ViewerBlock)
   const blockStyles = useMemo(() => {
     const { outer, inner } = getBlockStyles(block.style, pxRect.width, pxRect.height);
-    // For TEXT and LINK blocks, we don't want overflow: hidden as it clips the content
-    const isTextOrLink = block.type === 'TEXT' || block.type === 'LINK';
     const mergedStyles = {
       ...outer,
       ...inner,
     };
-    if (isTextOrLink) {
-      delete mergedStyles.overflow;
-    }
+    // Remove overflow:hidden from the Block container so ObjectControls isn't clipped.
+    // For images, the imageWrapper already has overflow:hidden in CSS to clip rounded corners.
+    // For text/link blocks, we never want overflow:hidden as it clips content.
+    delete mergedStyles.overflow;
     return mergedStyles;
-  }, [block.style, block.type, pxRect.width, pxRect.height]);
+  }, [block.style, pxRect.width, pxRect.height]);
 
   // Handle mouse move for edge detection (hover cursor)
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
@@ -213,6 +215,9 @@ export const Block = memo(function Block({
       if (!selected) onSelect();
       return;
     }
+
+    // Notify parent that an interaction is starting (for undo history)
+    onInteractionStart?.();
 
     // Cache the rect once at interaction start
     const rect = blockRef.current?.getBoundingClientRect();
@@ -270,7 +275,7 @@ export const Block = memo(function Block({
       if (!isPartOfMultiSelection) onSelect();
       setInteractionState('dragging');
     }
-  }, [block.x, block.y, block.width, block.height, block.style?.fontSize, block.type, block.id, selected, selectedIds, allBlocks, dims.scale, onSelect]);
+  }, [block.x, block.y, block.width, block.height, block.style?.fontSize, block.type, block.id, selected, selectedIds, allBlocks, dims.scale, onSelect, onInteractionStart]);
 
   // Drag/resize handling with rAF optimization
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -312,8 +317,11 @@ export const Block = memo(function Block({
 
         if (interactionState === 'dragging') {
           // Calculate new position in reference coordinates
-          const newRefX = Math.max(0, ref.blockX + dx);
-          const newRefY = Math.max(0, ref.blockY + dy);
+          const rawX = ref.blockX + dx;
+          const rawY = ref.blockY + dy;
+          
+          // Clamp to safe zone (respecting side margins)
+          const { x: newRefX, y: newRefY } = clampToSafeZone(rawX, rawY, ref.blockWidth, ref.blockHeight);
           
           // Apply to DOM in pixels for visual feedback (include offset for centering)
           blockRef.current.style.left = `${newRefX * scale + ref.offsetX}px`;
@@ -418,8 +426,10 @@ export const Block = memo(function Block({
         if (ref.isMultiDrag && onDragMultiple && !wasJustClick) {
           onDragMultiple(selectedIds, dx, dy);
         } else {
-          const newX = Math.max(0, ref.blockX + dx);
-          const newY = Math.max(0, ref.blockY + dy);
+          const rawX = ref.blockX + dx;
+          const rawY = ref.blockY + dy;
+          // Clamp to safe zone (respecting side margins)
+          const { x: newX, y: newY } = clampToSafeZone(rawX, rawY, ref.blockWidth, ref.blockHeight);
           if (newX !== block.x || newY !== block.y) {
             onUpdate({ x: newX, y: newY });
           }
@@ -671,7 +681,7 @@ export const Block = memo(function Block({
         onSetEditing={onSetEditing}
       />
 
-      {selected && (block.type === 'IMAGE' || block.type === 'TEXT' || block.type === 'LINK') && (
+      {selected && (
         <ObjectControls
           blockType={block.type}
           style={block.style}

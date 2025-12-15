@@ -10,8 +10,10 @@
  * 
  * ## Implementation
  * 
- * The system uses width-based uniform scaling:
- * - scale = containerWidth / REFERENCE_WIDTH
+ * The system uses width-based scaling with infinite vertical scroll:
+ * - scale = contentWidth / REFERENCE_WIDTH (capped at 1.0 for max-width)
+ * - Content is centered horizontally with side margins on wide screens
+ * - Canvas extends vertically as needed (infinite scroll)
  * - All coordinates and sizes are multiplied by this scale for rendering
  * - All user interactions convert screen pixels to reference coordinates
  * 
@@ -24,9 +26,9 @@
  * ## Test Plan
  * 
  * ### Screen Size Tests
- * 1. Mobile (390x844): Objects scale down proportionally, text remains readable (min 10px)
- * 2. Laptop (1440x900): Objects render at ~1.2x scale, natural size
- * 3. Ultrawide (2560x1080): Objects scale up proportionally, text max 160px
+ * 1. Mobile (390px): Full width, content scales down proportionally
+ * 2. Laptop (1440px): Content centered with side margins, scale ~1.0
+ * 3. Ultrawide (2560px): Content centered with larger side margins
  * 
  * ### Resize Tests
  * 1. Resize window while editing: Canvas re-renders without layout jump
@@ -56,6 +58,14 @@
 // Reference canvas size - the "design" viewport
 export const REFERENCE_WIDTH = 1200;
 export const REFERENCE_HEIGHT = 800;
+
+// Maximum content width for wide screens (creates side margins)
+export const MAX_CONTENT_WIDTH = 1200;
+
+// Safe zone margins - blocks cannot be placed/dragged into these areas
+// This prevents UI issues on smaller screens where content might get cut off
+// Keep this minimal - just enough to prevent edge clipping
+export const SAFE_ZONE_MARGIN = 16; // Minimal margin to prevent edge clipping
 
 // Font size limits for readability
 export const MIN_FONT_SIZE = 10;
@@ -88,22 +98,22 @@ export interface NormalizedRect {
 
 /**
  * Compute canvas dimensions and scale factors from container size.
- * Uses width-based scaling only to ensure consistent rendering between
- * editor and viewer regardless of container height differences.
- * This means content may extend vertically beyond the viewport on tall pages.
+ * Uses width-based scaling with max-width capping for side margins on wide screens.
+ * Canvas extends infinitely vertically.
  */
 export function getCanvasDimensions(containerWidth: number, containerHeight: number): CanvasDimensions {
+  // Cap content width for side margins on wide screens
+  const contentWidth = Math.min(containerWidth, MAX_CONTENT_WIDTH);
+  
   const scaleX = containerWidth / REFERENCE_WIDTH;
   const scaleY = containerHeight / REFERENCE_HEIGHT;
   
-  // Use width-only scaling for consistent rendering across editor and viewer
-  // Height differences (e.g., toolbar in editor) should not affect layout
-  const scale = scaleX;
+  // Use width-based scaling, capped at 1.0 (no upscaling beyond reference)
+  const scale = contentWidth / REFERENCE_WIDTH;
   
-  // No horizontal centering needed with width-based scaling
-  // Content starts at left edge and extends downward
-  const offsetX = 0;
-  const offsetY = 0;
+  // Center content horizontally when there are side margins
+  const offsetX = (containerWidth - contentWidth) / 2;
+  const offsetY = 0; // No vertical offset - infinite scroll
   
   return {
     width: containerWidth,
@@ -209,19 +219,54 @@ export function migrateLegacyBlocks<T extends Rect>(
 
 /**
  * Clamp a position to keep the object visible within canvas bounds.
+ * Clamps X to reference width, but allows infinite Y (vertical scroll).
  */
 export function clampToCanvas(
   rect: Rect,
-  dims: CanvasDimensions,
+  _dims: CanvasDimensions,
   minVisible: number = 50
 ): Rect {
-  const maxX = (dims.width / dims.scale) - minVisible;
-  const maxY = (dims.height / dims.scale) - minVisible;
+  // Clamp X to reference canvas width, allow unlimited Y
+  const maxX = REFERENCE_WIDTH - minVisible;
   
   return {
     ...rect,
     x: Math.max(-rect.width + minVisible, Math.min(maxX, rect.x)),
-    y: Math.max(-rect.height + minVisible, Math.min(maxY, rect.y)),
+    // Y can go as low as needed (no bottom clamp for infinite scroll)
+    y: Math.max(-rect.height + minVisible, rect.y),
+  };
+}
+
+/**
+ * Clamp a block position to stay within the safe zone (respecting side margins).
+ * Blocks cannot be dragged into the margin areas to prevent UI issues on smaller screens.
+ */
+export function clampToSafeZone(
+  x: number,
+  y: number,
+  blockWidth: number,
+  _blockHeight: number
+): { x: number; y: number } {
+  // Minimum X position is the left margin
+  const minX = SAFE_ZONE_MARGIN;
+  // Maximum X position ensures the block doesn't extend into the right margin
+  const maxX = REFERENCE_WIDTH - SAFE_ZONE_MARGIN - blockWidth;
+  
+  return {
+    x: Math.max(minX, Math.min(maxX, x)),
+    // Y remains unconstrained (infinite vertical scroll), but prevent going above 0
+    y: Math.max(0, y),
+  };
+}
+
+/**
+ * Get the safe zone bounds for block placement.
+ * Returns the min/max X values where blocks can be placed.
+ */
+export function getSafeZoneBounds(): { minX: number; maxX: number } {
+  return {
+    minX: SAFE_ZONE_MARGIN,
+    maxX: REFERENCE_WIDTH - SAFE_ZONE_MARGIN,
   };
 }
 

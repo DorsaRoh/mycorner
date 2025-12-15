@@ -4,7 +4,19 @@
   min-height: 100vh;
   min-height: 100dvh; /* Dynamic viewport height for mobile */
   background: var(--color-bg-pure);
-  overflow-x: hidden; /* Prevent horizontal scroll */
+  overflow-x: auto; /* Allow horizontal scroll if content extends beyond */
+  overflow-y: visible;
+  -webkit-overflow-scrolling: touch;
+}
+
+
+/* Content sizer - invisible div that sizes the scrollable area */
+.contentSizer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  z-index: -1;
 }
 
 /* Background image layer - separate for opacity support */
@@ -15,7 +27,7 @@
   z-index: 0;
 }
 
-/* Inner container for blocks - allows mobile offset without affecting bg */
+/* Inner container for blocks */
 .blocksContainer {
   position: relative;
   width: 100%;

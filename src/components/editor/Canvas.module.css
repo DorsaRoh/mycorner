@@ -5,35 +5,51 @@
   height: 100%;
   min-height: 0; /* Allow flex shrinking */
   background: var(--color-bg-pure);
-  overflow: visible; /* Allow ObjectControls to extend beyond canvas bounds */
+  overflow: auto; /* Allow scrolling in both directions */
+  overflow-x: auto;
+  overflow-y: auto;
   /* Prevent default touch behaviors for smoother mobile interaction */
-  touch-action: none;
+  touch-action: pan-x pan-y;
   -webkit-touch-callout: none;
   -webkit-user-select: none;
   user-select: none;
+  /* Ensure canvas is the scroll container */
+  -webkit-overflow-scrolling: touch;
 }
 
-/* Subtle atmospheric vignette - extremely low contrast, barely perceptible */
-.canvas::before {
-  content: '';
+
+/* Content sizer - invisible div that sizes the scrollable area */
+.contentSizer {
   position: absolute;
-  inset: 0;
-  background: radial-gradient(
-    ellipse at center,
-    transparent 0%,
-    transparent 60%,
-    rgba(0, 0, 0, 0.012) 100%
-  );
+  top: 0;
+  left: 0;
   pointer-events: none;
-  z-index: 0;
+  z-index: -1;
 }
 
-/* Background image layer - separate for opacity support */
+/* Background image layer - full canvas area */
 .bgImageLayer {
   position: absolute;
   inset: 0;
   pointer-events: none;
   z-index: 0;
+}
+
+/* Margin overlay - indicates safe zone boundaries */
+.marginOverlay {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 1;
+  transition: background-color 0.2s ease, opacity 0.2s ease;
+}
+
+/* Hide margin overlays on small screens - they're just for visual hint, not essential */
+@media (max-width: 640px) {
+  .marginOverlay {
+    opacity: 0;
+  }
 }
 
 /* Starter mode hint - subtle prompt to click anywhere */
@@ -52,16 +68,11 @@
   animation: hintPulse 3s ease-in-out infinite;
 }
 
-/* Full canvas area - edge to edge for maximum creative freedom */
+/* Full canvas area for clicks */
 .paperSheet {
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  inset: 0;
   background: transparent;
-  border: none;
-  border-radius: 0;
   pointer-events: auto;
   z-index: 0;
 }
@@ -178,9 +189,4 @@
   padding: 4px 8px;
   border-radius: 4px;
   white-space: pre;
-}
-
-/* Responsive adjustments */
-@media (max-width: 640px) {
-  /* Paper sheet is now edge-to-edge, no responsive insets needed */
 }

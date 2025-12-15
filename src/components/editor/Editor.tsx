@@ -1,6 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
-import Image from 'next/image';
 import { useMutation, useQuery, gql } from '@apollo/client';
 import type { Block as BlockType, BackgroundConfig } from '@/shared/types';
 import { DEFAULT_STYLE } from '@/shared/types';
@@ -51,7 +50,7 @@ import { OnboardingModal } from './OnboardingModal';
 import styles from './Editor.module.css';
 
 import { isImageUrl, serializeLinkContent, getBackgroundBrightness } from '@/shared/utils/blockStyles';
-import { REFERENCE_WIDTH, REFERENCE_HEIGHT } from '@/lib/canvas';
+import { REFERENCE_WIDTH, REFERENCE_HEIGHT, clampToSafeZone } from '@/lib/canvas';
 
 // Starter block ID prefix for identification
 const STARTER_BLOCK_PREFIX = 'block_starter_';
@@ -79,7 +78,7 @@ function createStarterBlocks(): BlockType[] {
     {
       id: `${STARTER_BLOCK_PREFIX}headline_${now}`,
       type: 'TEXT',
-      x: pX(0.03),           // 25% from left (centered with 50% width)
+      x: pX(0.02),           // 2% from left (within safe zone)
       y: pY(0.12),           // 12% from top
       width: pW(0.50),       // 50% of canvas width
       height: pH(0.10),      // 10% of canvas height
@@ -139,7 +138,7 @@ function createStarterBlocks(): BlockType[] {
       y: pY(0.46),           // 50% from top
       width: pW(0.17),       // 17% of canvas width
       height: pH(0.10),      // 10% of canvas height
-      content: 'a paragraph about\nthe absurdities of\nour universe',
+      content: 'a collection of the things you love, \n internet gems, or \nwhatever you want!',
       style: {
         ...DEFAULT_STYLE,
         fontSize: 16,
@@ -234,6 +233,14 @@ const DEFAULT_STARTER_BACKGROUND: BackgroundConfig = {
   solid: { color: '#faf9f6' },
 };
 
+// Undo history types
+interface HistoryState {
+  blocks: BlockType[];
+  background: BackgroundConfig | undefined;
+}
+
+const MAX_HISTORY_SIZE = 50;
+
 export function Editor({ 
   pageId, 
   mode,
@@ -264,13 +271,11 @@ export function Editor({
   const [showPublishToast, setShowPublishToast] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [pendingPublishAfterOnboarding, setPendingPublishAfterOnboarding] = useState(false);
-  const [showFeedback, setShowFeedback] = useState(false);
-  const [feedbackMessage, setFeedbackMessage] = useState('');
-  const [feedbackEmail, setFeedbackEmail] = useState('');
-  const [feedbackStatus, setFeedbackStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
   
-  // For draft mode: local save indicator
-  const [draftSaveIndicator, setDraftSaveIndicator] = useState<'idle' | 'saving' | 'saved'>('idle');
+  // Undo/redo history
+  const [undoStack, setUndoStack] = useState<HistoryState[]>([]);
+  const [redoStack, setRedoStack] = useState<HistoryState[]>([]);
+  const isUndoRedoAction = useRef(false);
   
   // Refs
   const blocksRef = useRef(blocks);
@@ -285,6 +290,103 @@ export function Editor({
   useEffect(() => { blocksRef.current = blocks; }, [blocks]);
   useEffect(() => { titleRef.current = title; }, [title]);
   useEffect(() => { backgroundRef.current = background; }, [background]);
+
+  // Save current state to undo history before making changes
+  const saveToHistory = useCallback(() => {
+    if (isUndoRedoAction.current) return;
+    
+    const currentState: HistoryState = {
+      blocks: JSON.parse(JSON.stringify(blocksRef.current)),
+      background: backgroundRef.current ? JSON.parse(JSON.stringify(backgroundRef.current)) : undefined,
+    };
+    
+    setUndoStack(prev => {
+      const newStack = [...prev, currentState];
+      // Limit history size
+      if (newStack.length > MAX_HISTORY_SIZE) {
+        return newStack.slice(-MAX_HISTORY_SIZE);
+      }
+      return newStack;
+    });
+    
+    // Clear redo stack when new action is performed
+    setRedoStack([]);
+  }, []);
+
+  // Undo action
+  const handleUndo = useCallback(() => {
+    if (undoStack.length === 0) return;
+    
+    // Save current state to redo stack
+    const currentState: HistoryState = {
+      blocks: JSON.parse(JSON.stringify(blocksRef.current)),
+      background: backgroundRef.current ? JSON.parse(JSON.stringify(backgroundRef.current)) : undefined,
+    };
+    setRedoStack(prev => [...prev, currentState]);
+    
+    // Pop from undo stack and restore
+    const previousState = undoStack[undoStack.length - 1];
+    setUndoStack(prev => prev.slice(0, -1));
+    
+    // Mark this as an undo/redo action to prevent saving to history
+    isUndoRedoAction.current = true;
+    setBlocks(previousState.blocks);
+    setBackground(previousState.background);
+    
+    // Clear selection since restored blocks might not exist
+    setSelectedId(null);
+    setSelectedIds(new Set());
+    setEditingId(null);
+    
+    // Reset flag after state updates
+    requestAnimationFrame(() => {
+      isUndoRedoAction.current = false;
+    });
+  }, [undoStack]);
+
+  // Redo action
+  const handleRedo = useCallback(() => {
+    if (redoStack.length === 0) return;
+    
+    // Save current state to undo stack
+    const currentState: HistoryState = {
+      blocks: JSON.parse(JSON.stringify(blocksRef.current)),
+      background: backgroundRef.current ? JSON.parse(JSON.stringify(backgroundRef.current)) : undefined,
+    };
+    setUndoStack(prev => [...prev, currentState]);
+    
+    // Pop from redo stack and restore
+    const nextState = redoStack[redoStack.length - 1];
+    setRedoStack(prev => prev.slice(0, -1));
+    
+    // Mark this as an undo/redo action to prevent saving to history
+    isUndoRedoAction.current = true;
+    setBlocks(nextState.blocks);
+    setBackground(nextState.background);
+    
+    // Clear selection
+    setSelectedId(null);
+    setSelectedIds(new Set());
+    setEditingId(null);
+    
+    // Reset flag after state updates
+    requestAnimationFrame(() => {
+      isUndoRedoAction.current = false;
+    });
+  }, [redoStack]);
+
+  // Background change handler (history is saved when panel opens, not on each change)
+  const handleBackgroundChange = useCallback((newBackground: BackgroundConfig | undefined) => {
+    setBackground(newBackground);
+  }, []);
+
+  // Open background panel and save history before changes
+  const handleOpenBackgroundPanel = useCallback(() => {
+    if (!showBackgroundPanel) {
+      saveToHistory();
+    }
+    setShowBackgroundPanel(!showBackgroundPanel);
+  }, [showBackgroundPanel, saveToHistory]);
 
   // Queries and mutations
   const { data: meData, loading: meLoading, refetch: refetchMe } = useQuery(ME_QUERY);
@@ -430,8 +532,6 @@ export function Editor({
       clearTimeout(saveTimeoutRef.current);
     }
 
-    setDraftSaveIndicator('saving');
-
     saveTimeoutRef.current = setTimeout(() => {
       const draft: DraftData = {
         id: pageId,
@@ -442,8 +542,6 @@ export function Editor({
         updatedAt: Date.now(),
       };
       saveDraft(draft);
-      setDraftSaveIndicator('saved');
-      setTimeout(() => setDraftSaveIndicator('idle'), 2000);
     }, 500);
 
     return () => {
@@ -831,43 +929,8 @@ export function Editor({
     }
   }, [starterMode, pageId]);
 
-  // Handle feedback submission
-  const handleFeedbackSubmit = useCallback(async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!feedbackMessage.trim()) return;
-
-    setFeedbackStatus('sending');
-    try {
-      const response = await fetch('/api/feature-request', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: feedbackMessage.trim(),
-          email: feedbackEmail.trim() || null,
-          url: window.location.href,
-        }),
-      });
-
-      if (response.ok) {
-        setFeedbackStatus('sent');
-      } else {
-        setFeedbackStatus('error');
-      }
-    } catch {
-      setFeedbackStatus('error');
-    }
-  }, [feedbackMessage, feedbackEmail]);
-
-  const handleFeedbackClose = useCallback(() => {
-    setShowFeedback(false);
-    setTimeout(() => {
-      setFeedbackMessage('');
-      setFeedbackEmail('');
-      setFeedbackStatus('idle');
-    }, 200);
-  }, []);
-
   const handleAddBlock = useCallback((type: BlockType['type'], x?: number, y?: number, content?: string) => {
+    saveToHistory();
     exitStarterMode();
     
     const newId = generateBlockId();
@@ -888,12 +951,17 @@ export function Editor({
       height = 240;
     }
 
+    // Get the target position and clamp to safe zone
+    const targetX = x ?? 100;
+    const targetY = y ?? 100 + blocks.length * 20;
+    const { x: safeX, y: safeY } = clampToSafeZone(targetX, targetY, width, height);
+    
     // Always include style to ensure consistent behavior with starter blocks
     const newBlock: BlockType = {
       id: newId,
       type,
-      x: x ?? 100,
-      y: y ?? 100 + blocks.length * 20,
+      x: safeX,
+      y: safeY,
       width,
       height,
       content: content ?? '',
@@ -915,7 +983,7 @@ export function Editor({
     if (type === 'TEXT' || type === 'LINK') {
       setEditingId(newId);
     }
-  }, [blocks.length, generateBlockId, exitStarterMode]);
+  }, [blocks.length, generateBlockId, exitStarterMode, saveToHistory]);
 
   const handleUpdateBlock = useCallback((id: string, updates: Partial<BlockType>) => {
     setBlocks((prev) =>
@@ -958,7 +1026,11 @@ export function Editor({
     setBlocks((prev) =>
       prev.map((block) => {
         if (ids.has(block.id)) {
-          return { ...block, x: Math.max(0, block.x + dx), y: Math.max(0, block.y + dy) };
+          const rawX = block.x + dx;
+          const rawY = block.y + dy;
+          // Clamp to safe zone (respecting side margins)
+          const { x: newX, y: newY } = clampToSafeZone(rawX, rawY, block.width, block.height);
+          return { ...block, x: newX, y: newY };
         }
         return block;
       })
@@ -966,6 +1038,7 @@ export function Editor({
   }, []);
 
   const handleDeleteBlock = useCallback((id: string) => {
+    saveToHistory();
     const blockToDelete = blocks.find(b => b.id === id);
     if (blockToDelete?.isStarter && starterMode) {
       setStarterMode(false);
@@ -987,7 +1060,7 @@ export function Editor({
       next.delete(id);
       return next;
     });
-  }, [selectedId, blocks, starterMode, pageId]);
+  }, [selectedId, blocks, starterMode, pageId, saveToHistory]);
 
   const handleDeleteSelected = useCallback(() => {
     if (selectedIds.size > 0) {
@@ -1024,6 +1097,20 @@ export function Editor({
       const activeTag = document.activeElement?.tagName;
       const isInputFocused = activeTag === 'TEXTAREA' || activeTag === 'INPUT';
 
+      // Undo: Ctrl+Z / Cmd+Z
+      if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey && !isInputFocused) {
+        e.preventDefault();
+        handleUndo();
+        return;
+      }
+
+      // Redo: Ctrl+Shift+Z / Cmd+Shift+Z or Ctrl+Y / Cmd+Y
+      if ((e.metaKey || e.ctrlKey) && ((e.key === 'z' && e.shiftKey) || e.key === 'y') && !isInputFocused) {
+        e.preventDefault();
+        handleRedo();
+        return;
+      }
+
       if ((e.key === 'Delete' || e.key === 'Backspace') && !isInputFocused && !editingId) {
         if (selectedIds.size > 0 || selectedId) {
           e.preventDefault();
@@ -1052,7 +1139,7 @@ export function Editor({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedId, selectedIds, blocks, editingId, handleDeleteSelected]);
+  }, [selectedId, selectedIds, blocks, editingId, handleDeleteSelected, handleUndo, handleRedo]);
 
   // Handle paste
   useEffect(() => {
@@ -1101,22 +1188,6 @@ export function Editor({
     return () => window.removeEventListener('paste', handlePaste);
   }, [blocks.length, handleAddBlock]);
 
-  // Determine save status display
-  const renderSaveStatus = () => {
-    if (mode === 'draft') {
-      if (draftSaveIndicator === 'saving') return <span className={styles.saving}>saving…</span>;
-      if (draftSaveIndicator === 'saved') return <span className={styles.saved}>draft saved</span>;
-      return null;
-    } else {
-      if (isOffline) return <span className={styles.offline}>offline</span>;
-      if (saveState === 'error') return <button className={styles.saveError} onClick={retry}>couldn&apos;t save · retry</button>;
-      if (saveState === 'saving') return <span className={styles.saving}>saving…</span>;
-      if (saveState === 'saved') return <span className={styles.saved}>saved</span>;
-      if (saveState === 'dirty') return <span className={styles.saving}>•</span>;
-      return null;
-    }
-  };
-
   const backgroundBrightness = getBackgroundBrightness(background);
 
   return (
@@ -1126,7 +1197,7 @@ export function Editor({
         <div className={styles.backgroundBtnWrapper}>
           <button
             className={`${styles.backgroundBtn} ${showBackgroundPanel ? styles.backgroundBtnActive : ''}`}
-            onClick={() => setShowBackgroundPanel(!showBackgroundPanel)}
+            onClick={handleOpenBackgroundPanel}
             data-background-btn
             title="Background"
           >
@@ -1135,7 +1206,7 @@ export function Editor({
           {showBackgroundPanel && (
             <BackgroundPanel
               background={background}
-              onChange={setBackground}
+              onChange={handleBackgroundChange}
               onClose={() => setShowBackgroundPanel(false)}
             />
           )}
@@ -1211,10 +1282,6 @@ export function Editor({
         </div>
       )}
 
-      {/* Save status indicator */}
-      <div className={styles.saveIndicator}>
-        {renderSaveStatus()}
-      </div>
       
       {/* Conflict resolution modal */}
       {showConflictModal && (
@@ -1264,6 +1331,7 @@ export function Editor({
           onDragMultipleBlocks={handleDragMultipleBlocks}
           onSetEditing={handleSetEditing}
           onExitStarterMode={exitStarterMode}
+          onInteractionStart={saveToHistory}
         />
       </main>
 
@@ -1288,80 +1356,6 @@ export function Editor({
         onComplete={handleOnboardingComplete}
       />
 
-      {/* Feedback button - bottom right with logo */}
-      <button 
-        className={styles.feedbackBtn}
-        onClick={() => setShowFeedback(true)}
-      >
-        <Image src="/logo.png" alt="" width={18} height={18} className={styles.feedbackLogo} />
-        Send feedback
-      </button>
-
-      {/* Feedback modal */}
-      {showFeedback && (
-        <div className={styles.feedbackOverlay} onClick={handleFeedbackClose}>
-          <div className={styles.feedbackModal} onClick={(e) => e.stopPropagation()}>
-            {feedbackStatus === 'sent' ? (
-              <div className={styles.feedbackSuccess}>
-                <div className={styles.feedbackCheckmark}>✓</div>
-                <h2>Thanks for sharing!</h2>
-                <p>Your feedback makes your corner better!</p>
-                <button className={styles.feedbackDoneBtn} onClick={handleFeedbackClose}>
-                  Done
-                </button>
-              </div>
-            ) : (
-              <>
-                <h2>What would you like to see?</h2>
-                <p className={styles.feedbackSubtitle}>
-                  Share a feature request, idea, or anything you&apos;d like changed.
-                </p>
-
-                <form onSubmit={handleFeedbackSubmit}>
-                  <textarea
-                    value={feedbackMessage}
-                    onChange={(e) => setFeedbackMessage(e.target.value)}
-                    placeholder="I wish I could..."
-                    className={styles.feedbackTextarea}
-                    rows={4}
-                    autoFocus
-                    required
-                  />
-
-                  <input
-                    type="email"
-                    value={feedbackEmail}
-                    onChange={(e) => setFeedbackEmail(e.target.value)}
-                    placeholder="Your email (optional, for follow-up)"
-                    className={styles.feedbackEmailInput}
-                  />
-
-                  {feedbackStatus === 'error' && (
-                    <p className={styles.feedbackError}>Something went wrong. Please try again.</p>
-                  )}
-
-                  <div className={styles.feedbackActions}>
-                    <button 
-                      type="button" 
-                      className={styles.feedbackCancelBtn}
-                      onClick={handleFeedbackClose}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      className={styles.feedbackSubmitBtn}
-                      disabled={feedbackStatus === 'sending' || !feedbackMessage.trim()}
-                    >
-                      {feedbackStatus === 'sending' ? 'Sending...' : 'Send'}
-                    </button>
-                  </div>
-                </form>
-              </>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

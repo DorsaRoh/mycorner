@@ -3,12 +3,15 @@ import type { Block as BlockType, BlockType as BlockTypeEnum, BackgroundConfig }
 import { Block } from './Block';
 import { CreationPalette } from './CreationPalette';
 import { uploadAsset, isAcceptedImageType } from '@/lib/upload';
-import { isImageUrl, getBackgroundStyles } from '@/shared/utils/blockStyles';
+import { isImageUrl, getBackgroundStyles, getMarginOverlayColor } from '@/shared/utils/blockStyles';
 import { 
   useCanvasSize, 
   CanvasDimensions,
   pxToRef,
   refToPx,
+  REFERENCE_WIDTH,
+  REFERENCE_HEIGHT,
+  SAFE_ZONE_MARGIN,
 } from '@/lib/canvas';
 import styles from './Canvas.module.css';
 
@@ -47,6 +50,8 @@ interface CanvasProps {
   onExitStarterMode?: () => void;
   // Callback to expose canvas dimensions to parent
   onDimensionsChange?: (dims: CanvasDimensions) => void;
+  // Called when a drag/resize interaction starts (for undo history)
+  onInteractionStart?: () => void;
 }
 
 export function Canvas({
@@ -67,6 +72,7 @@ export function Canvas({
   onSetEditing,
   onExitStarterMode,
   onDimensionsChange,
+  onInteractionStart,
 }: CanvasProps) {
   const [dropError, setDropError] = useState<string | null>(null);
   const [palette, setPalette] = useState<PaletteState | null>(null);
@@ -313,6 +319,41 @@ export function Canvas({
   const isMarqueeVisible = marqueeRect && (marqueeRect.width > 5 || marqueeRect.height > 5);
 
   const { canvasStyle, bgImageStyle } = useMemo(() => getBackgroundStyles(background), [background]);
+  
+  // Get margin overlay color (slightly lighter than background)
+  const marginOverlayColor = useMemo(() => getMarginOverlayColor(background), [background]);
+  
+  // Calculate margin widths in pixels
+  const marginWidth = useMemo(() => {
+    return SAFE_ZONE_MARGIN * dimensions.scale;
+  }, [dimensions.scale]);
+
+  // Calculate content bounds to ensure canvas can scroll to show all blocks
+  const contentBounds = useMemo(() => {
+    if (blocks.length === 0) {
+      return { 
+        width: REFERENCE_WIDTH * dimensions.scale,
+        height: REFERENCE_HEIGHT * dimensions.scale 
+      };
+    }
+    
+    // Find the maximum extent of all blocks in reference coords
+    let maxRefX = REFERENCE_WIDTH;
+    let maxRefY = REFERENCE_HEIGHT;
+    
+    blocks.forEach(block => {
+      const blockRight = block.x + block.width;
+      const blockBottom = block.y + block.height;
+      maxRefX = Math.max(maxRefX, blockRight);
+      maxRefY = Math.max(maxRefY, blockBottom);
+    });
+    
+    // Convert to pixels and add some padding
+    return {
+      width: maxRefX * dimensions.scale + dimensions.offsetX + 40,
+      height: maxRefY * dimensions.scale + 40,
+    };
+  }, [blocks, dimensions]);
 
   return (
     <div
@@ -324,13 +365,41 @@ export function Canvas({
       onDrop={handleDrop}
       onDragOver={handleDragOver}
     >
+      {/* Content sizer - ensures canvas can scroll to show all content */}
+      <div 
+        className={styles.contentSizer} 
+        style={{ 
+          minWidth: contentBounds.width, 
+          minHeight: contentBounds.height 
+        }} 
+      />
 
       {/* Background image layer (separate for opacity support) */}
       {bgImageStyle && (
         <div className={styles.bgImageLayer} style={bgImageStyle} />
       )}
 
-      {/* Subtle paper boundary */}
+      {/* Left margin overlay - blocks cannot be placed here */}
+      <div 
+        className={styles.marginOverlay}
+        style={{
+          left: dimensions.offsetX,
+          width: marginWidth,
+          backgroundColor: marginOverlayColor,
+        }}
+      />
+      
+      {/* Right margin overlay - blocks cannot be placed here */}
+      <div 
+        className={styles.marginOverlay}
+        style={{
+          left: dimensions.offsetX + (REFERENCE_WIDTH - SAFE_ZONE_MARGIN) * dimensions.scale,
+          width: marginWidth,
+          backgroundColor: marginOverlayColor,
+        }}
+      />
+
+      {/* Clickable canvas area */}
       <div className={styles.paperSheet} />
 
       {blocks.map((block) => (
@@ -350,6 +419,7 @@ export function Canvas({
           allBlocks={blocks}
           onDelete={() => onDeleteBlock(block.id)}
           onSetEditing={(editing) => onSetEditing?.(editing ? block.id : null)}
+          onInteractionStart={onInteractionStart}
         />
       ))}
       

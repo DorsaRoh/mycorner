@@ -315,7 +315,7 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  overflow: visible; /* Allow ObjectControls to extend beyond content bounds */
+  overflow: auto; /* Allow scrolling within the main content */
   min-height: 0; /* Allow flex shrinking to prevent overflow */
 }
 
