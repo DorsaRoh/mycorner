@@ -5,7 +5,7 @@
   height: 100%;
   min-height: 0; /* Allow flex shrinking */
   background: var(--color-bg-pure);
-  overflow: hidden; /* Prevent accidental scrollbars */
+  overflow: visible; /* Allow ObjectControls to extend beyond canvas bounds */
   /* Prevent default touch behaviors for smoother mobile interaction */
   touch-action: none;
   -webkit-touch-callout: none;

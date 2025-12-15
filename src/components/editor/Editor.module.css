@@ -299,7 +299,7 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: visible; /* Allow ObjectControls to extend beyond content bounds */
   min-height: 0; /* Allow flex shrinking to prevent overflow */
 }
 

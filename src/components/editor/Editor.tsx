@@ -47,6 +47,7 @@ import { OnboardingModal } from './OnboardingModal';
 import styles from './Editor.module.css';
 
 import { isImageUrl, serializeLinkContent } from '@/shared/utils/blockStyles';
+import { REFERENCE_WIDTH, REFERENCE_HEIGHT } from '@/lib/canvas';
 
 // Starter block ID prefix for identification
 const STARTER_BLOCK_PREFIX = 'block_starter_';
@@ -54,20 +55,30 @@ const STARTER_BLOCK_PREFIX = 'block_starter_';
 /**
  * Creates the starter composition blocks for a new page.
  * These are examples to inspire - user can delete everything and start from zero.
+ * 
+ * All positions use proportional values relative to the reference canvas (1200x800)
+ * to ensure consistent layout across all screen sizes.
  */
 function createStarterBlocks(): BlockType[] {
   const now = Date.now();
-  const centerX = 600;
+  const W = REFERENCE_WIDTH;   // 1200
+  const H = REFERENCE_HEIGHT;  // 800
+  
+  // Proportional positioning helpers
+  const pX = (percent: number) => W * percent;
+  const pY = (percent: number) => H * percent;
+  const pW = (percent: number) => W * percent;
+  const pH = (percent: number) => H * percent;
   
   return [
     // Large headline (centered) - the core message
     {
       id: `${STARTER_BLOCK_PREFIX}headline_${now}`,
       type: 'TEXT',
-      x: centerX - 300,
-      y: 200,
-      width: 600,
-      height: 80,
+      x: pX(0.03),           // 25% from left (centered with 50% width)
+      y: pY(0.12),           // 12% from top
+      width: pW(0.50),       // 50% of canvas width
+      height: pH(0.10),      // 10% of canvas height
       content: 'your corner of the internet',
       style: {
         ...DEFAULT_STYLE,
@@ -83,10 +94,10 @@ function createStarterBlocks(): BlockType[] {
     {
       id: `${STARTER_BLOCK_PREFIX}subtext_${now}`,
       type: 'TEXT',
-      x: centerX - 120,
-      y: 290,
-      width: 240,
-      height: 36,
+      x: pX(0.28),           // 42% from left (centered with ~17% width)
+      y: pY(0.23),           // 25% from top
+      width: pW(0.17),       // 17% of canvas width
+      height: pH(0.045),     // 4.5% of canvas height
       content: 'a home on the web',
       style: {
         ...DEFAULT_STYLE,
@@ -98,89 +109,91 @@ function createStarterBlocks(): BlockType[] {
       isStarter: true,
       starterOwned: false,
     },
-    // One image, placed slightly off-center (acts as an emotional anchor)
+    // Song link on the upper left
     {
-      id: `${STARTER_BLOCK_PREFIX}image_${now}`,
-      type: 'IMAGE',
-      x: 720,
-      y: 380,
-      width: 180,
-      height: 140,
-      content: '/starter-placeholder.svg',
+      id: `${STARTER_BLOCK_PREFIX}song_${now}`,
+      type: 'LINK',
+      x: pX(0.06),           // 6% from left
+      y: pY(0.38),           // 40% from top
+      width: pW(0.23),       // 23% of canvas width
+      height: pH(0.04),      // 4% of canvas height
+      content: serializeLinkContent('a song you always come back to', 'https://open.spotify.com'),
       style: {
         ...DEFAULT_STYLE,
-        borderRadius: 0.06,
+        fontSize: 15,
+        fontWeight: 400,
+        color: 'rgba(0, 0, 0, 0.5)',
       },
       isStarter: true,
       starterOwned: false,
     },
-    // One short paragraph, something reflective
+    // Multi-line paragraph on the left
     {
       id: `${STARTER_BLOCK_PREFIX}paragraph_${now}`,
       type: 'TEXT',
-      x: 100,
-      y: 400,
-      width: 320,
-      height: 50,
-      content: 'a place for things you like on the web',
+      x: pX(0.06),           // 6% from left
+      y: pY(0.46),           // 50% from top
+      width: pW(0.17),       // 17% of canvas width
+      height: pH(0.10),      // 10% of canvas height
+      content: 'a paragraph about\nthe absurdities of\nour universe',
       style: {
         ...DEFAULT_STYLE,
         fontSize: 16,
-        fontWeight: 400,
-        color: 'rgba(0, 0, 0, 0.45)',
+        fontWeight: 500,
+        color: 'rgb(77, 119, 157)',
         textAlign: 'left',
       },
       isStarter: true,
       starterOwned: false,
     },
-    // Example links, styled organically (not boxed)
+    // Image on the right side - colorful flowers
     {
-      id: `${STARTER_BLOCK_PREFIX}github_${now}`,
-      type: 'LINK',
-      x: 100,
-      y: 490,
-      width: 160,
-      height: 32,
-      content: serializeLinkContent('→ your github', 'https://github.com'),
+      id: `${STARTER_BLOCK_PREFIX}image_${now}`,
+      type: 'IMAGE',
+      x: pX(0.57),           // 57% from left
+      y: pY(0.29),           // 39% from top
+      width: pW(0.27),       // 37% of canvas width
+      height: pH(0.33),      // 43% of canvas height
+      content: '/hero-flowers.png',
       style: {
         ...DEFAULT_STYLE,
-        fontSize: 15,
-        fontWeight: 400,
-        color: 'rgba(0, 0, 0, 0.5)',
+        borderRadius: 0.02,
       },
       isStarter: true,
       starterOwned: false,
     },
+    // GitHub link
     {
-      id: `${STARTER_BLOCK_PREFIX}twitter_${now}`,
+      id: `${STARTER_BLOCK_PREFIX}github_${now}`,
       type: 'LINK',
-      x: 100,
-      y: 530,
-      width: 160,
-      height: 32,
+      x: pX(0.35),           // 35% from left
+      y: pY(0.61),           // 71% from top
+      width: pW(0.13),       // 13% of canvas width
+      height: pH(0.04),      // 4% of canvas height
       content: serializeLinkContent('→ your twitter', 'https://twitter.com'),
       style: {
         ...DEFAULT_STYLE,
         fontSize: 15,
         fontWeight: 400,
-        color: 'rgba(0, 0, 0, 0.5)',
+        color: 'rgb(0, 0, 0)',
       },
       isStarter: true,
       starterOwned: false,
     },
+    // Twitter link
     {
-      id: `${STARTER_BLOCK_PREFIX}song_${now}`,
+      id: `${STARTER_BLOCK_PREFIX}twitter_${now}`,
       type: 'LINK',
-      x: 100,
-      y: 570,
-      width: 280,
-      height: 32,
-      content: serializeLinkContent('→ a song I always come back to', 'https://open.spotify.com'),
+      x: pX(0.40),           // 40% from left
+      y: pY(0.65),           // 80% from top
+      width: pW(0.13),       // 13% of canvas width
+      height: pH(0.04),      // 4% of canvas height
+      content: serializeLinkContent('→ your github', 'https://github.com'),
       style: {
         ...DEFAULT_STYLE,
-        fontSize: 15,
+        fontSize: 14,
         fontWeight: 400,
-        color: 'rgba(0, 0, 0, 0.5)',
+        color: 'rgb(0, 0, 0)',
       },
       isStarter: true,
       starterOwned: false,
@@ -812,6 +825,7 @@ export function Editor({
       height = 240;
     }
 
+    // Always include style to ensure consistent behavior with starter blocks
     const newBlock: BlockType = {
       id: newId,
       type,
@@ -820,7 +834,7 @@ export function Editor({
       width,
       height,
       content: content ?? '',
-      ...(fontSize && { style: { ...DEFAULT_STYLE, fontSize } }),
+      style: { ...DEFAULT_STYLE, ...(fontSize ? { fontSize } : {}) },
     };
 
     setNewBlockIds(prev => new Set(prev).add(newId));

@@ -498,6 +498,7 @@ export function DraftEditor({ initialDraftId }: DraftEditorProps) {
       height = 240;
     }
 
+    // Always include style to ensure consistent behavior with starter blocks
     const newBlock: BlockType = {
       id: newId,
       type,
@@ -506,7 +507,7 @@ export function DraftEditor({ initialDraftId }: DraftEditorProps) {
       width,
       height,
       content: content ?? '',
-      ...(fontSize && { style: { ...DEFAULT_STYLE, fontSize } }),
+      style: { ...DEFAULT_STYLE, ...(fontSize ? { fontSize } : {}) },
     };
 
     setNewBlockIds(prev => new Set(prev).add(newId));
