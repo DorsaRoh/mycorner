@@ -68,7 +68,6 @@ export interface Block {
   style?: BlockStyle;      // Unified style system
   effects?: BlockEffects;  // Visual effects (optional)
   isStarter?: boolean;     // True if this is a starter/placeholder block
-  starterOwned?: boolean;  // True if user has modified this starter block (becomes owned)
 }
 
 // Background decoration settings for a page

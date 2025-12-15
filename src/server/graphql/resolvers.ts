@@ -521,5 +521,31 @@ export const resolvers = {
 
       return { success: true, message: 'Thank you for your feedback!' };
     },
+
+    sendProductFeedback: (
+      _parent: unknown,
+      args: { message: string; email?: string }
+    ) => {
+      const message = args.message.trim();
+      if (!message) {
+        return { success: false, message: 'Message is required' };
+      }
+
+      // Validate email if provided
+      const email = args.email?.trim();
+      if (email && !email.includes('@')) {
+        return { success: false, message: 'Invalid email address' };
+      }
+
+      const feedback = db.addProductFeedback(message, email);
+
+      // Log feedback in development
+      console.log(`\n💬 New product feedback:`);
+      console.log(`   Message: ${feedback.message}`);
+      if (feedback.email) console.log(`   Email: ${feedback.email}`);
+      console.log('');
+
+      return { success: true, message: 'Thank you for your feedback!' };
+    },
   },
 };

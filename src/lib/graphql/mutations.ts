@@ -196,3 +196,12 @@ export const SEND_FEEDBACK = gql`
     }
   }
 `;
+
+export const SEND_PRODUCT_FEEDBACK = gql`
+  mutation SendProductFeedback($message: String!, $email: String) {
+    sendProductFeedback(message: $message, email: $email) {
+      success
+      message
+    }
+  }
+`;

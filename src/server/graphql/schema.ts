@@ -246,5 +246,10 @@ export const typeDefs = gql`
     Submit feedback for a public page.
     """
     sendFeedback(pageId: ID!, message: String!, email: String): AuthPayload!
+
+    """
+    Submit feedback about the product/platform.
+    """
+    sendProductFeedback(message: String!, email: String): AuthPayload!
   }
 `;

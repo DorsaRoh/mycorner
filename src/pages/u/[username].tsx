@@ -139,7 +139,7 @@ export default function UserPage({ page, username, currentUserId }: UserPageProp
         <div className={styles.notFound}>
           <h1>@{username}</h1>
           <p>This page doesn&apos;t exist yet.</p>
-          <Link href={routes.new()} className={styles.backBtn}>
+          <Link href={routes.home()} className={styles.backBtn}>
             Want your own corner of the internet?
           </Link>
         </div>
@@ -179,7 +179,7 @@ export default function UserPage({ page, username, currentUserId }: UserPageProp
         </button>
 
         {/* Want your own corner link - top right with logo */}
-        <Link href={routes.new()} className={styles.createOwn}>
+        <Link href={routes.home()} className={styles.createOwn}>
           <Image src="/logo.png" alt="" width={18} height={18} className={styles.createOwnLogo} />
           Want your own corner of the internet?
         </Link>
@@ -223,3 +223,4 @@ export const getServerSideProps: GetServerSideProps<UserPageProps> = async (cont
     };
   }
 };
+

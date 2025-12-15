@@ -1,9 +1,9 @@
 export const routes = {
   home: () => '/',
-  new: () => '/new',
   edit: (pageId: string) => `/edit/${pageId}`,
   public: (pageId: string) => `/p/${pageId}`,
   user: (username: string) => `/u/${username}`,
+  view: getPublicUrl,
 } as const;
 
 export function getPublicUrl(pageId: string, username?: string): string {
@@ -18,4 +18,5 @@ export function getPublicUrl(pageId: string, username?: string): string {
 export function isDraftId(id: string): boolean {
   return id.startsWith('draft_');
 }
+
 

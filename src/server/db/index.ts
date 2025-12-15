@@ -103,6 +103,14 @@ db.exec(`
     created_at TEXT DEFAULT (datetime('now')),
     FOREIGN KEY (page_id) REFERENCES pages(id)
   );
+
+  -- Product feedback table
+  CREATE TABLE IF NOT EXISTS product_feedback (
+    id TEXT PRIMARY KEY,
+    message TEXT NOT NULL,
+    email TEXT,
+    created_at TEXT DEFAULT (datetime('now'))
+  );
 `);
 
 // ============================================================================
@@ -143,6 +151,13 @@ export interface DbPage {
 export interface DbFeedback {
   id: string;
   page_id: string;
+  message: string;
+  email: string | null;
+  created_at: string;
+}
+
+export interface DbProductFeedback {
+  id: string;
   message: string;
   email: string | null;
   created_at: string;
@@ -485,8 +500,20 @@ export function addFeedback(pageId: string, message: string, email?: string): Db
   return db.prepare(`SELECT * FROM feedback WHERE id = ?`).get(id) as DbFeedback;
 }
 
+export function addProductFeedback(message: string, email?: string): DbProductFeedback {
+  const id = uuidv4();
+
+  db.prepare(`
+    INSERT INTO product_feedback (id, message, email)
+    VALUES (?, ?, ?)
+  `).run(id, message, email || null);
+
+  return db.prepare(`SELECT * FROM product_feedback WHERE id = ?`).get(id) as DbProductFeedback;
+}
+
 // ============================================================================
 // Export database for direct access if needed
 // ============================================================================
 
 export { db };
+
