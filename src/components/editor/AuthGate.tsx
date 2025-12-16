@@ -1,17 +1,16 @@
 import { useState, useCallback, useEffect } from 'react';
-import { useRouter } from 'next/router';
+import { routes, auth } from '@/lib/routes';
 import styles from './AuthGate.module.css';
 
 interface AuthGateProps {
   isOpen: boolean;
   onClose: () => void;
   onAuthStart?: () => void;
-  /** The draft ID being edited, for preserving in return URL */
+  /** The draft ID being edited (no longer used - URL is always /edit) */
   draftId?: string;
 }
 
-export function AuthGate({ isOpen, onClose, onAuthStart, draftId }: AuthGateProps) {
-  const router = useRouter();
+export function AuthGate({ isOpen, onClose, onAuthStart }: AuthGateProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -44,11 +43,9 @@ export function AuthGate({ isOpen, onClose, onAuthStart, draftId }: AuthGateProp
     setError(null);
     onAuthStart?.();
     
-    // Build return URL - use draftId if available, otherwise current path
-    const returnPath = draftId ? `/edit/${draftId}` : router.asPath.split('?')[0];
-    const returnTo = encodeURIComponent(returnPath);
-    window.location.href = `/auth/google?returnTo=${returnTo}`;
-  }, [onAuthStart, router.asPath, draftId]);
+    // Always return to /edit - the editor resolves which page to load internally
+    window.location.href = auth.google(routes.edit());
+  }, [onAuthStart]);
 
   // Close on Escape
   useEffect(() => {

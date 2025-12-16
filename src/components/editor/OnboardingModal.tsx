@@ -1,16 +1,14 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { getUsernameError } from '@/lib/routes';
 import styles from './OnboardingModal.module.css';
 
 interface OnboardingModalProps {
   isOpen: boolean;
-  userName?: string;
-  onComplete: (username: string, pageTitle: string, pageId: string) => void;
-  onClose?: () => void;
+  onComplete: (username: string) => void;
 }
 
-export function OnboardingModal({ isOpen, userName, onComplete, onClose }: OnboardingModalProps) {
+export function OnboardingModal({ isOpen, onComplete }: OnboardingModalProps) {
   const [username, setUsername] = useState('');
-  const [pageTitle, setPageTitle] = useState('my corner');
   const [usernameStatus, setUsernameStatus] = useState<'idle' | 'checking' | 'available' | 'taken' | 'invalid'>('idle');
   const [usernameError, setUsernameError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -26,19 +24,6 @@ export function OnboardingModal({ isOpen, userName, onComplete, onClose }: Onboa
     }
   }, [isOpen]);
 
-  // Generate suggested username from name
-  useEffect(() => {
-    if (userName && !username) {
-      const suggested = userName
-        .toLowerCase()
-        .replace(/[^a-z0-9]/g, '')
-        .slice(0, 15);
-      if (suggested.length >= 3) {
-        setUsername(suggested);
-      }
-    }
-  }, [userName, username]);
-
   // Check username availability
   const checkUsername = useCallback(async (value: string) => {
     if (!value || value.length < 3) {
@@ -48,10 +33,10 @@ export function OnboardingModal({ isOpen, userName, onComplete, onClose }: Onboa
     }
 
     // Validate format locally first
-    const usernameRegex = /^[a-z0-9_]{3,20}$/;
-    if (!usernameRegex.test(value)) {
+    const formatError = getUsernameError(value);
+    if (formatError) {
       setUsernameStatus('invalid');
-      setUsernameError('Use 3-20 lowercase letters, numbers, or underscores');
+      setUsernameError(formatError);
       return;
     }
 
@@ -77,7 +62,7 @@ export function OnboardingModal({ isOpen, userName, onComplete, onClose }: Onboa
 
   // Debounced username check
   const handleUsernameChange = useCallback((value: string) => {
-    const clean = value.toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 20);
+    const clean = value.toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 20);
     setUsername(clean);
     setSubmitError(null);
 
@@ -115,7 +100,6 @@ export function OnboardingModal({ isOpen, userName, onComplete, onClose }: Onboa
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           username: username.toLowerCase(),
-          pageTitle: pageTitle.trim() || 'my corner',
         }),
       });
 
@@ -127,13 +111,22 @@ export function OnboardingModal({ isOpen, userName, onComplete, onClose }: Onboa
         return;
       }
 
-      // Success!
-      onComplete(data.user.username, data.page.title, data.page.id);
+      // Success - notify parent (parent handles publish + redirect)
+      onComplete(data.user.username);
     } catch (err) {
       setSubmitError('Network error. Please try again.');
       setSubmitting(false);
     }
-  }, [username, pageTitle, usernameStatus, onComplete]);
+  }, [username, usernameStatus, onComplete]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (checkTimeoutRef.current) {
+        clearTimeout(checkTimeoutRef.current);
+      }
+    };
+  }, []);
 
   if (!isOpen) return null;
 
@@ -143,15 +136,14 @@ export function OnboardingModal({ isOpen, userName, onComplete, onClose }: Onboa
     <div className={styles.overlay}>
       <div className={styles.modal}>
         <div className={styles.header}>
-          <h2 className={styles.title}>Welcome! Let&apos;s set up your corner</h2>
-          <p className={styles.subtitle}>Choose a username and title for your page</p>
+          <h2 className={styles.title}>Choose your username</h2>
+          <p className={styles.subtitle}>
+            This will be your public URL
+          </p>
         </div>
 
         <form onSubmit={handleSubmit} className={styles.form}>
           <div className={styles.field}>
-            <label htmlFor="username" className={styles.label}>
-              Username
-            </label>
             <div className={styles.inputWrapper}>
               <span className={styles.prefix}>@</span>
               <input
@@ -166,6 +158,7 @@ export function OnboardingModal({ isOpen, userName, onComplete, onClose }: Onboa
                 autoComplete="off"
                 autoCapitalize="off"
                 spellCheck="false"
+                maxLength={20}
               />
               <span className={styles.statusIcon}>
                 {usernameStatus === 'checking' && <span className={styles.spinner} />}
@@ -178,26 +171,7 @@ export function OnboardingModal({ isOpen, userName, onComplete, onClose }: Onboa
               <p className={styles.fieldSuccess}>Available!</p>
             )}
             <p className={styles.hint}>
-              This will be your public URL: <strong>mycorner.app/u/{username || 'yourname'}</strong>
-            </p>
-          </div>
-
-          <div className={styles.field}>
-            <label htmlFor="pageTitle" className={styles.label}>
-              Page Title
-            </label>
-            <input
-              id="pageTitle"
-              type="text"
-              value={pageTitle}
-              onChange={(e) => setPageTitle(e.target.value)}
-              placeholder="my corner"
-              className={styles.input}
-              disabled={submitting}
-              maxLength={100}
-            />
-            <p className={styles.hint}>
-              This appears at the top of your page
+              <strong>mycorner.app/{username || '...'}</strong>
             </p>
           </div>
 
@@ -210,15 +184,13 @@ export function OnboardingModal({ isOpen, userName, onComplete, onClose }: Onboa
             className={styles.submitBtn}
             disabled={!canSubmit}
           >
-            {submitting ? 'Creating...' : 'Create my corner'}
+            {submitting ? 'Saving...' : 'Continue'}
           </button>
         </form>
 
-        {onClose && (
-          <button className={styles.closeBtn} onClick={onClose} disabled={submitting}>
-            ✕
-          </button>
-        )}
+        <p className={styles.footerHint}>
+          You can&apos;t change this later, so choose wisely!
+        </p>
       </div>
     </div>
   );

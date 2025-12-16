@@ -103,11 +103,11 @@ export const addProductFeedback: typeof import('./sqlite').addProductFeedback =
 export async function initDatabase(): Promise<void> {
   if (useSqlite) {
     console.log('✅ SQLite database initialized');
-    // SQLite is already initialized on require
+    // SQLite is already initialized on require (including one-time migrations)
   } else {
-    // Initialize PostgreSQL connection
+    // Initialize PostgreSQL connection (including one-time migrations)
     const { initPostgres } = await import('./postgres');
-    initPostgres(config.databaseUrl);
+    await initPostgres(config.databaseUrl);
   }
 }
 

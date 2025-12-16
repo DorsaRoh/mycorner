@@ -1,13 +1,12 @@
-import { useState, useCallback, useEffect } from 'react';
 import { GetServerSideProps } from 'next';
 import Head from 'next/head';
 import Link from 'next/link';
-import Image from 'next/image';
 import { useRouter } from 'next/router';
 import { gql } from '@apollo/client';
 import { initializeApollo } from '@/lib/apollo/client';
 import { ViewerCanvas } from '@/components/viewer/ViewerCanvas';
 import { FloatingAction } from '@/components/viewer/FloatingAction';
+import { ShareMenu } from '@/components/viewer/ShareMenu';
 import { getBackgroundBrightness } from '@/shared/utils/blockStyles';
 import { routes } from '@/lib/routes';
 import type { Block, BackgroundConfig } from '@/shared/types';
@@ -54,6 +53,7 @@ const GET_PAGE_BY_USERNAME = gql`
           hueShift
           blur
         }
+        rotation
       }
       background {
         mode
@@ -92,41 +92,17 @@ interface UserPageProps {
 
 export default function UserPage({ page, username, currentUserId }: UserPageProps) {
   const router = useRouter();
-  const [copied, setCopied] = useState(false);
 
+  // Build public URL
   const publicUrl = typeof window !== 'undefined' 
-    ? `${window.location.origin}/u/${username}` 
-    : `/u/${username}`;
-
-  // Reset copied state
-  useEffect(() => {
-    if (copied) {
-      const timer = setTimeout(() => setCopied(false), 2000);
-      return () => clearTimeout(timer);
-    }
-  }, [copied]);
-
-  const handleCopy = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(publicUrl);
-      setCopied(true);
-    } catch {
-      const input = document.createElement('input');
-      input.value = publicUrl;
-      document.body.appendChild(input);
-      input.select();
-      document.execCommand('copy');
-      document.body.removeChild(input);
-      setCopied(true);
-    }
-  }, [publicUrl]);
+    ? `${window.location.origin}${routes.user(username)}`
+    : routes.user(username);
 
   const isOwner = currentUserId && page?.owner?.id === currentUserId;
 
   const handleEdit = () => {
-    if (page) {
-      router.push(routes.edit(page.id));
-    }
+    // Navigate to edit page (user's own page)
+    router.push(routes.edit());
   };
 
   // Page doesn't exist
@@ -139,7 +115,7 @@ export default function UserPage({ page, username, currentUserId }: UserPageProp
         <div className={styles.notFound}>
           <h1>@{username}</h1>
           <p>This page doesn&apos;t exist yet.</p>
-          <Link href={routes.home()} className={styles.backBtn}>
+          <Link href={routes.home({ fresh: true })} className={styles.backBtn}>
             Want your own corner of the internet?
           </Link>
         </div>
@@ -170,19 +146,14 @@ export default function UserPage({ page, username, currentUserId }: UserPageProp
 
         <ViewerCanvas blocks={page.blocks} background={page.background} />
 
-        {/* Share button - subtle */}
-        <button 
-          className={styles.copyLink}
-          onClick={handleCopy}
-        >
-          {copied ? 'Copied!' : 'Share'}
-        </button>
-
-        {/* Want your own corner link - top right with logo */}
-        <Link href={routes.home()} className={styles.createOwn}>
-          <Image src="/logo.png" alt="" width={18} height={18} className={styles.createOwnLogo} />
-          Want your own corner of the internet?
-        </Link>
+        {/* Header group - top right with CTA and Share */}
+        <div className={styles.headerGroup}>
+          <Link href={routes.home({ fresh: true })} className={styles.headerCta}>
+            <img src="/logo.png" alt="" width={18} height={18} className={styles.headerCtaLogo} />
+            Want your own corner of the internet?
+          </Link>
+          <ShareMenu url={publicUrl} title={pageTitle} />
+        </div>
 
         <FloatingAction
           isOwner={!!isOwner}
@@ -196,6 +167,20 @@ export default function UserPage({ page, username, currentUserId }: UserPageProp
 export const getServerSideProps: GetServerSideProps<UserPageProps> = async (context) => {
   const { username } = context.params as { username: string };
   
+  // Import centralized RESERVED_PATHS (can't use routes module in SSR context directly)
+  const RESERVED_PATHS = new Set([
+    'edit', 'api', 'auth', 'graphql', 'health', '_next', 'static',
+    'favicon.ico', 'robots.txt', 'sitemap.xml', 'p', 'u', 'onboarding',
+    'admin', 'settings', 'login', 'logout', 'signup', 'register',
+    'terms', 'privacy', 'about', 'help', 'support', 'blog', 'docs',
+    'null', 'undefined', 'new', 'create', 'me', 'public', 'assets',
+  ]);
+  
+  // Skip reserved paths - let Next.js handle them
+  if (RESERVED_PATHS.has(username.toLowerCase())) {
+    return { notFound: true };
+  }
+  
   const apolloClient = initializeApollo();
 
   try {
@@ -205,9 +190,11 @@ export const getServerSideProps: GetServerSideProps<UserPageProps> = async (cont
       fetchPolicy: 'network-only',
     });
 
+    // If page doesn't exist or isn't published, return 404-like state
+    // but still render so we can show a nice "not found" page
     return {
       props: {
-        page: data.pageByUsername || null,
+        page: data.pageByUsername?.isPublished ? data.pageByUsername : null,
         username,
         currentUserId: data.me?.id || null,
       },

@@ -134,7 +134,8 @@ function loadConfig(): Config {
     sessionSecret,
     
     supabaseUrl: optional('SUPABASE_URL', ''),
-    supabaseServiceKey: optional('SUPABASE_SERVICE_KEY', ''),
+    // Check multiple common env var names for the service key
+    supabaseServiceKey: optional('SUPABASE_SERVICE_KEY', '') || optional('SUPABASE_SERVICE_ROLE_KEY', ''),
     supabaseStorageBucket: optional('SUPABASE_STORAGE_BUCKET', 'uploads'),
     
     plausibleDomain: optional('NEXT_PUBLIC_PLAUSIBLE_DOMAIN', ''),
@@ -164,7 +165,20 @@ export function validateConfig(): void {
   console.log(`   Environment: ${config.nodeEnv}`);
   console.log(`   Database: ${config.useSqlite ? 'SQLite' : 'PostgreSQL'}`);
   console.log(`   Auth: ${config.googleClientId ? 'Configured' : 'Not configured'}`);
-  console.log(`   Storage: ${config.supabaseUrl ? 'Supabase' : 'Local disk'}`);
+  
+  // Determine storage status with helpful warnings
+  const hasSupabaseUrl = !!config.supabaseUrl;
+  const hasSupabaseKey = !!config.supabaseServiceKey;
+  if (hasSupabaseUrl && hasSupabaseKey) {
+    console.log('   Storage: Supabase');
+  } else if (hasSupabaseUrl && !hasSupabaseKey) {
+    console.log('   Storage: Local disk');
+    console.warn('   ⚠️  SUPABASE_URL is set but SUPABASE_SERVICE_KEY is missing - using local storage');
+    console.warn('      To use Supabase Storage, set SUPABASE_SERVICE_KEY to your service_role key');
+  } else {
+    console.log('   Storage: Local disk');
+  }
+  
   console.log(`   Public URL: ${config.publicUrl}`);
   
   if (!config.isDev) {

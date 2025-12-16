@@ -13,6 +13,7 @@ interface BlockInput {
   content: string;
   style?: Record<string, unknown>;
   effects?: Record<string, unknown>;
+  rotation?: number;
 }
 
 interface CreatePageInput {
@@ -43,6 +44,7 @@ interface StoredBlock {
   content: string;
   style?: Record<string, unknown>;
   effects?: Record<string, unknown>;
+  rotation?: number;
 }
 
 interface StoredBackgroundConfig {
@@ -256,8 +258,8 @@ export const resolvers = {
     },
 
     usernameAvailable: (_parent: unknown, args: { username: string }) => {
-      // Validate format first
-      const usernameRegex = /^[a-z0-9_]{3,20}$/;
+      // Validate format first (a-z, 0-9, _, -)
+      const usernameRegex = /^[a-z0-9_-]{3,20}$/;
       if (!usernameRegex.test(args.username.toLowerCase())) {
         return false;
       }
@@ -314,6 +316,7 @@ export const resolvers = {
           content: block.content,
           style: block.style,
           effects: block.effects,
+          rotation: block.rotation,
         }));
         blocksJson = JSON.stringify(blocks);
       }
@@ -405,6 +408,7 @@ export const resolvers = {
         content: block.content,
         style: block.style,
         effects: block.effects,
+        rotation: block.rotation,
       }));
       const blocksJson = JSON.stringify(blocks);
 
@@ -455,14 +459,11 @@ export const resolvers = {
         };
       }
 
-      // Generate public URL
+      // Generate public URL - canonical format is /{username}
+      // If user has no username, they can't have a public URL yet
       let publicUrl: string | null = null;
-      if (result.page) {
-        if (context.user.username) {
-          publicUrl = `/u/${context.user.username}`;
-        } else {
-          publicUrl = `/p/${result.page.id}`;
-        }
+      if (result.page && context.user.username) {
+        publicUrl = `/${context.user.username}`;
       }
 
       return {
@@ -554,6 +555,30 @@ export const resolvers = {
       console.log('');
 
       return { success: true, message: 'Thank you for your feedback!' };
+    },
+
+    setUsername: async (
+      _parent: unknown,
+      args: { username: string },
+      context: GraphQLContext
+    ) => {
+      // Must be authenticated
+      if (!context.user) {
+        return { success: false, error: 'Authentication required', username: null };
+      }
+
+      // Check if user already has a username
+      if (context.user.username) {
+        return { success: false, error: 'Username already set', username: context.user.username };
+      }
+
+      const result = await db.setUsername(context.user.id, args.username.toLowerCase());
+      
+      if (!result.success) {
+        return { success: false, error: result.error, username: null };
+      }
+
+      return { success: true, error: null, username: args.username.toLowerCase() };
     },
   },
 };

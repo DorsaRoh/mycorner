@@ -13,11 +13,51 @@ import type { DbUser, DbPage, DbFeedback, DbProductFeedback, PublishPageParams, 
 let pool: Pool | null = null;
 let db: ReturnType<typeof drizzle> | null = null;
 
-export function initPostgres(connectionString: string) {
+export async function initPostgres(connectionString: string) {
   pool = new Pool({ connectionString });
   db = drizzle(pool, { schema });
   console.log('✅ PostgreSQL connected');
+  
+  // Run one-time migrations
+  await runOneTimeUsernameReset();
+  
   return db;
+}
+
+/**
+ * One-time migration: Clear all usernames to force re-onboarding.
+ * Uses app_config table to track if migration has run.
+ */
+async function runOneTimeUsernameReset(): Promise<void> {
+  const d = getDb();
+  const MIGRATION_KEY = 'username_reset_v1';
+  
+  // Ensure app_config table exists
+  await pool!.query(`
+    CREATE TABLE IF NOT EXISTS app_config (
+      key TEXT PRIMARY KEY,
+      value TEXT,
+      updated_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+  
+  // Check if already run
+  const result = await pool!.query('SELECT value FROM app_config WHERE key = $1', [MIGRATION_KEY]);
+  if (result.rows.length > 0 && result.rows[0].value === 'completed') {
+    return; // Already ran
+  }
+  
+  // Run the reset
+  console.log('[Migration] Running one-time username reset...');
+  const updateResult = await d.update(schema.users).set({ username: null, updatedAt: new Date() });
+  console.log('[Migration] Cleared usernames');
+  
+  // Mark as complete
+  await pool!.query(`
+    INSERT INTO app_config (key, value, updated_at) VALUES ($1, 'completed', NOW())
+    ON CONFLICT (key) DO UPDATE SET value = 'completed', updated_at = NOW()
+  `, [MIGRATION_KEY]);
+  console.log('[Migration] Username reset complete - will not run again');
 }
 
 export function getDb() {
@@ -114,9 +154,10 @@ export async function isUsernameTaken(username: string): Promise<boolean> {
 export async function setUsername(userId: string, username: string): Promise<{ success: boolean; error?: string }> {
   const d = getDb();
   
-  const usernameRegex = /^[a-z0-9_]{3,20}$/;
+  // Validate username format (a-z, 0-9, _, -)
+  const usernameRegex = /^[a-z0-9_-]{3,20}$/;
   if (!usernameRegex.test(username)) {
-    return { success: false, error: 'Username must be 3-20 characters, lowercase letters, numbers, and underscores only' };
+    return { success: false, error: 'Username must be 3-20 characters: lowercase letters, numbers, underscores, hyphens' };
   }
 
   if (await isUsernameTaken(username)) {

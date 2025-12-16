@@ -13,7 +13,7 @@ function isGoogleConfigured(): boolean {
  * GET /auth/google?returnTo=...
  * Initiates Google OAuth flow
  * Query params:
- *   - returnTo: URL to return to after auth (e.g., /edit/draft_123)
+ *   - returnTo: URL to return to after auth (e.g., /edit)
  */
 router.get('/google', (req, res, next) => {
   // Check if Google OAuth is configured
@@ -40,7 +40,9 @@ router.get('/google', (req, res, next) => {
 /**
  * GET /auth/google/callback
  * Google OAuth callback
- * After successful auth, check if user needs onboarding
+ * After successful auth:
+ * - If no username → redirect to /edit?onboarding=true (shows username popup)
+ * - If has username → redirect to /{username}
  */
 router.get('/google/callback', (req, res, next) => {
   if (!isGoogleConfigured()) {
@@ -50,36 +52,30 @@ router.get('/google/callback', (req, res, next) => {
   passport.authenticate('google', (err: Error | null, user: Express.User | false) => {
     if (err) {
       console.error('Google auth error:', err);
-      const returnTo = req.session.returnTo || '/';
-      return res.redirect(`${returnTo}?error=auth_error`);
+      return res.redirect('/?error=auth_error');
     }
     if (!user) {
-      const returnTo = req.session.returnTo || '/';
-      return res.redirect(`${returnTo}?error=auth_failed`);
+      return res.redirect('/?error=auth_failed');
     }
 
     req.logIn(user, (loginErr) => {
       if (loginErr) {
         console.error('Login error:', loginErr);
-        const returnTo = req.session.returnTo || '/';
-        return res.redirect(`${returnTo}?error=login_error`);
+        return res.redirect('/?error=login_error');
       }
       
       // Clear anonymous session ID after successful auth
       delete req.session.anonymousId;
-      
-      // Get return URL
-      let returnTo = req.session.returnTo || '/';
       delete req.session.returnTo;
       
-      // Check if user needs onboarding (no username)
+      // Redirect based on username presence
       if (!user.username) {
-        // Add onboarding flag to the redirect URL
-        const separator = returnTo.includes('?') ? '&' : '?';
-        returnTo = `${returnTo}${separator}onboarding=true`;
+        // No username - go to edit with onboarding flag to show username popup
+        return res.redirect('/edit?onboarding=true');
       }
       
-      return res.redirect(returnTo);
+      // Has username - go to their published page
+      return res.redirect(`/${user.username}`);
     });
   })(req, res, next);
 });

@@ -106,7 +106,7 @@ export const publishPageInputSchema = z.object({
 export const usernameSchema = z.string()
   .min(3, 'Username must be at least 3 characters')
   .max(20, 'Username must be at most 20 characters')
-  .regex(/^[a-z0-9_]+$/, 'Username can only contain lowercase letters, numbers, and underscores')
+  .regex(/^[a-z0-9_-]+$/, 'Username can only contain lowercase letters, numbers, underscores, and hyphens')
   .transform(s => s.toLowerCase());
 
 // Reserved usernames that can't be claimed
@@ -117,12 +117,13 @@ export const RESERVED_USERNAMES = new Set([
   'login', 'logout', 'signup', 'register', 'signin', 'signout',
   'help', 'support', 'about', 'terms', 'privacy', 'legal',
   'blog', 'docs', 'documentation', 'faq', 'status', 'health',
+  'onboarding', 'me', 'graphql', 'static', 'assets',
   // Brand
-  'mycorner', 'my_corner', 'corner', 'official', 'team', 'staff',
+  'mycorner', 'my_corner', 'my-corner', 'corner', 'official', 'team', 'staff',
   // Common
   'test', 'demo', 'example', 'sample', 'null', 'undefined',
   'root', 'system', 'bot', 'moderator', 'mod', 'anonymous',
-  'www', 'mail', 'email', 'ftp', 'ssh', 'cdn', 'assets',
+  'www', 'mail', 'email', 'ftp', 'ssh', 'cdn',
 ]);
 
 export function isReservedUsername(username: string): boolean {

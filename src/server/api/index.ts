@@ -68,8 +68,9 @@ router.get('/username/check', (req, res) => {
 
 /**
  * POST /api/onboarding
- * Sets username and creates default page with title
- * Body: { username: string, pageTitle: string }
+ * Sets username for the user. Page creation/publishing is handled separately
+ * by the publish flow which preserves the user's draft content.
+ * Body: { username: string }
  */
 router.post('/onboarding', async (req, res) => {
   // Must be authenticated
@@ -77,7 +78,7 @@ router.post('/onboarding', async (req, res) => {
     return res.status(401).json({ success: false, error: 'Authentication required' });
   }
 
-  const { username, pageTitle } = req.body;
+  const { username } = req.body;
 
   // Validate username with Zod
   const parseResult = usernameSchema.safeParse(username);
@@ -95,20 +96,11 @@ router.post('/onboarding', async (req, res) => {
     return res.status(400).json({ success: false, error: 'This username is reserved' });
   }
 
-  // Validate page title
-  const title = (pageTitle || 'my corner').trim();
-  if (title.length > 100) {
-    return res.status(400).json({ success: false, error: 'Page title too long (max 100 characters)' });
-  }
-
   // Try to set username
   const result = await db.setUsername(req.user.id, usernameClean);
   if (!result.success) {
     return res.status(400).json({ success: false, error: result.error });
   }
-
-  // Create default page with the title
-  const page = await db.createDefaultPage(req.user.id, title);
 
   // Refresh user from DB
   const updatedUser = await db.getUserById(req.user.id);
@@ -122,10 +114,6 @@ router.post('/onboarding', async (req, res) => {
       username: updatedUser.username,
       avatarUrl: updatedUser.avatar_url,
     } : null,
-    page: {
-      id: page.id,
-      title: page.title,
-    },
   });
 });
 
@@ -188,13 +176,9 @@ router.post('/publish', publishLimit, async (req, res) => {
     return res.status(500).json({ success: false, error: 'Failed to publish page' });
   }
 
-  // Build public URL
-  let publicUrl: string;
-  if (req.user.username) {
-    publicUrl = `/u/${req.user.username}`;
-  } else {
-    publicUrl = `/p/${pageId}`;
-  }
+  // Build public URL - canonical format is /{username}
+  // If user has no username, they can't have a public URL yet
+  const publicUrl = req.user.username ? `/${req.user.username}` : null;
 
   res.json({
     success: true,

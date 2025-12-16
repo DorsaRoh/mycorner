@@ -213,10 +213,39 @@ export const GET_MY_PAGE = gql`
       title
       isPublished
       serverRevision
+      publishedRevision
+      blocks {
+        id
+        type
+        x
+        y
+        width
+        height
+        content
+        ${BLOCK_STYLE_FRAGMENT}
+        ${BLOCK_EFFECTS_FRAGMENT}
+      }
+      ${BACKGROUND_FRAGMENT}
     }
     me {
       id
       username
     }
+  }
+`;
+
+export const SET_USERNAME = gql`
+  mutation SetUsername($username: String!) {
+    setUsername(username: $username) {
+      success
+      error
+      username
+    }
+  }
+`;
+
+export const CHECK_USERNAME_AVAILABLE = gql`
+  query CheckUsernameAvailable($username: String!) {
+    usernameAvailable(username: $username)
   }
 `;

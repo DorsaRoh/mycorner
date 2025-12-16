@@ -26,9 +26,11 @@ export const typeDefs = gql`
     fontFamily: String
     fontSize: Float
     fontWeight: Float
+    fontStyle: String
     color: String
     textOpacity: Float
     textAlign: String
+    lineHeight: Float
   }
 
   type BlockEffects {
@@ -143,9 +145,11 @@ export const typeDefs = gql`
     fontFamily: String
     fontSize: Float
     fontWeight: Float
+    fontStyle: String
     color: String
     textOpacity: Float
     textAlign: String
+    lineHeight: Float
   }
 
   input BlockInput {
@@ -255,5 +259,16 @@ export const typeDefs = gql`
     Submit feedback about the product/platform.
     """
     sendProductFeedback(message: String!, email: String): AuthPayload!
+
+    """
+    Set the username for the authenticated user. Can only be done once.
+    """
+    setUsername(username: String!): SetUsernameResult!
+  }
+
+  type SetUsernameResult {
+    success: Boolean!
+    error: String
+    username: String
   }
 `;

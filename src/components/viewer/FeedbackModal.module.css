@@ -106,8 +106,30 @@
 .actions {
   display: flex;
   gap: 8px;
-  justify-content: flex-end;
+  align-items: center;
   margin-top: 20px;
+}
+
+.socialLinks {
+  display: flex;
+  gap: 8px;
+  margin-right: auto;
+}
+
+.socialLink {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  color: var(--color-text-muted);
+  border-radius: var(--radius);
+  transition: all 0.15s;
+}
+
+.socialLink:hover {
+  color: var(--color-text);
+  background: var(--color-surface);
 }
 
 .cancelBtn {

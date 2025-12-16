@@ -1,5 +1,6 @@
 import Head from 'next/head';
 import Link from 'next/link';
+import { routes } from '@/lib/routes';
 
 export default function NotFound() {
   return (
@@ -20,7 +21,7 @@ export default function NotFound() {
         <h1 style={{ fontSize: '4rem', margin: 0 }}>404</h1>
         <p style={{ color: '#888', marginTop: '1rem' }}>This page doesn&apos;t exist.</p>
         <Link 
-          href="/" 
+          href={routes.home()} 
           style={{
             marginTop: '2rem',
             padding: '0.75rem 1.5rem',

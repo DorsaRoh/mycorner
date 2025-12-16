@@ -114,7 +114,7 @@ export interface AuthContinuation {
   intent: 'publish';
   /** The draft ID being edited */
   draftId: string;
-  /** Route to return to (e.g., /edit/draft_xxx) */
+  /** Route to return to (always /edit - canonical route) */
   returnTo: string;
   /** When this continuation was created */
   timestamp: number;
@@ -174,7 +174,7 @@ export function setPendingPublish(draftId: string, returnTo?: string): void {
   setAuthContinuation({
     intent: 'publish',
     draftId,
-    returnTo: returnTo || `/edit/${draftId}`,
+    returnTo: returnTo || '/edit',
   });
 }
 

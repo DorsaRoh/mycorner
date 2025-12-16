@@ -45,8 +45,25 @@ async function uploadToSupabase(
     const client = getSupabase();
     const bucket = config.supabaseStorageBucket;
 
-    // Ensure bucket exists (will fail gracefully if it already exists)
-    await client.storage.createBucket(bucket, { public: true }).catch(() => {});
+    // Check if bucket exists, create if needed
+    const { data: buckets } = await client.storage.listBuckets();
+    const bucketExists = buckets?.some(b => b.name === bucket);
+    
+    if (!bucketExists) {
+      const { error: createError } = await client.storage.createBucket(bucket, { public: true });
+      if (createError) {
+        // If creation fails due to permissions, it's likely an auth issue
+        console.error('Failed to create bucket:', createError);
+        if (createError.message?.includes('row-level security') || createError.message?.includes('policy')) {
+          return { 
+            success: false, 
+            error: 'Storage permission denied. Ensure SUPABASE_SERVICE_KEY is the service_role key (not anon key).' 
+          };
+        }
+        return { success: false, error: `Bucket creation failed: ${createError.message}` };
+      }
+      console.log(`Created storage bucket: ${bucket}`);
+    }
 
     // Upload file
     const { error } = await client.storage
@@ -58,6 +75,13 @@ async function uploadToSupabase(
 
     if (error) {
       console.error('Supabase upload error:', error);
+      // Provide clearer error message for RLS issues
+      if (error.message?.includes('row-level security') || error.message?.includes('policy')) {
+        return { 
+          success: false, 
+          error: 'Storage permission denied. Ensure SUPABASE_SERVICE_KEY is the service_role key (not anon key), or check bucket RLS policies.' 
+        };
+      }
       return { success: false, error: error.message };
     }
 
@@ -121,6 +145,7 @@ export function isUsingSupabase(): boolean {
 /**
  * Upload a file buffer to storage.
  * Uses Supabase in production, local disk in development.
+ * In development, falls back to local storage if Supabase fails.
  */
 export async function uploadFile(
   buffer: Buffer,
@@ -128,7 +153,15 @@ export async function uploadFile(
   mimeType: string
 ): Promise<StorageResult> {
   if (isUsingSupabase()) {
-    return uploadToSupabase(buffer, filename, mimeType);
+    const result = await uploadToSupabase(buffer, filename, mimeType);
+    
+    // In development, fall back to local storage if Supabase fails
+    if (!result.success && config.isDev) {
+      console.warn('⚠️  Supabase upload failed, falling back to local storage:', result.error);
+      return uploadToLocal(buffer, filename, mimeType);
+    }
+    
+    return result;
   }
   return uploadToLocal(buffer, filename, mimeType);
 }

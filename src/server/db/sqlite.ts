@@ -111,7 +111,47 @@ db.exec(`
     email TEXT,
     created_at TEXT DEFAULT (datetime('now'))
   );
+
+  -- App config table for one-time migrations
+  CREATE TABLE IF NOT EXISTS app_config (
+    key TEXT PRIMARY KEY,
+    value TEXT,
+    updated_at TEXT DEFAULT (datetime('now'))
+  );
 `);
+
+// =============================================================================
+// One-time username reset migration
+// =============================================================================
+
+/**
+ * Clear all usernames once to force re-onboarding.
+ * This runs once and never again (tracked via app_config).
+ */
+function runOneTimeUsernameReset(): void {
+  const MIGRATION_KEY = 'username_reset_v1';
+  
+  // Check if already run
+  const existing = db.prepare(`SELECT value FROM app_config WHERE key = ?`).get(MIGRATION_KEY) as { value: string } | undefined;
+  if (existing?.value === 'completed') {
+    return; // Already ran
+  }
+  
+  // Run the reset
+  console.log('[Migration] Running one-time username reset...');
+  const result = db.prepare(`UPDATE users SET username = NULL, updated_at = datetime('now')`).run();
+  console.log(`[Migration] Cleared ${result.changes} usernames`);
+  
+  // Mark as complete
+  db.prepare(`
+    INSERT OR REPLACE INTO app_config (key, value, updated_at) 
+    VALUES (?, 'completed', datetime('now'))
+  `).run(MIGRATION_KEY);
+  console.log('[Migration] Username reset complete - will not run again');
+}
+
+// Run the migration on module load
+runOneTimeUsernameReset();
 
 // ============================================================================
 // Types (imported from shared types file)
@@ -199,10 +239,10 @@ export function isUsernameTaken(username: string): boolean {
 }
 
 export function setUsername(userId: string, username: string): { success: boolean; error?: string } {
-  // Validate username format
-  const usernameRegex = /^[a-z0-9_]{3,20}$/;
+  // Validate username format (a-z, 0-9, _, -)
+  const usernameRegex = /^[a-z0-9_-]{3,20}$/;
   if (!usernameRegex.test(username)) {
-    return { success: false, error: 'Username must be 3-20 characters, lowercase letters, numbers, and underscores only' };
+    return { success: false, error: 'Username must be 3-20 characters: lowercase letters, numbers, underscores, hyphens' };
   }
 
   // Check if taken

@@ -351,70 +351,34 @@ export function Editor({
     };
   }, [mode, pageId, state.title, state.blocks, state.background]);
 
-  // Handle onboarding completion
+  // Handle onboarding completion - trigger publish which handles redirect
   const pendingPublishHandled = useRef(false);
-  const handleOnboardingComplete = useCallback(async (username: string, pageTitle: string, newPageId: string) => {
+  const handleOnboardingComplete = useCallback(async (_username: string) => {
     state.setShowOnboarding(false);
+    state.setPendingPublishAfterOnboarding(false);
+    pendingPublishHandled.current = true;
+    clearAuthContinuation();
     await refetchMe();
-
-    if (state.pendingPublishAfterOnboarding) {
-      state.setPendingPublishAfterOnboarding(false);
-      pendingPublishHandled.current = true;
-      clearAuthContinuation();
-
-      const draft = getDraft(pageId);
-      const blocksToPublish = draft?.blocks || state.blocks;
-      const backgroundToPublish = draft?.background || state.background;
-      const titleToPublish = draft?.title || state.title || pageTitle;
-
-      state.setPublishing(true);
-      state.setPublishError(null);
-
-      try {
-        const { data: publishData } = await publishPage({
-          variables: {
-            id: newPageId,
-            input: {
-              blocks: blocksToPublish.map(({ id, type, x, y, width, height, content, style, effects }) => ({
-                id, type, x, y, width, height, content, style, effects,
-              })),
-              background: backgroundToPublish,
-              baseServerRevision: 1,
-            },
-          },
-        });
-
-        if (publishData?.publishPage?.page) {
-          state.setIsPublished(true);
-          state.setPublishedRevision(publishData.publishPage.publishedRevision);
-          deleteDraft(pageId);
-
-          const publicUrl = publishData.publishPage.publicUrl
-            ? `${window.location.origin}${publishData.publishPage.publicUrl}`
-            : routes.view(newPageId, username);
-
-          // Redirect to published page instead of staying in editor
-          router.replace(publicUrl);
-        } else {
-          throw new Error('Failed to publish page');
-        }
-      } catch (error) {
-        console.error('Publish after onboarding failed:', error);
-        state.setPublishing(false);
-        state.setPublishError(error instanceof Error ? error.message : 'Publish failed');
-        router.push(routes.edit(newPageId));
-      }
-    } else {
-      router.push(routes.edit(newPageId));
-    }
-  }, [pageId, state, refetchMe, router]);
+    // Trigger publish - this will create page, publish it, and redirect to /{username}
+    handlePublish();
+  }, [state, refetchMe, handlePublish]);
 
   // Check for pending publish after auth or show onboarding
   useEffect(() => {
-    if (meLoading || pendingPublishHandled.current) return;
+    console.log('[Editor] Auth continuation check effect running');
+    console.log('[Editor] meLoading:', meLoading);
+    console.log('[Editor] pendingPublishHandled.current:', pendingPublishHandled.current);
+    console.log('[Editor] meData?.me:', meData?.me);
+    
+    if (meLoading || pendingPublishHandled.current) {
+      console.log('[Editor] Early return - meLoading or already handled');
+      return;
+    }
 
     const urlParams = new URLSearchParams(window.location.search);
     const needsOnboarding = urlParams.get('onboarding') === 'true' || (meData?.me && !meData.me.username);
+    console.log('[Editor] needsOnboarding:', needsOnboarding);
+    console.log('[Editor] meData?.me?.username:', meData?.me?.username);
 
     if (urlParams.has('onboarding') || urlParams.has('error')) {
       urlParams.delete('onboarding');
@@ -426,23 +390,42 @@ export function Editor({
     }
 
     const continuation = getAuthContinuation();
+    console.log('[Editor] Auth continuation:', continuation);
+    console.log('[Editor] pageId:', pageId);
 
     if (meData?.me) {
+      console.log('[Editor] User is authenticated');
+      
+      // If there's a continuation for a DIFFERENT draft, clear it - user navigated elsewhere
+      // Only follow continuation if it matches the current page (user returned from OAuth to this page)
       if (continuation && continuation.draftId !== pageId) {
-        router.replace(`/edit/${continuation.draftId}`);
-        return;
+        console.log('[Editor] Clearing stale continuation for different draft:', continuation.draftId);
+        clearAuthContinuation();
+        // Don't return - continue with normal flow for current page
       }
 
       if (needsOnboarding) {
+        console.log('[Editor] Showing onboarding modal');
         state.setShowOnboarding(true);
         if (continuation?.intent === 'publish' && continuation.draftId === pageId) {
+          console.log('[Editor] Setting pendingPublishAfterOnboarding');
           state.setPendingPublishAfterOnboarding(true);
         }
       } else if (continuation?.intent === 'publish' && continuation.draftId === pageId) {
+        console.log('[Editor] Triggering publish after auth');
         pendingPublishHandled.current = true;
         clearAuthContinuation();
-        handlePublish();
+        // Small delay to ensure session is fully established after OAuth redirect
+        console.log('[Editor] Scheduling handlePublish with 100ms delay');
+        setTimeout(() => {
+          console.log('[Editor] Executing delayed handlePublish');
+          handlePublish();
+        }, 100);
+      } else {
+        console.log('[Editor] No publish continuation to handle');
       }
+    } else {
+      console.log('[Editor] User is NOT authenticated');
     }
   }, [meData?.me, meLoading, pageId, handlePublish, router, state]);
 
@@ -545,6 +528,7 @@ export function Editor({
               <button
                 className={`${styles.inviteBtn} ${styles.publishError}`}
                 onClick={() => { state.setPublishError(null); handlePublish(); }}
+                title={state.publishError}
               >
                 Retry publish
               </button>
@@ -656,7 +640,6 @@ export function Editor({
 
       <OnboardingModal
         isOpen={state.showOnboarding}
-        userName={meData?.me?.name}
         onComplete={handleOnboardingComplete}
       />
 
