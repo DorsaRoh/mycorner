@@ -110,8 +110,9 @@ function loadConfig(): Config {
     : required('SESSION_SECRET');
   
   // Public URL
-  const defaultUrl = isDev ? 'http://localhost:3000' : '';
-  const publicUrl = isDev 
+  const port = optionalInt('PORT', 3000);
+  const defaultUrl = isDev ? `http://localhost:${port}` : '';
+  const publicUrl = isDev
     ? optional('PUBLIC_URL', defaultUrl)
     : required('PUBLIC_URL');
   
