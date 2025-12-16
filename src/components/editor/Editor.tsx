@@ -393,8 +393,8 @@ export function Editor({
             ? `${window.location.origin}${publishData.publishPage.publicUrl}`
             : routes.view(newPageId, username);
 
-          setPublishToastData(publicUrl);
-          router.replace(routes.edit(newPageId));
+          // Redirect to published page instead of staying in editor
+          router.replace(publicUrl);
         } else {
           throw new Error('Failed to publish page');
         }

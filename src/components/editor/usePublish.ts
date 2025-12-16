@@ -158,8 +158,8 @@ export function usePublish({
           ? `${window.location.origin}${publishData.publicUrl}`
           : getPublicUrl(serverPageId);
 
-        setPublishToastData(publicUrl);
-        router.replace(routes.edit(serverPageId));
+        // Redirect to published page instead of staying in editor
+        router.replace(publicUrl);
       } else {
         // Server mode: flush saves and publish
         currentServerRevision = await saveNow();
