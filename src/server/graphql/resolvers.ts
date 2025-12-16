@@ -209,6 +209,14 @@ export const resolvers = {
       return formatUser(context.user);
     },
 
+    myPage: (_parent: unknown, _args: unknown, context: GraphQLContext) => {
+      if (!context.user) return null;
+      // Get user's pages and return the first one (users typically have one page)
+      const pages = db.getPagesByUserId(context.user.id);
+      if (!pages || pages.length === 0) return null;
+      return formatPage(pages[0]);
+    },
+
     page: (_parent: unknown, args: { id: string }, context: GraphQLContext) => {
       const page = db.getPageById(args.id);
       if (!page) return null;

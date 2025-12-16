@@ -113,6 +113,8 @@ export const typeDefs = gql`
 
   type Query {
     me: User
+    """Get current user's page (their draft/published page). Returns null if not authenticated or no page exists."""
+    myPage: Page
     page(id: ID!): Page
     publicPage(id: ID!): Page
     """Get public page by username (user's primary page)"""

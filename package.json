@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "node node_modules/.bin/ts-node --project tsconfig.server.json src/server/index.ts",
+    "dev": "DOTENV_CONFIG_PATH=.env.local NODE_ENV=development node -r dotenv/config node_modules/.bin/ts-node --project tsconfig.server.json src/server/index.ts",
+    "dev:local": "NODE_ENV=development USE_SQLITE=true PORT=3001 node node_modules/.bin/ts-node --project tsconfig.server.json src/server/index.ts",
+    "dev:prod": "DOTENV_CONFIG_PATH=.env.prod node -r dotenv/config node_modules/.bin/ts-node --project tsconfig.server.json src/server/index.ts",
     "build": "next build && npm run build:server",
     "build:server": "tsc --project tsconfig.server.json",
     "start": "NODE_ENV=production node dist/src/server/index.js",

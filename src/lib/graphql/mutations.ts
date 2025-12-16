@@ -205,3 +205,18 @@ export const SEND_PRODUCT_FEEDBACK = gql`
     }
   }
 `;
+
+export const GET_MY_PAGE = gql`
+  query GetMyPage {
+    myPage {
+      id
+      title
+      isPublished
+      serverRevision
+    }
+    me {
+      id
+      username
+    }
+  }
+`;
