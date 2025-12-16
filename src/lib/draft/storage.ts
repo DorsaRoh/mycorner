@@ -127,6 +127,8 @@ const CONTINUATION_EXPIRY_MS = 15 * 60 * 1000; // 15 minutes
 
 /**
  * Set auth continuation for resuming after OAuth
+ * Uses localStorage instead of sessionStorage because sessionStorage can be lost
+ * during OAuth redirects (especially on mobile browsers or cross-origin flows)
  */
 export function setAuthContinuation(continuation: Omit<AuthContinuation, 'timestamp'>): void {
   if (typeof window === 'undefined') return;
@@ -134,7 +136,7 @@ export function setAuthContinuation(continuation: Omit<AuthContinuation, 'timest
     ...continuation,
     timestamp: Date.now(),
   };
-  sessionStorage.setItem(AUTH_CONTINUATION_KEY, JSON.stringify(data));
+  localStorage.setItem(AUTH_CONTINUATION_KEY, JSON.stringify(data));
 }
 
 /**
@@ -143,7 +145,7 @@ export function setAuthContinuation(continuation: Omit<AuthContinuation, 'timest
 export function getAuthContinuation(): AuthContinuation | null {
   if (typeof window === 'undefined') return null;
   try {
-    const data = sessionStorage.getItem(AUTH_CONTINUATION_KEY);
+    const data = localStorage.getItem(AUTH_CONTINUATION_KEY);
     if (!data) return null;
     const parsed = JSON.parse(data) as AuthContinuation;
     // Expire after 15 minutes
@@ -162,7 +164,7 @@ export function getAuthContinuation(): AuthContinuation | null {
  */
 export function clearAuthContinuation(): void {
   if (typeof window === 'undefined') return;
-  sessionStorage.removeItem(AUTH_CONTINUATION_KEY);
+  localStorage.removeItem(AUTH_CONTINUATION_KEY);
 }
 
 // Legacy aliases for backwards compatibility
