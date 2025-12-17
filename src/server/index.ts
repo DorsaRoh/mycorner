@@ -55,7 +55,9 @@ async function main() {
       secure: !dev,
       httpOnly: true,
       maxAge: 1000 * 60 * 60 * 24 * 7, // 1 week
-      sameSite: dev ? 'lax' : 'strict',
+      // Use 'lax' for both dev and prod - 'strict' breaks OAuth flows because
+      // the browser won't send cookies on cross-site redirects from Google OAuth
+      sameSite: 'lax',
     },
   }));
 

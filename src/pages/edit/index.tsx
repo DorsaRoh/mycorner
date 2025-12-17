@@ -101,8 +101,12 @@ export default function EditPage() {
       return;
     }
 
-    // Priority 3: Not authenticated - redirect to landing page
-    router.replace('/');
+    // Priority 3: Not authenticated - create a new draft for anonymous editing
+    // Anonymous users can create and edit drafts, but need to authenticate to publish
+    const newDraftId = generateDraftId();
+    // Don't set active draft ID for anonymous users until they make changes
+    setResolvedPageId(newDraftId);
+    setMode('draft');
   }, [data, queryLoading, isFresh, freshModeHandled, router.isReady, router, isAuthenticated, meLoading]);
 
   // Still resolving...
