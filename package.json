@@ -15,6 +15,7 @@
     "db:migrate": "drizzle-kit migrate",
     "db:push": "DOTENV_CONFIG_PATH=.env.prod node -r dotenv/config node_modules/.bin/drizzle-kit push",
     "db:studio": "DOTENV_CONFIG_PATH=.env.prod node -r dotenv/config node_modules/.bin/drizzle-kit studio",
+    "db:studio:local": "drizzle-kit studio --config drizzle.config.local.ts",
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\"",
     "build-docker": "docker build -t my-corner .",
     "start-docker": "docker run -p 3000:3000 --env-file .env.prod my-corner"

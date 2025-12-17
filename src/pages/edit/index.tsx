@@ -83,6 +83,8 @@ export default function EditPage() {
     // Priority 1: User has an existing published page (only when authenticated)
     // myPage now returns the most recently published page, or null if none exist
     if (isAuthenticated && data?.myPage?.id) {
+      // Clear any stale auth continuation - user already has a page, no need for auto-publish
+      clearAuthContinuation();
       setResolvedPageId(data.myPage.id);
       setMode('server');
       return;

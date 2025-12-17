@@ -461,20 +461,22 @@ export function Editor({
           state.setPendingPublishAfterOnboarding(true);
         }
         authCheckCompleted.current = true;
-      } else if (continuation?.intent === 'publish' && continuation.draftId === pageId) {
-        pendingPublishHandled.current = true;
-        authCheckCompleted.current = true;
-        clearAuthContinuation();
-        // Small delay to ensure session is fully established after OAuth redirect
-        setTimeout(() => {
-          handlePublish();
-        }, 100);
+    } else if (continuation?.intent === 'publish' && continuation.draftId === pageId && mode === 'draft') {
+      // Only auto-publish for draft mode - server pages don't need auto-publish
+      // (they're already persisted and user can manually publish updates)
+      pendingPublishHandled.current = true;
+      authCheckCompleted.current = true;
+      clearAuthContinuation();
+      // Small delay to ensure session is fully established after OAuth redirect
+      setTimeout(() => {
+        handlePublish();
+      }, 100);
       } else {
         // No continuation to handle - mark as completed to avoid re-running
         authCheckCompleted.current = true;
       }
     }
-  }, [meData?.me, meLoading, pageId, handlePublish, state]);
+  }, [meData?.me, meLoading, pageId, mode, handlePublish, state]);
 
   // Handle paste
   useEffect(() => {

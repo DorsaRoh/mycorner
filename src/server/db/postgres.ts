@@ -60,7 +60,7 @@ async function ensureTablesExist(): Promise<void> {
  */
 async function runOneTimeUsernameReset(): Promise<void> {
   const d = getDb();
-  const MIGRATION_KEY = 'username_reset_v1';
+  const MIGRATION_KEY = 'username_reset_v2';
   
   // Ensure app_config table exists
   await pool!.query(`
