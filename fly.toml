@@ -1,7 +1,7 @@
 # fly.toml - Fly.io configuration for my-corner
 # https://fly.io/docs/reference/configuration/
 
-app = 'my-corner'
+app = 'your-corner'
 primary_region = 'lax'
 
 [build]
