@@ -65,7 +65,7 @@ export const MAX_CONTENT_WIDTH = 1200;
 // Safe zone margins - blocks cannot be placed/dragged into these areas
 // This prevents UI issues on smaller screens where content might get cut off
 // Keep this minimal - just enough to prevent edge clipping
-export const SAFE_ZONE_MARGIN = 16; // Minimal margin to prevent edge clipping
+export const SAFE_ZONE_MARGIN = 2; // Very minimal margin to prevent edge clipping
 
 // Font size limits for readability
 export const MIN_FONT_SIZE = 10;

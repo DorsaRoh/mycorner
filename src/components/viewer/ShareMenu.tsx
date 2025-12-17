@@ -58,7 +58,7 @@ export function ShareMenu({ url, title }: ShareMenuProps) {
     }
   }, [url]);
 
-  const defaultMessage = 'My corner of the internet <3';
+  const defaultMessage = 'Check out my corner of the internet <3';
 
   const shareOnTwitter = useCallback(() => {
     const text = encodeURIComponent(defaultMessage);

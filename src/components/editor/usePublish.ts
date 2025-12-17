@@ -75,7 +75,7 @@ export function usePublish({
     enabled: mode === 'server',
   });
 
-  const handlePublish = useCallback(async () => {
+  const handlePublish = useCallback(async (options?: { redirectTo?: string }) => {
     console.log('[Publish] === handlePublish called ===');
     console.log('[Publish] pageId:', pageId);
     console.log('[Publish] mode:', mode);
@@ -83,6 +83,7 @@ export function usePublish({
     console.log('[Publish] blocks count:', blocks.length);
     console.log('[Publish] title:', title);
     console.log('[Publish] meData?.me:', meData?.me);
+    console.log('[Publish] redirectTo override:', options?.redirectTo);
 
     // Always refetch to ensure we have the latest auth state (handles post-OAuth timing)
     let isAuthenticated = false;
@@ -204,13 +205,24 @@ export function usePublish({
         clearAuthContinuation();
 
         // Build public URL - prefer username-based canonical URL
+        // Refetch to ensure we have the latest user data (in case username was just set)
+        const { data: freshMe } = await refetchMe();
+        const username = freshMe?.me?.username || publishData.page?.owner?.username;
+        
+        if (!username) {
+          throw new Error('Cannot publish without a username. Please try again.');
+        }
+
         const publicUrl = publishData.publicUrl
           ? `${window.location.origin}${publishData.publicUrl}`
-          : getAbsoluteUrl(routes.user(publishData.page?.owner?.username || ''));
-        console.log('[Publish] Redirecting to:', publicUrl);
+          : getAbsoluteUrl(routes.user(username));
+        
+        // Use custom redirect if provided (e.g., for onboarding flow), otherwise go to public page
+        const redirectUrl = options?.redirectTo || publicUrl;
+        console.log('[Publish] Redirecting to:', redirectUrl);
 
-        // Redirect to published page instead of staying in editor
-        router.replace(publicUrl);
+        // Redirect after publish
+        router.replace(redirectUrl);
       } else {
         console.log('[Publish] Server mode - publishing existing page');
         // Server mode: flush saves and publish
@@ -250,11 +262,24 @@ export function usePublish({
           setPublishedRevision(publishData.publishedRevision);
 
           // Build public URL - prefer username-based canonical URL
+          // Refetch to ensure we have the latest user data
+          const { data: freshMe } = await refetchMe();
+          const username = freshMe?.me?.username || publishData.page?.owner?.username;
+          
+          if (!username) {
+            throw new Error('Cannot publish without a username. Please try again.');
+          }
+
           const publicUrl = publishData.publicUrl
             ? `${window.location.origin}${publishData.publicUrl}`
-            : getAbsoluteUrl(routes.user(publishData.page?.owner?.username || ''));
-          setPublishedUrl(publicUrl);
-          setShowPublishToast(true);
+            : getAbsoluteUrl(routes.user(username));
+          
+          // Use custom redirect if provided (e.g., for onboarding flow), otherwise go to public page
+          const redirectUrl = options?.redirectTo || publicUrl;
+          console.log('[Publish] Redirecting to:', redirectUrl);
+
+          // Redirect after publish
+          router.replace(redirectUrl);
         } else {
           throw new Error('Failed to publish page - no page returned');
         }

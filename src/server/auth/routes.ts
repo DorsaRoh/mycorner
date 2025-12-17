@@ -58,7 +58,7 @@ router.get('/google/callback', (req, res, next) => {
       return res.redirect('/?error=auth_failed');
     }
 
-    req.logIn(user, (loginErr) => {
+    req.logIn(user, async (loginErr) => {
       if (loginErr) {
         console.error('Login error:', loginErr);
         return res.redirect('/?error=login_error');
@@ -66,6 +66,9 @@ router.get('/google/callback', (req, res, next) => {
       
       // Clear anonymous session ID after successful auth
       delete req.session.anonymousId;
+      
+      // Check if there's a returnTo URL in session
+      const returnTo = req.session.returnTo;
       delete req.session.returnTo;
       
       // Redirect based on username presence
@@ -74,8 +77,8 @@ router.get('/google/callback', (req, res, next) => {
         return res.redirect('/edit?onboarding=true');
       }
       
-      // Has username - go to their published page
-      return res.redirect(`/${user.username}`);
+      // Has username - redirect to returnTo or /edit
+      return res.redirect(returnTo || '/edit');
     });
   })(req, res, next);
 });

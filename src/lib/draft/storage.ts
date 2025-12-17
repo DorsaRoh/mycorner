@@ -272,3 +272,29 @@ export function clearPublishToastData(): void {
   if (typeof window === 'undefined') return;
   sessionStorage.removeItem(PUBLISH_TOAST_KEY);
 }
+
+/**
+ * Clear all draft-related data from localStorage
+ * Used when logging out or to prevent draft leakage for anonymous users
+ */
+export function clearAllDrafts(): void {
+  if (typeof window === 'undefined') return;
+  
+  // Clear all draft data
+  const draftIds = getAllDraftIds();
+  draftIds.forEach(id => deleteDraft(id));
+  
+  // Clear active draft ID
+  clearActiveDraftId();
+  
+  // Clear user interaction flag
+  setUserInteracted(false);
+  
+  // Clear all starter dismissed flags
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key?.startsWith(STARTER_DISMISSED_PREFIX)) {
+      localStorage.removeItem(key);
+    }
+  }
+}

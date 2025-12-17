@@ -8,9 +8,19 @@ interface AuthGateProps {
   onAuthStart?: () => void;
   /** The draft ID being edited (no longer used - URL is always /edit) */
   draftId?: string;
+  /** Custom title for the modal (defaults to "Sign in to publish") */
+  title?: string;
+  /** Custom subtitle for the modal */
+  subtitle?: string;
 }
 
-export function AuthGate({ isOpen, onClose, onAuthStart }: AuthGateProps) {
+export function AuthGate({ 
+  isOpen, 
+  onClose, 
+  onAuthStart,
+  title = "Sign in to publish",
+  subtitle = "Your page will be saved to your account and shareable with anyone."
+}: AuthGateProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -64,11 +74,11 @@ export function AuthGate({ isOpen, onClose, onAuthStart }: AuthGateProps) {
     <div className={styles.overlay} onClick={loading ? undefined : onClose}>
       <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
         <div className={styles.header}>
-          <h2 className={styles.title}>Sign in to publish</h2>
+          <h2 className={styles.title}>{title}</h2>
         </div>
         
         <p className={styles.subtitle}>
-          Your page will be saved to your account and shareable with anyone.
+          {subtitle}
         </p>
 
         {error && (

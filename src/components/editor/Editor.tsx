@@ -16,6 +16,7 @@ import {
   setPublishToastData,
   getPublishToastData,
   clearPublishToastData,
+  clearAllDrafts,
 } from '@/lib/draft/storage';
 import { routes, isDraftId } from '@/lib/routes';
 import {
@@ -78,6 +79,10 @@ export function Editor({
 
   // Queries
   const { data: meData, loading: meLoading, refetch: refetchMe } = useQuery(ME_QUERY);
+  
+  // Track authentication status for persistence gating
+  const isAuthenticated = !!meData?.me;
+  const prevAuthRef = useRef<boolean | null>(null);
 
   // Initialize state with hooks
   const state = useEditorState(
@@ -217,21 +222,28 @@ export function Editor({
     enabled: mode === 'server',
   });
 
-  // Initialize draft from localStorage for draft mode
+  // Initialize draft from localStorage for draft mode (only if authenticated)
   const draftLoaded = useRef(false);
   useEffect(() => {
-    if (mode === 'draft' && !draftLoaded.current) {
+    if (mode === 'draft' && !draftLoaded.current && !meLoading) {
       draftLoaded.current = true;
-      setActiveDraftId(pageId);
-      const draft = getDraft(pageId);
-      if (draft) {
-        state.setTitle(draft.title || '');
-        state.setBlocks(draft.blocks || []);
-        state.setBackground(draft.background ?? DEFAULT_STARTER_BACKGROUND);
+      
+      // Only allow persistence for authenticated users
+      if (isAuthenticated) {
+        setActiveDraftId(pageId);
+        const draft = getDraft(pageId);
+        if (draft) {
+          state.setTitle(draft.title || '');
+          state.setBlocks(draft.blocks || []);
+          state.setBackground(draft.background ?? DEFAULT_STARTER_BACKGROUND);
+        }
+      } else {
+        // Logged out: clear any existing drafts to prevent leakage
+        clearAllDrafts();
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, pageId]);
+  }, [mode, pageId, isAuthenticated, meLoading]);
 
   // Check for pending publish toast on mount
   const toastChecked = useRef(false);
@@ -320,7 +332,7 @@ export function Editor({
     }
   }, [mode, state.blocks, state.title, state.background, markDirty]);
 
-  // Auto-save to localStorage for draft mode
+  // Auto-save to localStorage for draft mode (only if authenticated)
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   useEffect(() => {
     if (mode !== 'draft') return;
@@ -328,6 +340,9 @@ export function Editor({
       isFirstRender.current = false;
       return;
     }
+    
+    // Only persist for authenticated users
+    if (!isAuthenticated) return;
 
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
@@ -349,36 +364,76 @@ export function Editor({
         clearTimeout(saveTimeoutRef.current);
       }
     };
-  }, [mode, pageId, state.title, state.blocks, state.background]);
+  }, [mode, pageId, state.title, state.blocks, state.background, isAuthenticated]);
+
+  // Handle logout transition: clear editor and all drafts
+  useEffect(() => {
+    if (meLoading) return;
+    
+    // Track auth state changes
+    if (prevAuthRef.current === null) {
+      // First load - just record the state
+      prevAuthRef.current = isAuthenticated;
+      return;
+    }
+    
+    // Detect logout (was authenticated, now not)
+    if (prevAuthRef.current === true && isAuthenticated === false) {
+      console.log('[Editor] User logged out - clearing editor and drafts');
+      
+      // Clear all drafts from storage
+      clearAllDrafts();
+      
+      // Reset editor to clean slate
+      state.setBlocks([]);
+      state.setTitle('');
+      state.setBackground(DEFAULT_STARTER_BACKGROUND);
+      state.setSelectedId(null);
+      state.setSelectedIds(new Set());
+      state.setEditingId(null);
+      state.setIsPublished(false);
+      state.setPublishedRevision(null);
+      
+      // Reset starter mode
+      starterBlockAdded.current = false;
+      state.setStarterMode(false);
+    }
+    
+    // Update previous auth state
+    prevAuthRef.current = isAuthenticated;
+  }, [isAuthenticated, meLoading, state]);
 
   // Handle onboarding completion - trigger publish which handles redirect
   const pendingPublishHandled = useRef(false);
-  const handleOnboardingComplete = useCallback(async (_username: string) => {
+  const authCheckCompleted = useRef(false);
+  const handleOnboardingComplete = useCallback(async (username: string) => {
     state.setShowOnboarding(false);
     state.setPendingPublishAfterOnboarding(false);
     pendingPublishHandled.current = true;
     clearAuthContinuation();
-    await refetchMe();
-    // Trigger publish - this will create page, publish it, and redirect to /{username}
-    handlePublish();
+    
+    try {
+      // Refetch user data to get the new username
+      await refetchMe();
+      
+      // Trigger publish - this will create page, publish it, and redirect to edit page
+      await handlePublish({ redirectTo: routes.edit() });
+    } catch (error) {
+      console.error('[Onboarding] Failed to publish after onboarding:', error);
+      // If publish fails, show error to user
+      state.setPublishError(error instanceof Error ? error.message : 'Failed to publish your page');
+    }
   }, [state, refetchMe, handlePublish]);
 
   // Check for pending publish after auth or show onboarding
   useEffect(() => {
-    console.log('[Editor] Auth continuation check effect running');
-    console.log('[Editor] meLoading:', meLoading);
-    console.log('[Editor] pendingPublishHandled.current:', pendingPublishHandled.current);
-    console.log('[Editor] meData?.me:', meData?.me);
-    
-    if (meLoading || pendingPublishHandled.current) {
-      console.log('[Editor] Early return - meLoading or already handled');
+    // Only run the auth check once per page load
+    if (meLoading || authCheckCompleted.current || pendingPublishHandled.current) {
       return;
     }
 
     const urlParams = new URLSearchParams(window.location.search);
     const needsOnboarding = urlParams.get('onboarding') === 'true' || (meData?.me && !meData.me.username);
-    console.log('[Editor] needsOnboarding:', needsOnboarding);
-    console.log('[Editor] meData?.me?.username:', meData?.me?.username);
 
     if (urlParams.has('onboarding') || urlParams.has('error')) {
       urlParams.delete('onboarding');
@@ -390,44 +445,36 @@ export function Editor({
     }
 
     const continuation = getAuthContinuation();
-    console.log('[Editor] Auth continuation:', continuation);
-    console.log('[Editor] pageId:', pageId);
 
     if (meData?.me) {
-      console.log('[Editor] User is authenticated');
-      
       // If there's a continuation for a DIFFERENT draft, clear it - user navigated elsewhere
       // Only follow continuation if it matches the current page (user returned from OAuth to this page)
       if (continuation && continuation.draftId !== pageId) {
-        console.log('[Editor] Clearing stale continuation for different draft:', continuation.draftId);
         clearAuthContinuation();
-        // Don't return - continue with normal flow for current page
+        authCheckCompleted.current = true;
+        return;
       }
 
       if (needsOnboarding) {
-        console.log('[Editor] Showing onboarding modal');
         state.setShowOnboarding(true);
         if (continuation?.intent === 'publish' && continuation.draftId === pageId) {
-          console.log('[Editor] Setting pendingPublishAfterOnboarding');
           state.setPendingPublishAfterOnboarding(true);
         }
+        authCheckCompleted.current = true;
       } else if (continuation?.intent === 'publish' && continuation.draftId === pageId) {
-        console.log('[Editor] Triggering publish after auth');
         pendingPublishHandled.current = true;
+        authCheckCompleted.current = true;
         clearAuthContinuation();
         // Small delay to ensure session is fully established after OAuth redirect
-        console.log('[Editor] Scheduling handlePublish with 100ms delay');
         setTimeout(() => {
-          console.log('[Editor] Executing delayed handlePublish');
           handlePublish();
         }, 100);
       } else {
-        console.log('[Editor] No publish continuation to handle');
+        // No continuation to handle - mark as completed to avoid re-running
+        authCheckCompleted.current = true;
       }
-    } else {
-      console.log('[Editor] User is NOT authenticated');
     }
-  }, [meData?.me, meLoading, pageId, handlePublish, router, state]);
+  }, [meData?.me, meLoading, pageId, handlePublish, state]);
 
   // Handle paste
   useEffect(() => {
@@ -537,7 +584,7 @@ export function Editor({
 
           if (state.isPublished && !hasUnpublishedChanges) {
             return (
-              <button className={`${styles.inviteBtn} ${styles.publishedBtn}`} onClick={handlePublish}>
+              <button className={`${styles.inviteBtn} ${styles.publishedBtn}`} onClick={() => handlePublish()}>
                 Published ✓
               </button>
             );
@@ -545,13 +592,13 @@ export function Editor({
 
           if (hasUnpublishedChanges) {
             return (
-              <button className={`${styles.inviteBtn} ${styles.unpublishedChanges}`} onClick={handlePublish}>
+              <button className={`${styles.inviteBtn} ${styles.unpublishedChanges}`} onClick={() => handlePublish()}>
                 Update
               </button>
             );
           }
 
-          return <button className={styles.inviteBtn} onClick={handlePublish}>Publish</button>;
+          return <button className={styles.inviteBtn} onClick={() => handlePublish()}>Publish</button>;
         })()}
       </div>
 

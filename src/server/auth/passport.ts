@@ -33,7 +33,7 @@ export function configurePassport(): void {
           callbackURL: '/auth/google/callback',
           passReqToCallback: true,
         },
-        (req, _accessToken, _refreshToken, profile, done) => {
+        async (req, _accessToken, _refreshToken, profile, done) => {
           try {
             const email = profile.emails?.[0]?.value;
             if (!email) {
@@ -45,7 +45,7 @@ export function configurePassport(): void {
             const avatarUrl = profile.photos?.[0]?.value || undefined;
 
             // Upsert user - uses google_sub as primary identity
-            const user = db.upsertUserByGoogleSub({
+            const user = await db.upsertUserByGoogleSub({
               googleSub,
               email,
               name,
@@ -55,7 +55,7 @@ export function configurePassport(): void {
             // If there was an anonymous session, claim those pages
             const anonymousId = req.session?.anonymousId;
             if (anonymousId) {
-              db.claimAnonymousPages(anonymousId, user.id);
+              await db.claimAnonymousPages(anonymousId, user.id);
             }
 
             return done(null, user);
@@ -73,12 +73,26 @@ export function configurePassport(): void {
 
   // Serialize user to session (store only the user ID)
   passport.serializeUser((user, done) => {
-    done(null, user.id);
+    try {
+      if (!user || !user.id) {
+        console.error('serializeUser: Invalid user object', user);
+        return done(new Error('Invalid user object'));
+      }
+      done(null, user.id);
+    } catch (error) {
+      console.error('serializeUser error:', error);
+      done(error as Error);
+    }
   });
 
   // Deserialize user from session
-  passport.deserializeUser((id: string, done) => {
-    const user = db.getUserById(id);
-    done(null, user || false);
+  passport.deserializeUser(async (id: string, done) => {
+    try {
+      const user = await db.getUserById(id);
+      done(null, user || false);
+    } catch (error) {
+      console.error('Deserialize user error:', error);
+      done(error as Error, false);
+    }
   });
 }

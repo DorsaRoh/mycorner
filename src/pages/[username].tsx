@@ -1,14 +1,15 @@
 import { GetServerSideProps } from 'next';
+import { useState } from 'react';
 import Head from 'next/head';
-import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { gql } from '@apollo/client';
 import { initializeApollo } from '@/lib/apollo/client';
 import { ViewerCanvas } from '@/components/viewer/ViewerCanvas';
 import { FloatingAction } from '@/components/viewer/FloatingAction';
 import { ShareMenu } from '@/components/viewer/ShareMenu';
+import { AuthGate } from '@/components/editor/AuthGate';
 import { getBackgroundBrightness } from '@/shared/utils/blockStyles';
-import { routes } from '@/lib/routes';
+import { routes, auth } from '@/lib/routes';
 import type { Block, BackgroundConfig } from '@/shared/types';
 import styles from '@/styles/ViewPage.module.css';
 
@@ -92,6 +93,7 @@ interface UserPageProps {
 
 export default function UserPage({ page, username, currentUserId }: UserPageProps) {
   const router = useRouter();
+  const [showAuthGate, setShowAuthGate] = useState(false);
 
   // Build public URL
   const publicUrl = typeof window !== 'undefined' 
@@ -105,6 +107,16 @@ export default function UserPage({ page, username, currentUserId }: UserPageProp
     router.push(routes.edit());
   };
 
+  const handleCTAClick = () => {
+    if (currentUserId) {
+      // Already authenticated - go directly to /edit
+      router.push(routes.edit());
+    } else {
+      // Not authenticated - show auth gate modal
+      setShowAuthGate(true);
+    }
+  };
+
   // Page doesn't exist
   if (!page) {
     return (
@@ -115,10 +127,15 @@ export default function UserPage({ page, username, currentUserId }: UserPageProp
         <div className={styles.notFound}>
           <h1>@{username}</h1>
           <p>This page doesn&apos;t exist yet.</p>
-          <Link href={routes.home({ fresh: true })} className={styles.backBtn}>
+          <button onClick={handleCTAClick} className={styles.backBtn}>
             Want your own corner of the internet?
-          </Link>
+          </button>
         </div>
+        
+        <AuthGate
+          isOpen={showAuthGate}
+          onClose={() => setShowAuthGate(false)}
+        />
       </>
     );
   }
@@ -148,16 +165,21 @@ export default function UserPage({ page, username, currentUserId }: UserPageProp
 
         {/* Header group - top right with CTA and Share */}
         <div className={styles.headerGroup}>
-          <Link href={routes.home({ fresh: true })} className={styles.headerCta}>
+          <button onClick={handleCTAClick} className={styles.headerCta}>
             <img src="/logo.png" alt="" width={18} height={18} className={styles.headerCtaLogo} />
             Want your own corner of the internet?
-          </Link>
+          </button>
           <ShareMenu url={publicUrl} title={pageTitle} />
         </div>
 
         <FloatingAction
           isOwner={!!isOwner}
           onEdit={handleEdit}
+        />
+        
+        <AuthGate
+          isOpen={showAuthGate}
+          onClose={() => setShowAuthGate(false)}
         />
       </main>
     </>

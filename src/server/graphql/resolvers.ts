@@ -93,10 +93,10 @@ function formatUser(user: DbUser | null): FormattedUser | null {
   };
 }
 
-function formatPage(page: DbPage | null): FormattedPage | null {
+async function formatPage(page: DbPage | null): Promise<FormattedPage | null> {
   if (!page) return null;
 
-  const owner = page.user_id ? db.getUserById(page.user_id) : null;
+  const owner = page.user_id ? await db.getUserById(page.user_id) : null;
   
   let blocks: StoredBlock[] = [];
   try {
@@ -145,7 +145,7 @@ function formatPage(page: DbPage | null): FormattedPage | null {
     publishedBackground,
     publishedAt: page.published_at,
     publishedRevision: page.published_revision,
-    forkedFrom: page.forked_from_id ? formatPage(db.getPageById(page.forked_from_id)) : null,
+    forkedFrom: page.forked_from_id ? await formatPage(await db.getPageById(page.forked_from_id)) : null,
     createdAt: page.created_at,
     updatedAt: page.updated_at,
     serverRevision: page.server_revision,
@@ -158,11 +158,11 @@ function formatPage(page: DbPage | null): FormattedPage | null {
  * Uses published_content and published_background instead of draft content.
  * This ensures the public view shows exactly what was published, not live edits.
  */
-function formatPublicPage(page: DbPage | null): FormattedPage | null {
+async function formatPublicPage(page: DbPage | null): Promise<FormattedPage | null> {
   if (!page) return null;
   if (!page.is_published) return null;
 
-  const owner = page.user_id ? db.getUserById(page.user_id) : null;
+  const owner = page.user_id ? await db.getUserById(page.user_id) : null;
   
   // For public view, use published content (or fall back to content for legacy data)
   const contentToParse = page.published_content || page.content;
@@ -196,7 +196,7 @@ function formatPublicPage(page: DbPage | null): FormattedPage | null {
     publishedBackground: background,
     publishedAt: page.published_at,
     publishedRevision: page.published_revision,
-    forkedFrom: page.forked_from_id ? formatPublicPage(db.getPageById(page.forked_from_id)) : null,
+    forkedFrom: page.forked_from_id ? await formatPublicPage(await db.getPageById(page.forked_from_id)) : null,
     createdAt: page.created_at,
     updatedAt: page.updated_at,
     serverRevision: page.server_revision,
@@ -211,16 +211,30 @@ export const resolvers = {
       return formatUser(context.user);
     },
 
-    myPage: (_parent: unknown, _args: unknown, context: GraphQLContext) => {
+    myPage: async (_parent: unknown, _args: unknown, context: GraphQLContext) => {
       if (!context.user) return null;
-      // Get user's pages and return the first one (users typically have one page)
-      const pages = db.getPagesByUserId(context.user.id);
+      // Get user's pages and return the most recently published one
+      const pages = await db.getPagesByUserId(context.user.id);
       if (!pages || pages.length === 0) return null;
-      return formatPage(pages[0]);
+      
+      // Find the most recently published page (by publishedAt timestamp)
+      const publishedPages = pages.filter(p => p.is_published && p.published_at);
+      if (publishedPages.length > 0) {
+        // Sort by publishedAt descending (most recent first)
+        publishedPages.sort((a, b) => {
+          const dateA = new Date(a.published_at!).getTime();
+          const dateB = new Date(b.published_at!).getTime();
+          return dateB - dateA;
+        });
+        return await formatPage(publishedPages[0]);
+      }
+      
+      // No published pages - return null to signal loading starter template
+      return null;
     },
 
-    page: (_parent: unknown, args: { id: string }, context: GraphQLContext) => {
-      const page = db.getPageById(args.id);
+    page: async (_parent: unknown, args: { id: string }, context: GraphQLContext) => {
+      const page = await db.getPageById(args.id);
       if (!page) return null;
 
       // Only owner can see unpublished pages
@@ -228,33 +242,33 @@ export const resolvers = {
         return null;
       }
 
-      return formatPage(page);
+      return await formatPage(page);
     },
 
-    publicPage: (_parent: unknown, args: { id: string }) => {
-      const page = db.getPageById(args.id);
+    publicPage: async (_parent: unknown, args: { id: string }) => {
+      const page = await db.getPageById(args.id);
       if (!page || !page.is_published) return null;
       // Use formatPublicPage to return published content, not draft
-      return formatPublicPage(page);
+      return await formatPublicPage(page);
     },
 
-    pageByUsername: (_parent: unknown, args: { username: string }) => {
-      const user = db.getUserByUsername(args.username);
+    pageByUsername: async (_parent: unknown, args: { username: string }) => {
+      const user = await db.getUserByUsername(args.username);
       if (!user) return null;
 
       // Get user's pages and find the first published one
-      const pages = db.getPagesByUserId(user.id);
+      const pages = await db.getPagesByUserId(user.id);
       const publishedPage = pages.find(p => p.is_published);
       
       if (!publishedPage) return null;
       // Use formatPublicPage to return published content, not draft
-      return formatPublicPage(publishedPage);
+      return await formatPublicPage(publishedPage);
     },
 
-    publicPages: (_parent: unknown, args: { limit?: number }) => {
-      const pages = db.getPublicPages(args.limit || 12);
+    publicPages: async (_parent: unknown, args: { limit?: number }) => {
+      const pages = await db.getPublicPages(args.limit || 12);
       // Use formatPublicPage to return published content, not draft
-      return pages.map(formatPublicPage).filter(Boolean);
+      return await Promise.all(pages.map(p => formatPublicPage(p))).then(results => results.filter(Boolean));
     },
 
     usernameAvailable: (_parent: unknown, args: { username: string }) => {
@@ -270,20 +284,44 @@ export const resolvers = {
   },
 
   Mutation: {
-    createPage: (_parent: unknown, args: { input?: CreatePageInput }, context: GraphQLContext) => {
+    createPage: async (_parent: unknown, args: { input?: CreatePageInput }, context: GraphQLContext) => {
       // Anonymous creation allowed - use session ID or user ID
       const ownerId = getOwnerId(context);
       const userId = context.user?.id;
-      const page = db.createPage(ownerId, args.input?.title, userId);
-      return formatPage(page);
+      console.log('[createPage] Starting - ownerId:', ownerId, 'userId:', userId, 'title:', args.input?.title);
+      
+      try {
+        const page = await db.createPage(ownerId, args.input?.title, userId);
+        console.log('[createPage] DB returned page:', page);
+        console.log('[createPage] Page ID:', page?.id);
+        console.log('[createPage] Page user_id:', page?.user_id);
+        
+        if (!page) {
+          throw new Error('Database returned null page');
+        }
+        
+        const formattedPage = await formatPage(page);
+        console.log('[createPage] Formatted page:', JSON.stringify(formattedPage, null, 2));
+        
+        if (!formattedPage) {
+          throw new Error('Failed to create page - formatting returned null');
+        }
+        if (!formattedPage.id) {
+          throw new Error('Formatted page has no ID');
+        }
+        return formattedPage;
+      } catch (error) {
+        console.error('[createPage] Error:', error);
+        throw error;
+      }
     },
 
-    updatePage: (
+    updatePage: async (
       _parent: unknown,
       args: { id: string; input: UpdatePageInput },
       context: GraphQLContext
     ) => {
-      const page = db.getPageById(args.id);
+      const page = await db.getPageById(args.id);
       if (!page) {
         return {
           page: null,
@@ -342,7 +380,7 @@ export const resolvers = {
         }
       }
 
-      const result = db.updatePage(
+      const result = await db.updatePage(
         args.id, 
         { 
           title: args.input.title, 
@@ -362,14 +400,14 @@ export const resolvers = {
       }
 
       return {
-        page: result.page ? formatPage(result.page) : null,
+        page: result.page ? await formatPage(result.page) : null,
         conflict: false,
         currentServerRevision: result.page?.server_revision ?? null,
         acceptedLocalRevision: args.input.localRevision ?? null,
       };
     },
 
-    publishPage: (
+    publishPage: async (
       _parent: unknown, 
       args: { id: string; input: PublishPageInput }, 
       context: GraphQLContext
@@ -379,7 +417,7 @@ export const resolvers = {
         throw new Error('Authentication required to publish');
       }
 
-      const page = db.getPageById(args.id);
+      const page = await db.getPageById(args.id);
       if (!page) {
         return {
           page: null,
@@ -440,7 +478,7 @@ export const resolvers = {
       }
 
       // Publish with content snapshot and revision validation
-      const result = db.publishPage({
+      const result = await db.publishPage({
         id: args.id,
         content: blocksJson,
         background: backgroundJson,
@@ -467,7 +505,7 @@ export const resolvers = {
       }
 
       return {
-        page: result.page ? formatPage(result.page) : null,
+        page: result.page ? await formatPage(result.page) : null,
         conflict: false,
         currentServerRevision: result.page?.server_revision ?? null,
         publishedRevision: result.publishedRevision,
@@ -476,14 +514,14 @@ export const resolvers = {
       };
     },
 
-    forkPage: (_parent: unknown, args: { id: string }, context: GraphQLContext) => {
+    forkPage: async (_parent: unknown, args: { id: string }, context: GraphQLContext) => {
       // MUST be authenticated to fork
       if (!context.user) {
         throw new Error('Authentication required to fork');
       }
 
-      const forked = db.forkPage(args.id, context.user.id, context.user.id);
-      return forked ? formatPage(forked) : null;
+      const forked = await db.forkPage(args.id, context.user.id, context.user.id);
+      return forked ? await formatPage(forked) : null;
     },
 
     logout: (_parent: unknown, _args: unknown, context: GraphQLContext) => {
@@ -535,7 +573,7 @@ export const resolvers = {
       _parent: unknown,
       args: { message: string; email?: string }
     ) => {
-      const message = args.message.trim();
+      const message = args.message?.trim();
       if (!message) {
         return { success: false, message: 'Message is required' };
       }

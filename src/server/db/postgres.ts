@@ -18,10 +18,40 @@ export async function initPostgres(connectionString: string) {
   db = drizzle(pool, { schema });
   console.log('✅ PostgreSQL connected');
   
+  // Ensure essential tables exist
+  await ensureTablesExist();
+  
   // Run one-time migrations
   await runOneTimeUsernameReset();
   
   return db;
+}
+
+/**
+ * Ensure essential tables exist in PostgreSQL.
+ * This is a safety check in case drizzle-kit push hasn't been run yet.
+ */
+async function ensureTablesExist(): Promise<void> {
+  // Create product_feedback table if it doesn't exist
+  await pool!.query(`
+    CREATE TABLE IF NOT EXISTS product_feedback (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      message TEXT NOT NULL,
+      email TEXT,
+      created_at TIMESTAMP DEFAULT NOW() NOT NULL
+    )
+  `);
+  
+  // Create feedback table if it doesn't exist
+  await pool!.query(`
+    CREATE TABLE IF NOT EXISTS feedback (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      page_id UUID NOT NULL,
+      message TEXT NOT NULL,
+      email TEXT,
+      created_at TIMESTAMP DEFAULT NOW() NOT NULL
+    )
+  `);
 }
 
 /**

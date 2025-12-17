@@ -37,7 +37,7 @@ router.get('/me', (req, res) => {
  * GET /api/username/check?username=xxx
  * Check if username is available
  */
-router.get('/username/check', (req, res) => {
+router.get('/username/check', async (req, res) => {
   const rawUsername = (req.query.username as string || '').trim();
   
   // Validate format with Zod
@@ -59,7 +59,7 @@ router.get('/username/check', (req, res) => {
     });
   }
 
-  const taken = db.isUsernameTaken(username);
+  const taken = await db.isUsernameTaken(username);
   res.json({
     available: !taken,
     error: taken ? 'Username is already taken' : null,

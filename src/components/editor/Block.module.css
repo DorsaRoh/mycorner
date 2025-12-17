@@ -18,10 +18,10 @@
 .block.selected::before {
   content: '';
   position: absolute;
-  inset: -4px;
+  inset: -2px;
   border-radius: inherit;
   background: transparent;
-  border: 2px solid rgba(255, 255, 255, 0.7);
+  border: 0.5px solid rgba(255, 255, 255, 0.7);
   pointer-events: none;
 }
 
@@ -29,10 +29,10 @@
 .block.selected::after {
   content: '';
   position: absolute;
-  inset: -3px;
+  inset: -1.5px;
   border-radius: inherit;
   background: transparent;
-  border: 1px dashed rgba(0, 0, 0, 0.6);
+  border: 0.5px dashed rgba(0, 0, 0, 0.6);
   pointer-events: none;
 }
 
@@ -60,10 +60,10 @@
 .block:hover:not(.selected):not(.multiSelected)::before {
   content: '';
   position: absolute;
-  inset: -3px;
+  inset: -1.5px;
   border-radius: inherit;
   background: transparent;
-  border: 1px dashed rgba(120, 120, 120, 0.4);
+  border: 0.5px dashed rgba(120, 120, 120, 0.4);
   pointer-events: none;
 }
 
@@ -89,10 +89,10 @@
 .block.multiSelected::before {
   content: '';
   position: absolute;
-  inset: -4px;
+  inset: -2px;
   border-radius: inherit;
   background: transparent;
-  border: 2px solid rgba(255, 255, 255, 0.6);
+  border: 0.5px solid rgba(255, 255, 255, 0.6);
   pointer-events: none;
 }
 
@@ -100,10 +100,10 @@
 .block.multiSelected::after {
   content: '';
   position: absolute;
-  inset: -3px;
+  inset: -1.5px;
   border-radius: inherit;
   background: transparent;
-  border: 1px dashed rgba(0, 0, 0, 0.5);
+  border: 0.5px dashed rgba(0, 0, 0, 0.5);
   pointer-events: none;
 }
 
@@ -139,7 +139,7 @@
   height: 8px;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.95);
-  border: 1.5px solid rgba(0, 0, 0, 0.5);
+  border: 0.5px solid rgba(0, 0, 0, 0.5);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
   transition: transform 120ms ease, border-color 120ms ease;
 }

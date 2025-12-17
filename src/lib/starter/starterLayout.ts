@@ -174,7 +174,7 @@ export function createStarterBlocks(isMobile: boolean): BlockType[] {
       y: 360,
       width: 280,
       height: 36,
-      content: 'make a home on the web',
+      content: 'make this your own',
       rotation: 0,
       style: { ...TEXT_STYLE, fontSize: 26, fontWeight: 400, color: 'rgba(145, 140, 130, 1)', textAlign: 'left' },
       isStarter: true,
