@@ -34,7 +34,7 @@ function getCookieDomain(): string | undefined {
   return undefined;
 }
 
-// Get secret from environment
+// Get secret from environment 
 function getSessionSecret(): string {
   const secret = process.env.SESSION_SECRET;
   if (!secret) {

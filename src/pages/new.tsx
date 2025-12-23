@@ -16,6 +16,7 @@ import { useRouter } from 'next/router';
 import Head from 'next/head';
 import { Editor } from '@/components/editor/Editor';
 import { AuthGate } from '@/components/editor/AuthGate';
+import { OnboardingModal } from '@/components/editor/OnboardingModal';
 import { clearDraft, migrateLegacyDraft, loadEditorDraft, getDraftAsPageDoc } from '@/lib/draft';
 import { createStarterBlocks, DEFAULT_STARTER_BACKGROUND } from '@/lib/starter';
 import styles from '@/styles/EditPage.module.css';
@@ -33,6 +34,15 @@ interface MeResponse {
   } | null;
 }
 
+interface OnboardingResponse {
+  success: boolean;
+  error?: string;
+  user?: {
+    id: string;
+    username: string;
+  };
+}
+
 // =============================================================================
 // Page Component
 // =============================================================================
@@ -41,6 +51,7 @@ export default function NewPage() {
   const router = useRouter();
   const [draftId] = useState('draft-v1'); // Single draft ID
   const [showAuthGate, setShowAuthGate] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [publishError, setPublishError] = useState<string | null>(null);
   const [initialBlocks, setInitialBlocks] = useState<any[]>([]);
@@ -51,6 +62,8 @@ export default function NewPage() {
   // Auth state
   const [meLoading, setMeLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [currentUser, setCurrentUser] = useState<MeResponse['user']>(null);
+  const [needsUsername, setNeedsUsername] = useState(false);
   
   // Fetch auth status
   const fetchMe = useCallback(async (): Promise<MeResponse> => {
@@ -67,6 +80,8 @@ export default function NewPage() {
   useEffect(() => {
     fetchMe().then((data) => {
       setIsAuthenticated(!!data.user);
+      setCurrentUser(data.user);
+      setNeedsUsername(!!data.user && !data.user.username);
       setMeLoading(false);
     });
   }, [fetchMe]);
@@ -146,7 +161,13 @@ export default function NewPage() {
       clearDraft();
       
       // Redirect to published page
-      router.push(`/u/${result.slug}`);
+      // If user has username, use that route (will redirect to /u/slug)
+      // Otherwise use /u/slug directly
+      if (currentUser?.username) {
+        router.push(`/${currentUser.username}`);
+      } else {
+        router.push(`/u/${result.slug}`);
+      }
       
     } catch (error) {
       console.error('Publish error:', error);
@@ -161,17 +182,57 @@ export default function NewPage() {
     
     const shouldPublish = router.query.publish === '1';
     if (shouldPublish && isAuthenticated) {
+      // If user needs username, show onboarding modal first
+      if (needsUsername) {
+        setShowOnboarding(true);
+        return;
+      }
+      
+      // User has username, proceed with publish
       // Clear the query param
       router.replace('/new', undefined, { shallow: true });
       // Immediately publish
       handlePublishFlow();
     }
-  }, [router.isReady, router.query.publish, isAuthenticated, meLoading, router, handlePublishFlow]);
+  }, [router.isReady, router.query.publish, isAuthenticated, needsUsername, meLoading, router, handlePublishFlow]);
   
   // Handle auth gate redirect - use API route
   const handleAuthStart = useCallback(() => {
     window.location.href = `/api/auth/google?returnTo=/new?publish=1`;
   }, []);
+  
+  // Handle onboarding completion
+  const handleOnboardingComplete = useCallback(async (username: string) => {
+    try {
+      const response = await fetch('/api/onboarding', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username }),
+      });
+      
+      const result: OnboardingResponse = await response.json();
+      
+      if (!response.ok || !result.success) {
+        console.error('Onboarding failed:', result.error);
+        return;
+      }
+      
+      // Update user state
+      setCurrentUser(prev => prev ? { ...prev, username } : null);
+      setNeedsUsername(false);
+      setShowOnboarding(false);
+      
+      // If we have ?publish=1, proceed with publish
+      if (router.query.publish === '1') {
+        // Clear the query param
+        router.replace('/new', undefined, { shallow: true });
+        // Immediately publish
+        handlePublishFlow();
+      }
+    } catch (error) {
+      console.error('Onboarding error:', error);
+    }
+  }, [router, handlePublishFlow]);
   
   // Loading state
   if (!initialized) {
@@ -229,6 +290,11 @@ export default function NewPage() {
         onAuthStart={handleAuthStart}
         title="Sign in to publish"
         subtitle="Create your corner of the internet. It's free and takes 2 minutes."
+      />
+      
+      <OnboardingModal
+        isOpen={showOnboarding}
+        onComplete={handleOnboardingComplete}
       />
     </>
   );
