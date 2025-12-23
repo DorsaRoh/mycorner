@@ -106,15 +106,42 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async (context)
     try {
       // Use published_content if available, otherwise fall back to content
       const rawContent = page.published_content || page.content;
+      
+      // DEBUG: Log what we're getting from the database
+      console.log('[/slug] DEBUG - Page data:', {
+        slug,
+        pageId: page.id,
+        hasPublishedContent: !!page.published_content,
+        publishedContentLength: page.published_content?.length,
+        rawContentType: typeof rawContent,
+        rawContentPreview: typeof rawContent === 'string' 
+          ? rawContent.slice(0, 200) + '...' 
+          : JSON.stringify(rawContent).slice(0, 200) + '...',
+      });
+      
       const content = typeof rawContent === 'string' 
         ? JSON.parse(rawContent) 
         : rawContent;
+      
+      // DEBUG: Log parsed content structure
+      console.log('[/slug] DEBUG - Parsed content:', {
+        hasVersion: 'version' in content,
+        hasBlocks: 'blocks' in content,
+        blocksCount: content.blocks?.length ?? (Array.isArray(content) ? content.length : 0),
+        contentKeys: Object.keys(content),
+      });
       
       // Try to parse as PageDoc (new format)
       const parsed = PageDocSchema.safeParse(content);
       if (parsed.success) {
         doc = parsed.data;
+        console.log('[/slug] DEBUG - PageDoc parsed successfully:', {
+          blocksCount: doc.blocks.length,
+          themeId: doc.themeId,
+          hasBackground: !!doc.background,
+        });
       } else {
+        console.log('[/slug] DEBUG - PageDoc parse failed, trying legacy format:', parsed.error.issues[0]);
         // Legacy format - convert blocks array to PageDoc
         const blocks = Array.isArray(content) ? content : [];
         const background = page.published_background 
@@ -127,14 +154,54 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async (context)
                   : page.background)
               : undefined);
         
+        console.log('[/slug] DEBUG - Converting legacy page with', blocks.length, 'blocks');
         doc = convertLegacyPage({ 
           title: page.title || undefined, 
           blocks,
           background,
         });
       }
+      
+      // Final check: log what we're about to render
+      console.log('[/slug] DEBUG - Final doc to render:', {
+        blocksCount: doc.blocks.length,
+        blockTypes: doc.blocks.map(b => b.type),
+        themeId: doc.themeId,
+      });
+      
+      // === ASSERTION: Verify blocks are valid before rendering ===
+      if (doc.blocks.length === 0) {
+        console.error('[/slug] WARNING: Page has zero blocks after parsing!');
+        console.error('[/slug] Published content preview:', 
+          typeof page.published_content === 'string' 
+            ? page.published_content.slice(0, 500) 
+            : JSON.stringify(page.published_content).slice(0, 500)
+        );
+      }
+      
+      // Verify each block has required properties
+      doc.blocks.forEach((block, index) => {
+        if (!block.id || !block.type) {
+          console.error(`[/slug] Invalid block at index ${index}:`, block);
+        }
+        if (typeof block.x !== 'number' || typeof block.y !== 'number') {
+          console.error(`[/slug] Block ${index} missing coordinates:`, { x: block.x, y: block.y });
+        }
+        if (typeof block.width !== 'number' || typeof block.height !== 'number') {
+          console.error(`[/slug] Block ${index} missing dimensions:`, { w: block.width, h: block.height });
+        }
+      });
+      
     } catch (parseError) {
       console.error('[/slug] Failed to parse page content:', parseError);
+      console.error('[/slug] Raw content type:', typeof page.published_content);
+      console.error('[/slug] Raw content preview:', 
+        page.published_content 
+          ? (typeof page.published_content === 'string' 
+              ? page.published_content.slice(0, 200) 
+              : JSON.stringify(page.published_content).slice(0, 200))
+          : 'null'
+      );
       return { notFound: true };
     }
     

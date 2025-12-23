@@ -107,10 +107,13 @@ export function usePublish({
         title: title || undefined,
         bio: undefined,
         themeId: 'default', // TODO: Add theme selection to editor
+        background: background, // Include background in published page
         blocks: legacyBlocksToPageDoc(blocks),
       };
       
       console.log('[Publish] PageDoc:', JSON.stringify(doc, null, 2));
+      console.log('[Publish] Blocks count:', doc.blocks.length);
+      console.log('[Publish] Block types:', doc.blocks.map(b => b.type));
       
       // Call new publish API
       const response = await fetch('/api/publish', {

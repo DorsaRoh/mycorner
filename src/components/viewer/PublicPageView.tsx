@@ -37,7 +37,21 @@ interface PublicPageViewProps {
  * The editor and viewer use the legacy format internally.
  */
 function convertToLegacyBlocks(pageDocBlocks: PageDocBlock[]): LegacyBlock[] {
-  return pageDocBlocks.map((block): LegacyBlock => {
+  if (!Array.isArray(pageDocBlocks)) {
+    console.error('[convertToLegacyBlocks] Input is not an array:', typeof pageDocBlocks, pageDocBlocks);
+    return [];
+  }
+  
+  return pageDocBlocks.map((block, index): LegacyBlock => {
+    // Validate block structure
+    if (!block || typeof block !== 'object') {
+      console.error(`[convertToLegacyBlocks] Invalid block at index ${index}:`, block);
+      return { id: `invalid_${index}`, type: 'TEXT', x: 0, y: 0, width: 100, height: 50, content: '' };
+    }
+    
+    if (!block.type) {
+      console.error(`[convertToLegacyBlocks] Block ${index} missing type:`, block);
+    }
     const base = {
       id: block.id,
       x: block.x,
@@ -159,20 +173,24 @@ export function PublicPageView({ doc, slug }: PublicPageViewProps) {
   // Convert PageDoc blocks to legacy format for ViewerCanvas
   const legacyBlocks = convertToLegacyBlocks(doc.blocks);
   
-  // DEBUG: Log block conversion in development
-  if (process.env.NODE_ENV !== 'production' && typeof window !== 'undefined') {
-    console.log('[PublicPageView] Rendering page:', slug);
-    console.log('[PublicPageView] PageDoc blocks:', doc.blocks.length);
+  // DEBUG: Always log on first render to diagnose blank page issues
+  if (typeof window !== 'undefined') {
+    console.log('[PublicPageView] === RENDER DEBUG ===');
+    console.log('[PublicPageView] Slug:', slug);
+    console.log('[PublicPageView] PageDoc blocks count:', doc.blocks.length);
+    console.log('[PublicPageView] PageDoc block types:', doc.blocks.map(b => b.type));
+    console.log('[PublicPageView] Legacy blocks count:', legacyBlocks.length);
     console.log('[PublicPageView] Legacy blocks:', legacyBlocks.map(b => ({
       id: b.id,
       type: b.type,
-      contentPrefix: b.content?.slice(0, 50),
+      contentLength: b.content?.length,
       x: b.x,
       y: b.y,
       w: b.width,
       h: b.height,
     })));
-    console.log('[PublicPageView] Theme:', doc.themeId, theme.name);
+    console.log('[PublicPageView] Theme:', doc.themeId);
+    console.log('[PublicPageView] Background:', doc.background);
   }
   
   // get background style from theme
@@ -215,6 +233,52 @@ export function PublicPageView({ doc, slug }: PublicPageViewProps) {
           width: '100%',
         } as React.CSSProperties}
       >
+        {/* DEBUG: Show page info (visible in dev, hidden in prod) */}
+        {process.env.NODE_ENV !== 'production' && (
+          <div style={{
+            position: 'fixed',
+            bottom: '60px',
+            left: '8px',
+            padding: '8px 12px',
+            background: 'rgba(0,0,0,0.8)',
+            color: '#0f0',
+            fontFamily: 'monospace',
+            fontSize: '10px',
+            borderRadius: '4px',
+            zIndex: 9999,
+            maxWidth: '300px',
+            wordBreak: 'break-all',
+          }}>
+            <div>Slug: {slug}</div>
+            <div>PageDoc blocks: {doc.blocks.length}</div>
+            <div>Block types: {doc.blocks.map(b => b.type).join(', ')}</div>
+            <div>Legacy blocks: {legacyBlocks.length}</div>
+            <div>Theme: {doc.themeId}</div>
+          </div>
+        )}
+        
+        {/* Show warning if no blocks */}
+        {legacyBlocks.length === 0 && (
+          <div style={{
+            position: 'fixed',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            textAlign: 'center',
+            color: '#999',
+            fontFamily: 'system-ui, sans-serif',
+            zIndex: 9998,
+          }}>
+            <p style={{ fontSize: '18px', marginBottom: '8px' }}>No content found</p>
+            <p style={{ fontSize: '12px', color: '#ccc' }}>
+              PageDoc blocks: {doc.blocks.length} | Legacy blocks: {legacyBlocks.length}
+            </p>
+            <p style={{ fontSize: '10px', color: '#aaa', marginTop: '12px' }}>
+              Check the console for more details.
+            </p>
+          </div>
+        )}
+        
         <ViewerCanvas 
           blocks={legacyBlocks}
           background={doc.background as import('@/shared/types').BackgroundConfig | undefined}

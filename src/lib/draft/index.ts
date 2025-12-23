@@ -48,11 +48,13 @@ export function legacyBlockToPageDoc(block: LegacyBlock): PageDocBlock | null {
       let linkContent: { label: string; url: string };
       try {
         const parsed = JSON.parse(block.content);
+        // Legacy format uses 'name', new format uses 'label'
         linkContent = {
-          label: String(parsed.label || parsed.text || 'Link'),
+          label: String(parsed.label || parsed.name || parsed.text || 'Link'),
           url: String(parsed.url || block.content),
         };
       } catch {
+        // Not JSON - treat as simple URL
         linkContent = { label: 'Link', url: block.content };
       }
       return {
