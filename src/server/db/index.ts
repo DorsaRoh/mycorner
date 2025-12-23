@@ -1,125 +1,179 @@
 /**
  * Database facade - switches between SQLite (dev) and PostgreSQL (prod).
  * 
- * This module re-exports database operations from the appropriate adapter
- * based on environment configuration.
+ * Uses lazy async imports to work correctly in Vercel's serverless environment.
+ * All functions are async and automatically load the correct adapter.
  */
-
-import { getConfig } from '../../lib/config';
 
 // Re-export types
 export type { DbUser, DbPage, DbFeedback, DbProductFeedback, PublishPageParams, PublishPageResult } from './types';
 
-// Determine which adapter to use at module load time
-const config = getConfig();
-
-// In development or when USE_SQLITE is true, use SQLite
-// Otherwise, use PostgreSQL
-const useSqlite = config.useSqlite;
-
-// Dynamic import based on config
-// We use require here for synchronous loading (SQLite operations are sync)
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const adapter = useSqlite 
-  ? require('./sqlite') 
-  : require('./postgres');
-
 // =============================================================================
-// User Operations (re-exported from adapter)
+// Lazy adapter loading
 // =============================================================================
 
-export const upsertUserByGoogleSub: typeof import('./sqlite').upsertUserByGoogleSub = 
-  useSqlite ? adapter.upsertUserByGoogleSub : wrapAsync(adapter.upsertUserByGoogleSub);
+type PostgresModule = typeof import('./postgres');
+type SqliteModule = typeof import('./sqlite');
+type DbModule = PostgresModule | SqliteModule;
 
-export const getUserById: typeof import('./sqlite').getUserById = 
-  useSqlite ? adapter.getUserById : wrapAsync(adapter.getUserById);
+let cachedAdapter: DbModule | null = null;
 
-export const getUserByEmail: typeof import('./sqlite').getUserByEmail = 
-  useSqlite ? adapter.getUserByEmail : wrapAsync(adapter.getUserByEmail);
-
-export const getUserByUsername: typeof import('./sqlite').getUserByUsername = 
-  useSqlite ? adapter.getUserByUsername : wrapAsync(adapter.getUserByUsername);
-
-export const isUsernameTaken: typeof import('./sqlite').isUsernameTaken = 
-  useSqlite ? adapter.isUsernameTaken : wrapAsync(adapter.isUsernameTaken);
-
-export const setUsername: typeof import('./sqlite').setUsername = 
-  useSqlite ? adapter.setUsername : wrapAsync(adapter.setUsername);
-
-// =============================================================================
-// Page Operations (re-exported from adapter)
-// =============================================================================
-
-export const createPage: typeof import('./sqlite').createPage = 
-  useSqlite ? adapter.createPage : wrapAsync(adapter.createPage);
-
-export const getPageById: typeof import('./sqlite').getPageById = 
-  useSqlite ? adapter.getPageById : wrapAsync(adapter.getPageById);
-
-export const getPageBySlug: typeof import('./sqlite').getPageBySlug = 
-  useSqlite ? adapter.getPageBySlug : wrapAsync(adapter.getPageBySlug);
-
-export const getPagesByUserId: typeof import('./sqlite').getPagesByUserId = 
-  useSqlite ? adapter.getPagesByUserId : wrapAsync(adapter.getPagesByUserId);
-
-export const getPagesByOwnerId: typeof import('./sqlite').getPagesByOwnerId = 
-  useSqlite ? adapter.getPagesByOwnerId : wrapAsync(adapter.getPagesByOwnerId);
-
-export const getPublicPages: typeof import('./sqlite').getPublicPages = 
-  useSqlite ? adapter.getPublicPages : wrapAsync(adapter.getPublicPages);
-
-export const updatePage: typeof import('./sqlite').updatePage = 
-  useSqlite ? adapter.updatePage : wrapAsync(adapter.updatePage);
-
-export const publishPage: typeof import('./sqlite').publishPage = 
-  useSqlite ? adapter.publishPage : wrapAsync(adapter.publishPage);
-
-export const setPageSlug: typeof import('./sqlite').setPageSlug = 
-  useSqlite ? adapter.setPageSlug : wrapAsync(adapter.setPageSlug);
-
-export const forkPage: typeof import('./sqlite').forkPage = 
-  useSqlite ? adapter.forkPage : wrapAsync(adapter.forkPage);
-
-export const claimAnonymousPages: typeof import('./sqlite').claimAnonymousPages = 
-  useSqlite ? adapter.claimAnonymousPages : wrapAsync(adapter.claimAnonymousPages);
-
-export const createDefaultPage: typeof import('./sqlite').createDefaultPage = 
-  useSqlite ? adapter.createDefaultPage : wrapAsync(adapter.createDefaultPage);
-
-// =============================================================================
-// Feedback Operations (re-exported from adapter)
-// =============================================================================
-
-export const addFeedback: typeof import('./sqlite').addFeedback = 
-  useSqlite ? adapter.addFeedback : wrapAsync(adapter.addFeedback);
-
-export const addProductFeedback: typeof import('./sqlite').addProductFeedback = 
-  useSqlite ? adapter.addProductFeedback : wrapAsync(adapter.addProductFeedback);
-
-// =============================================================================
-// Database initialization
-// =============================================================================
-
-export async function initDatabase(): Promise<void> {
-  if (useSqlite) {
-    console.log('✅ SQLite database initialized');
-    // SQLite is already initialized on require (including one-time migrations)
+/**
+ * Get the database adapter lazily.
+ * This avoids CommonJS/ESM interop issues in Vercel's serverless environment.
+ */
+async function getAdapter(): Promise<DbModule> {
+  if (cachedAdapter) return cachedAdapter;
+  
+  const isProduction = process.env.NODE_ENV === 'production';
+  
+  // Use dynamic import instead of require() for proper ESM support
+  if (isProduction) {
+    cachedAdapter = await import('./postgres');
   } else {
-    // Initialize PostgreSQL connection (including one-time migrations)
-    const { initPostgres } = await import('./postgres');
-    await initPostgres(config.databaseUrl);
+    cachedAdapter = await import('./sqlite');
   }
+  
+  return cachedAdapter;
 }
 
 // =============================================================================
-// Helper to wrap async functions for consistent interface
+// User Operations
 // =============================================================================
 
-// Note: In production (PostgreSQL), operations are async.
-// In development (SQLite), operations are sync.
-// The resolvers handle both cases by awaiting results (await on sync just returns the value).
+export async function upsertUserByGoogleSub(params: {
+  googleSub: string;
+  email: string;
+  name?: string;
+  avatarUrl?: string;
+}) {
+  const adapter = await getAdapter();
+  return adapter.upsertUserByGoogleSub(params);
+}
 
-function wrapAsync<T extends (...args: unknown[]) => unknown>(fn: T): T {
-  // PostgreSQL operations are already async, just return them
-  return fn;
+export async function getUserById(id: string) {
+  const adapter = await getAdapter();
+  return adapter.getUserById(id);
+}
+
+export async function getUserByEmail(email: string) {
+  const adapter = await getAdapter();
+  return adapter.getUserByEmail(email);
+}
+
+export async function getUserByUsername(username: string) {
+  const adapter = await getAdapter();
+  return adapter.getUserByUsername(username);
+}
+
+export async function isUsernameTaken(username: string) {
+  const adapter = await getAdapter();
+  return adapter.isUsernameTaken(username);
+}
+
+export async function setUsername(userId: string, username: string) {
+  const adapter = await getAdapter();
+  return adapter.setUsername(userId, username);
+}
+
+// =============================================================================
+// Page Operations
+// =============================================================================
+
+export async function createPage(ownerId: string, title?: string, userId?: string) {
+  const adapter = await getAdapter();
+  return adapter.createPage(ownerId, title, userId);
+}
+
+export async function getPageById(id: string) {
+  const adapter = await getAdapter();
+  return adapter.getPageById(id);
+}
+
+export async function getPageBySlug(slug: string) {
+  const adapter = await getAdapter();
+  return adapter.getPageBySlug(slug);
+}
+
+export async function getPagesByUserId(userId: string) {
+  const adapter = await getAdapter();
+  return adapter.getPagesByUserId(userId);
+}
+
+export async function getPagesByOwnerId(ownerId: string) {
+  const adapter = await getAdapter();
+  return adapter.getPagesByOwnerId(ownerId);
+}
+
+export async function getPublicPages(limit?: number) {
+  const adapter = await getAdapter();
+  return adapter.getPublicPages(limit);
+}
+
+export async function updatePage(
+  id: string,
+  updates: { title?: string; content?: string; background?: string },
+  baseServerRevision?: number
+) {
+  const adapter = await getAdapter();
+  return adapter.updatePage(id, updates, baseServerRevision);
+}
+
+export async function publishPage(params: import('./types').PublishPageParams) {
+  const adapter = await getAdapter();
+  return adapter.publishPage(params);
+}
+
+export async function setPageSlug(pageId: string, slug: string) {
+  const adapter = await getAdapter();
+  return adapter.setPageSlug(pageId, slug);
+}
+
+export async function forkPage(sourceId: string, newOwnerId: string, newUserId?: string) {
+  const adapter = await getAdapter();
+  return adapter.forkPage(sourceId, newOwnerId, newUserId);
+}
+
+export async function claimAnonymousPages(anonymousId: string, userId: string) {
+  const adapter = await getAdapter();
+  return adapter.claimAnonymousPages(anonymousId, userId);
+}
+
+export async function createDefaultPage(userId: string, title: string) {
+  const adapter = await getAdapter();
+  return adapter.createDefaultPage(userId, title);
+}
+
+// =============================================================================
+// Feedback Operations
+// =============================================================================
+
+export async function addFeedback(pageId: string, message: string, email?: string) {
+  const adapter = await getAdapter();
+  return adapter.addFeedback(pageId, message, email);
+}
+
+export async function addProductFeedback(message: string, email?: string) {
+  const adapter = await getAdapter();
+  return adapter.addProductFeedback(message, email);
+}
+
+// =============================================================================
+// Database initialization (for server startup)
+// =============================================================================
+
+export async function initDatabase(): Promise<void> {
+  const isProduction = process.env.NODE_ENV === 'production';
+  
+  if (isProduction) {
+    const databaseUrl = process.env.DATABASE_URL;
+    if (!databaseUrl) {
+      throw new Error('DATABASE_URL is required in production');
+    }
+    const { initPostgres } = await import('./postgres');
+    await initPostgres(databaseUrl);
+  } else {
+    console.log('✅ SQLite database initialized');
+    // SQLite is already initialized on import
+  }
 }

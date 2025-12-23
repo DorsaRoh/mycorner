@@ -401,6 +401,25 @@ export async function publishPage(params: PublishPageParams): Promise<PublishPag
   };
 }
 
+export async function setPageSlug(pageId: string, slug: string): Promise<{ success: boolean; error?: string }> {
+  const d = await getDbLazy();
+  
+  // Validate slug format
+  const slugRegex = /^[a-z0-9_-]{1,50}$/;
+  if (!slugRegex.test(slug)) {
+    return { success: false, error: 'Invalid slug format' };
+  }
+
+  try {
+    await d.update(schema.pages)
+      .set({ slug: slug.toLowerCase(), updatedAt: new Date() })
+      .where(eq(schema.pages.id, pageId));
+    return { success: true };
+  } catch {
+    return { success: false, error: 'Slug is already taken' };
+  }
+}
+
 export async function forkPage(sourceId: string, newOwnerId: string, newUserId?: string): Promise<DbPage | null> {
   const source = await getPageById(sourceId);
   if (!source || !source.is_published) return null;

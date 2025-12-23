@@ -173,8 +173,8 @@ export async function getUserFromRequest(req: NextApiRequest): Promise<DbUser | 
   }
   
   // Fetch user from database
-  const { getUserById: getUserByIdFn } = await import('../db');
-  const user = await getUserByIdFn(payload.userId);
+  const { getUserById } = await import('../db');
+  const user = await getUserById(payload.userId);
   
   return user || null;
 }
