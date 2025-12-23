@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback, useState } from 'react';
+import { useEffect, useRef, useCallback, useState, useLayoutEffect } from 'react';
 import { useRouter } from 'next/router';
 import type { Block as BlockType, BackgroundConfig } from '@/shared/types';
 import { useSaveController } from '@/lib/hooks/useSaveController';
@@ -17,6 +17,7 @@ import {
   STARTER_BLOCK_PREFIX,
 } from '@/lib/starter';
 import { useViewportMode, VIEWPORT_BREAKPOINT } from '@/lib/canvas';
+import { assertThemeVarsOnRoot } from '@/lib/themeVars';
 
 import { Canvas } from './Canvas';
 import { BackgroundPanel } from './BackgroundPanel';
@@ -106,6 +107,16 @@ export function Editor({
   initialPublishedRevision = null,
 }: EditorProps) {
   const router = useRouter();
+
+  // dev-only: assert theme vars exist on :root at mount
+  // this helps verify the ssr injection is working
+  const themeAsserted = useRef(false);
+  useLayoutEffect(() => {
+    if (!themeAsserted.current) {
+      themeAsserted.current = true;
+      assertThemeVarsOnRoot();
+    }
+  }, []);
 
   // Auth state (replaces Apollo useQuery)
   const { data: meData, loading: meLoading, refetch: refetchMe } = useMe();
