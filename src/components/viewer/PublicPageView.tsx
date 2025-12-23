@@ -173,6 +173,7 @@ export function PublicPageView({ doc, slug }: PublicPageViewProps) {
   // Convert PageDoc blocks to legacy format for ViewerCanvas
   const legacyBlocks = convertToLegacyBlocks(doc.blocks);
   
+  
   // DEBUG: Always log on first render to diagnose blank page issues
   if (typeof window !== 'undefined') {
     console.log('[PublicPageView] === RENDER DEBUG ===');

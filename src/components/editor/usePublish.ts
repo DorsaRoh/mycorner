@@ -161,10 +161,16 @@ export function usePublish({
         sessionStorage.removeItem('publishIntent');
       }
       
-      // redirect to the canonical public page path
+      // Navigate to the canonical public page path
+      // ISR with on-demand revalidation ensures fresh content without cache busters.
+      // The publish API calls res.revalidate() which regenerates the page immediately.
       const redirectUrl = options?.redirectTo || canonicalPath;
-      console.log('[Publish] redirecting to:', redirectUrl);
-      router.replace(redirectUrl);
+      
+      console.log('[Publish] navigating to:', redirectUrl);
+      
+      // Use window.location.href for a full page load
+      // This ensures we get the freshly revalidated ISR page
+      window.location.href = redirectUrl;
       
     } catch (error) {
       console.error('[Publish] Error:', error);

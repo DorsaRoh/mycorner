@@ -353,6 +353,19 @@ export default async function handler(
       }
     }
     
+    // === Trigger ISR On-Demand Revalidation ===
+    // This regenerates the static page immediately so the publisher sees fresh content.
+    // Works in both development and production.
+    try {
+      await res.revalidate(`/${slug}`);
+      console.log(`[Publish] ISR revalidated: /${slug}`);
+    } catch (revalidateError) {
+      // Log but don't fail - the page will still be served (just might be stale briefly)
+      console.warn('[Publish] ISR revalidation failed:', revalidateError);
+      // Add to warnings so client knows
+      purgeWarnings.push('Page revalidation delayed - content may take a moment to update');
+    }
+    
     // log success
     logPublish({
       userId: user.id,
@@ -366,8 +379,8 @@ export default async function handler(
       success: true,
     });
     
-    // Canonical URL is always /{slug} - the app serves it, not R2 directly.
-    // The client should redirect to this path, which the Next.js app will serve via SSR.
+    // Canonical URL is always /{slug} - the app serves it via ISR, not R2 directly.
+    // The client should navigate to this path. On-demand revalidation ensures fresh content.
     // We return both a relative path (for client-side redirect) and full public URL (for sharing).
     const url = `/${slug}`;
     const fullPublicUrl = `${appOrigin}/${slug}`;
