@@ -280,11 +280,12 @@ async function signS3Request(
   const region = config.region || 'auto';
   const service = 's3';
   
-  // Parse endpoint URL
+  // Parse endpoint URL - use only the origin (protocol + host), strip any path
   const endpointUrl = new URL(config.endpoint);
   const host = endpointUrl.host;
+  const endpointOrigin = endpointUrl.origin; // e.g., "https://xxx.r2.cloudflarestorage.com"
   
-  // Build canonical URI
+  // Build canonical URI - path-style: /{bucket}/{key}
   const encodedKey = key.split('/').map(encodeURIComponent).join('/');
   const canonicalUri = `/${config.bucket}/${encodedKey}`;
   
@@ -334,8 +335,9 @@ async function signS3Request(
   // Build authorization header
   const authorization = `AWS4-HMAC-SHA256 Credential=${config.accessKeyId}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
   
+  // Build URL using origin only (not full endpoint which may include a path)
   return {
-    url: `${config.endpoint}/${config.bucket}/${encodedKey}`,
+    url: `${endpointOrigin}/${config.bucket}/${encodedKey}`,
     headers: {
       ...headers,
       'Authorization': authorization,
