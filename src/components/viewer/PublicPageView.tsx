@@ -125,6 +125,22 @@ export function PublicPageView({ doc, slug }: PublicPageViewProps) {
   // Convert PageDoc blocks to legacy format for ViewerCanvas
   const legacyBlocks = convertToLegacyBlocks(doc.blocks);
   
+  // DEBUG: Log block conversion in development
+  if (process.env.NODE_ENV !== 'production' && typeof window !== 'undefined') {
+    console.log('[PublicPageView] Rendering page:', slug);
+    console.log('[PublicPageView] PageDoc blocks:', doc.blocks.length);
+    console.log('[PublicPageView] Legacy blocks:', legacyBlocks.map(b => ({
+      id: b.id,
+      type: b.type,
+      contentPrefix: b.content?.slice(0, 50),
+      x: b.x,
+      y: b.y,
+      w: b.width,
+      h: b.height,
+    })));
+    console.log('[PublicPageView] Theme:', doc.themeId, theme.name);
+  }
+  
   // Get background style from theme
   const backgroundStyle = getThemeBackground(theme);
   

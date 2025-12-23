@@ -102,22 +102,29 @@ export interface NormalizedRect {
  * Canvas extends infinitely vertically.
  */
 export function getCanvasDimensions(containerWidth: number, containerHeight: number): CanvasDimensions {
-  // Cap content width for side margins on wide screens
-  const contentWidth = Math.min(containerWidth, MAX_CONTENT_WIDTH);
+  // CRITICAL FIX: Prevent scale=0 when container has no dimensions yet
+  // This happens during SSR or before first layout measurement.
+  // Use reference dimensions as fallback to ensure blocks are visible.
+  const safeContainerWidth = containerWidth > 0 ? containerWidth : REFERENCE_WIDTH;
+  const safeContainerHeight = containerHeight > 0 ? containerHeight : REFERENCE_HEIGHT;
   
-  const scaleX = containerWidth / REFERENCE_WIDTH;
-  const scaleY = containerHeight / REFERENCE_HEIGHT;
+  // Cap content width for side margins on wide screens
+  const contentWidth = Math.min(safeContainerWidth, MAX_CONTENT_WIDTH);
+  
+  const scaleX = safeContainerWidth / REFERENCE_WIDTH;
+  const scaleY = safeContainerHeight / REFERENCE_HEIGHT;
   
   // Use width-based scaling, capped at 1.0 (no upscaling beyond reference)
-  const scale = contentWidth / REFERENCE_WIDTH;
+  // Ensure minimum scale to prevent invisible blocks
+  const scale = Math.max(0.1, contentWidth / REFERENCE_WIDTH);
   
   // Center content horizontally when there are side margins
-  const offsetX = (containerWidth - contentWidth) / 2;
+  const offsetX = (safeContainerWidth - contentWidth) / 2;
   const offsetY = 0; // No vertical offset - infinite scroll
   
   return {
-    width: containerWidth,
-    height: containerHeight,
+    width: safeContainerWidth,
+    height: safeContainerHeight,
     scale,
     scaleX,
     scaleY,

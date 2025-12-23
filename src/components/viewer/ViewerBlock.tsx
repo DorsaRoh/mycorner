@@ -98,6 +98,11 @@ interface BlockContentProps {
 }
 
 const BlockContent = memo(function BlockContent({ type, content, style, effects, scaledFontSize }: BlockContentProps) {
+  // DEBUG: Log renderer branch in development
+  if (process.env.NODE_ENV !== 'production' && typeof window !== 'undefined') {
+    console.log('[ViewerBlock] Rendering:', { type, contentLength: content?.length, hasEffects: !!effects });
+  }
+  
   // Get text styles but override fontSize with scaled version
   const textStyles = useMemo(() => {
     const baseStyles = getTextStyles(style);

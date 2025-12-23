@@ -14,6 +14,17 @@ export function ViewerCanvas({ blocks, background }: ViewerCanvasProps) {
   // Use responsive canvas sizing
   const { dimensions, containerRef } = useCanvasSize({ debounceMs: 16 });
   
+  // DEBUG: Log canvas dimensions in development
+  if (process.env.NODE_ENV !== 'production' && typeof window !== 'undefined') {
+    console.log('[ViewerCanvas] Dimensions:', {
+      width: dimensions.width,
+      height: dimensions.height,
+      scale: dimensions.scale,
+      offsetX: dimensions.offsetX,
+      blocksCount: blocks.length,
+    });
+  }
+  
   const { canvasStyle, bgImageStyle } = useMemo(() => getBackgroundStyles(background), [background]);
 
   // Calculate content bounds to ensure canvas can scroll to show all blocks
