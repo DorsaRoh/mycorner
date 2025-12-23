@@ -142,7 +142,13 @@ export default async function handler(
   // Verify state (CSRF protection)
   const stateResult = verifyOAuthState(req, res, state);
   if (!stateResult.valid) {
-    console.error('[auth/callback] Invalid state - possible CSRF attempt');
+    console.error('[auth/callback] Invalid state - possible CSRF attempt or cookie domain mismatch');
+    console.error('[auth/callback] Debug info:', {
+      hasStateCookie: !!req.headers.cookie?.includes('yourcorner_oauth_state'),
+      cookieHeader: req.headers.cookie ? '[present]' : '[missing]',
+      appOrigin: process.env.APP_ORIGIN || process.env.PUBLIC_URL,
+      host: req.headers.host,
+    });
     return res.redirect('/?error=auth_error');
   }
   

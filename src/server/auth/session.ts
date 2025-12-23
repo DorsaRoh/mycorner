@@ -20,6 +20,47 @@ const SESSION_COOKIE_NAME = 'yourcorner_session';
 const OAUTH_STATE_COOKIE_NAME = 'yourcorner_oauth_state';
 const SESSION_MAX_AGE_SECONDS = 30 * 24 * 60 * 60; // 30 days
 
+/**
+ * Get the cookie domain from APP_ORIGIN/PUBLIC_URL.
+ * Returns the base domain (e.g., ".itsmycorner.com") to allow cookies to work
+ * across both www and non-www subdomains.
+ * 
+ * Returns undefined in development (uses default behavior).
+ */
+function getCookieDomain(): string | undefined {
+  if (process.env.NODE_ENV !== 'production') {
+    return undefined; // Let cookies use default behavior in development
+  }
+  
+  const origin = process.env.APP_ORIGIN || process.env.PUBLIC_URL;
+  if (!origin) {
+    return undefined;
+  }
+  
+  try {
+    const url = new URL(origin);
+    const hostname = url.hostname;
+    
+    // Don't set domain for localhost
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      return undefined;
+    }
+    
+    // Check if it's an IP address (don't set domain for IPs)
+    if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostname)) {
+      return undefined;
+    }
+    
+    // Remove "www." prefix if present and add leading dot to allow subdomains
+    // e.g., "www.itsmycorner.com" -> ".itsmycorner.com"
+    // e.g., "itsmycorner.com" -> ".itsmycorner.com"
+    const baseDomain = hostname.replace(/^www\./, '');
+    return `.${baseDomain}`;
+  } catch {
+    return undefined;
+  }
+}
+
 // Get secret from environment
 function getSessionSecret(): string {
   const secret = process.env.SESSION_SECRET;
@@ -110,6 +151,7 @@ function serializeCookie(
     secure?: boolean;
     sameSite?: 'lax' | 'strict' | 'none';
     path?: string;
+    domain?: string;
   } = {}
 ): string {
   const parts = [`${name}=${encodeURIComponent(value)}`];
@@ -128,6 +170,9 @@ function serializeCookie(
   }
   if (options.path) {
     parts.push(`Path=${options.path}`);
+  }
+  if (options.domain) {
+    parts.push(`Domain=${options.domain}`);
   }
   
   return parts.join('; ');
@@ -170,6 +215,7 @@ export function setSessionCookie(res: NextApiResponse, userId: string): void {
   const token = createSessionToken({ userId, exp });
   
   const isProduction = process.env.NODE_ENV === 'production';
+  const cookieDomain = getCookieDomain();
   
   const cookie = serializeCookie(SESSION_COOKIE_NAME, token, {
     maxAge: SESSION_MAX_AGE_SECONDS,
@@ -177,6 +223,7 @@ export function setSessionCookie(res: NextApiResponse, userId: string): void {
     secure: isProduction,
     sameSite: 'lax',
     path: '/',
+    domain: cookieDomain,
   });
   
   // Append to existing cookies if any
@@ -193,10 +240,13 @@ export function setSessionCookie(res: NextApiResponse, userId: string): void {
  * Clear session cookie (logout).
  */
 export function clearSessionCookie(res: NextApiResponse): void {
+  const cookieDomain = getCookieDomain();
+  
   const cookie = serializeCookie(SESSION_COOKIE_NAME, '', {
     maxAge: 0,
     httpOnly: true,
     path: '/',
+    domain: cookieDomain,
   });
   
   res.setHeader('Set-Cookie', cookie);
@@ -221,6 +271,7 @@ export function setOAuthStateCookie(res: NextApiResponse, returnTo: string): str
   const value = Buffer.from(JSON.stringify(payload)).toString('base64');
   
   const isProduction = process.env.NODE_ENV === 'production';
+  const cookieDomain = getCookieDomain();
   
   const cookie = serializeCookie(OAUTH_STATE_COOKIE_NAME, value, {
     maxAge: 600, // 10 minutes
@@ -228,6 +279,7 @@ export function setOAuthStateCookie(res: NextApiResponse, returnTo: string): str
     secure: isProduction,
     sameSite: 'lax',
     path: '/',
+    domain: cookieDomain,
   });
   
   // Append to existing cookies if any
@@ -253,12 +305,14 @@ export function verifyOAuthState(
 ): { valid: boolean; returnTo: string } {
   const cookies = parseCookies(req.headers.cookie);
   const stateValue = cookies[OAUTH_STATE_COOKIE_NAME];
+  const cookieDomain = getCookieDomain();
   
   // Always clear the state cookie
   const clearCookie = serializeCookie(OAUTH_STATE_COOKIE_NAME, '', {
     maxAge: 0,
     httpOnly: true,
     path: '/',
+    domain: cookieDomain,
   });
   
   const existingCookies = res.getHeader('Set-Cookie');
