@@ -44,7 +44,7 @@ export default async function handler(
     }
 
     // Add feedback
-    const feedback = db.addFeedback(pageId, trimmedMessage, trimmedEmail || null);
+    const feedback = await db.addFeedback(pageId, trimmedMessage, trimmedEmail || null);
 
     // Log feedback in development
     console.log(`\n💬 New feedback for page ${pageId}:`);

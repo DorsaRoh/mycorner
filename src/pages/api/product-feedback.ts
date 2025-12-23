@@ -34,7 +34,7 @@ export default async function handler(
     const db = await import('@/server/db');
 
     // Add product feedback
-    const feedback = db.addProductFeedback(trimmedMessage, trimmedEmail || null);
+    const feedback = await db.addProductFeedback(trimmedMessage, trimmedEmail || null);
 
     // Log feedback in development
     console.log(`\n💬 New product feedback:`);
