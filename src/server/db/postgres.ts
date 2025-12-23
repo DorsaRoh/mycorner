@@ -12,8 +12,11 @@ import type { DbUser, DbPage, DbFeedback, DbProductFeedback, PublishPageParams, 
 
 let pool: Pool | null = null;
 let db: ReturnType<typeof drizzle> | null = null;
+let initPromise: Promise<ReturnType<typeof drizzle>> | null = null;
 
 export async function initPostgres(connectionString: string) {
+  if (db) return db;
+  
   pool = new Pool({ connectionString });
   db = drizzle(pool, { schema });
   console.log('✅ PostgreSQL connected');
@@ -25,6 +28,25 @@ export async function initPostgres(connectionString: string) {
   await runOneTimeUsernameReset();
   
   return db;
+}
+
+/**
+ * Lazily initialize PostgreSQL connection.
+ * This is critical for Vercel/serverless environments where there's no server startup.
+ */
+async function ensureInitialized(): Promise<ReturnType<typeof drizzle>> {
+  if (db) return db;
+  
+  // Avoid race conditions with concurrent requests
+  if (initPromise) return initPromise;
+  
+  const connectionString = process.env.DATABASE_URL;
+  if (!connectionString) {
+    throw new Error('DATABASE_URL environment variable is required for PostgreSQL');
+  }
+  
+  initPromise = initPostgres(connectionString);
+  return initPromise;
 }
 
 /**
@@ -95,6 +117,14 @@ export function getDb() {
   return db;
 }
 
+/**
+ * Get database with lazy initialization for serverless environments.
+ */
+async function getDbLazy() {
+  await ensureInitialized();
+  return db!;
+}
+
 // =============================================================================
 // User Operations
 // =============================================================================
@@ -106,7 +136,7 @@ export async function upsertUserByGoogleSub(params: {
   avatarUrl?: string;
 }): Promise<DbUser> {
   const { googleSub, email, name, avatarUrl } = params;
-  const d = getDb();
+  const d = await getDbLazy();
 
   // Try to find existing user
   const existing = await d.select().from(schema.users).where(eq(schema.users.googleSub, googleSub)).limit(1);
@@ -158,31 +188,31 @@ export async function upsertUserByGoogleSub(params: {
 }
 
 export async function getUserById(id: string): Promise<DbUser | null> {
-  const d = getDb();
+  const d = await getDbLazy();
   const result = await d.select().from(schema.users).where(eq(schema.users.id, id)).limit(1);
   return result.length > 0 ? mapUser(result[0]) : null;
 }
 
 export async function getUserByEmail(email: string): Promise<DbUser | null> {
-  const d = getDb();
+  const d = await getDbLazy();
   const result = await d.select().from(schema.users).where(eq(schema.users.email, email.toLowerCase())).limit(1);
   return result.length > 0 ? mapUser(result[0]) : null;
 }
 
 export async function getUserByUsername(username: string): Promise<DbUser | null> {
-  const d = getDb();
+  const d = await getDbLazy();
   const result = await d.select().from(schema.users).where(eq(schema.users.username, username.toLowerCase())).limit(1);
   return result.length > 0 ? mapUser(result[0]) : null;
 }
 
 export async function isUsernameTaken(username: string): Promise<boolean> {
-  const d = getDb();
+  const d = await getDbLazy();
   const result = await d.select({ id: schema.users.id }).from(schema.users).where(eq(schema.users.username, username.toLowerCase())).limit(1);
   return result.length > 0;
 }
 
 export async function setUsername(userId: string, username: string): Promise<{ success: boolean; error?: string }> {
-  const d = getDb();
+  const d = await getDbLazy();
   
   // Validate username format (a-z, 0-9, _, -)
   const usernameRegex = /^[a-z0-9_-]{3,20}$/;
@@ -209,7 +239,7 @@ export async function setUsername(userId: string, username: string): Promise<{ s
 // =============================================================================
 
 export async function createPage(ownerId: string, title?: string, userId?: string): Promise<DbPage> {
-  const d = getDb();
+  const d = await getDbLazy();
   const id = `page_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
   const newPage = await d.insert(schema.pages)
@@ -227,31 +257,31 @@ export async function createPage(ownerId: string, title?: string, userId?: strin
 }
 
 export async function getPageById(id: string): Promise<DbPage | null> {
-  const d = getDb();
+  const d = await getDbLazy();
   const result = await d.select().from(schema.pages).where(eq(schema.pages.id, id)).limit(1);
   return result.length > 0 ? mapPage(result[0]) : null;
 }
 
 export async function getPageBySlug(slug: string): Promise<DbPage | null> {
-  const d = getDb();
+  const d = await getDbLazy();
   const result = await d.select().from(schema.pages).where(eq(schema.pages.slug, slug.toLowerCase())).limit(1);
   return result.length > 0 ? mapPage(result[0]) : null;
 }
 
 export async function getPagesByUserId(userId: string): Promise<DbPage[]> {
-  const d = getDb();
+  const d = await getDbLazy();
   const result = await d.select().from(schema.pages).where(eq(schema.pages.userId, userId)).orderBy(desc(schema.pages.updatedAt));
   return result.map(mapPage);
 }
 
 export async function getPagesByOwnerId(ownerId: string): Promise<DbPage[]> {
-  const d = getDb();
+  const d = await getDbLazy();
   const result = await d.select().from(schema.pages).where(eq(schema.pages.ownerId, ownerId)).orderBy(desc(schema.pages.updatedAt));
   return result.map(mapPage);
 }
 
 export async function getPublicPages(limit: number = 12): Promise<DbPage[]> {
-  const d = getDb();
+  const d = await getDbLazy();
   const result = await d.select().from(schema.pages).where(eq(schema.pages.isPublished, true)).orderBy(desc(schema.pages.updatedAt)).limit(limit);
   return result.map(mapPage);
 }
@@ -261,7 +291,7 @@ export async function updatePage(
   updates: { title?: string; content?: string; background?: string },
   baseServerRevision?: number
 ): Promise<{ page: DbPage | null; conflict: boolean }> {
-  const d = getDb();
+  const d = await getDbLazy();
   
   const page = await getPageById(id);
   if (!page) return { page: null, conflict: false };
@@ -287,7 +317,7 @@ export async function updatePage(
 }
 
 export async function publishPage(params: PublishPageParams): Promise<PublishPageResult> {
-  const d = getDb();
+  const d = await getDbLazy();
   const { id, content, background, baseServerRevision, slug } = params;
 
   const page = await getPageById(id);
@@ -338,7 +368,7 @@ export async function forkPage(sourceId: string, newOwnerId: string, newUserId?:
   const source = await getPageById(sourceId);
   if (!source || !source.is_published) return null;
 
-  const d = getDb();
+  const d = await getDbLazy();
   const id = `page_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   const title = source.title ? `${source.title} (fork)` : null;
 
@@ -362,7 +392,7 @@ export async function forkPage(sourceId: string, newOwnerId: string, newUserId?:
 }
 
 export async function claimAnonymousPages(anonymousId: string, userId: string): Promise<void> {
-  const d = getDb();
+  const d = await getDbLazy();
   await d.update(schema.pages)
     .set({ ownerId: userId, userId, updatedAt: new Date() })
     .where(and(
@@ -381,7 +411,7 @@ export async function createDefaultPage(userId: string, title: string): Promise<
 // =============================================================================
 
 export async function addFeedback(pageId: string, message: string, email?: string): Promise<DbFeedback> {
-  const d = getDb();
+  const d = await getDbLazy();
   const result = await d.insert(schema.feedback)
     .values({ pageId, message, email: email || null })
     .returning();
@@ -396,7 +426,7 @@ export async function addFeedback(pageId: string, message: string, email?: strin
 }
 
 export async function addProductFeedback(message: string, email?: string): Promise<DbProductFeedback> {
-  const d = getDb();
+  const d = await getDbLazy();
   const result = await d.insert(schema.productFeedback)
     .values({ message, email: email || null })
     .returning();

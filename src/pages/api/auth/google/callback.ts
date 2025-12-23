@@ -209,9 +209,12 @@ export default async function handler(
     return res.redirect(returnTo);
     
   } catch (err) {
-    console.error('[auth/callback] CAUGHT ERROR:', err);
-    console.error('[auth/callback] Error message:', err instanceof Error ? err.message : 'Unknown error');
+    console.error('[auth/callback] ========== CAUGHT ERROR ==========');
+    console.error('[auth/callback] Error type:', err?.constructor?.name);
+    console.error('[auth/callback] Error message:', err instanceof Error ? err.message : String(err));
     console.error('[auth/callback] Error stack:', err instanceof Error ? err.stack : 'No stack');
+    console.error('[auth/callback] Full error:', JSON.stringify(err, Object.getOwnPropertyNames(err || {}), 2));
+    console.error('[auth/callback] ===================================');
     return res.redirect('/?error=auth_error&reason=exception');
   }
 }
