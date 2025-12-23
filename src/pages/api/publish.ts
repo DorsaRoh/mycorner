@@ -28,6 +28,8 @@ import {
   requirePublicPagesConfigured,
   isValidSlug,
   generateBaseSlug,
+  getMissingStorageEnvVars,
+  REQUIRED_STORAGE_ENV_VARS,
 } from '@/server/storage/client';
 import { purgePage, isPurgeConfigured } from '@/server/cdn/purge';
 import type { PublishPageResult } from '@/server/db/types';
@@ -147,23 +149,27 @@ export default async function handler(
   let slug = '';
   
   try {
-    // === PRODUCTION GATE: Storage must be configured ===
-    const configError = requirePublicPagesConfigured();
-    if (configError) {
-      console.error('[Publish] Storage not configured:', configError);
-      return res.status(503).json({
-        success: false,
-        error: 'Service unavailable: storage not configured',
-      });
-    }
+    // === PRODUCTION GATE: Storage must be fully configured ===
+    const isProduction = process.env.NODE_ENV === 'production';
     
-    // In production, we must have full upload credentials
-    if (process.env.NODE_ENV === 'production' && !isUploadConfigured()) {
-      console.error('[Publish] Upload credentials not configured in production');
-      return res.status(503).json({
-        success: false,
-        error: 'Service unavailable: storage credentials not configured',
-      });
+    if (isProduction) {
+      const missing = getMissingStorageEnvVars();
+      if (missing.length > 0) {
+        console.error('[Publish] Storage not configured in production. Missing:', missing);
+        return res.status(503).json({
+          success: false,
+          error: 'Service unavailable: storage not configured',
+          code: 'STORAGE_NOT_CONFIGURED',
+          missingEnvVars: missing,
+          requiredEnvVars: [...REQUIRED_STORAGE_ENV_VARS],
+        });
+      }
+    } else {
+      // development: allow graceful degradation but warn
+      const configError = requirePublicPagesConfigured();
+      if (configError && !isUploadConfigured()) {
+        console.warn('[Publish] Storage not configured in development - uploads will fail');
+      }
     }
     
     // Parse request body
@@ -265,12 +271,10 @@ export default async function handler(
           error: 'Failed to upload page to storage',
         });
       }
-    } else if (process.env.NODE_ENV !== 'development') {
-      // In non-development, upload must be configured
-      return res.status(503).json({
-        success: false,
-        error: 'Service unavailable: storage not configured',
-      });
+    } else {
+      // development without storage: this is a dev-only code path
+      // pages can still be "published" to DB but won't be accessible via CDN
+      console.warn('[Publish] Development mode: storage not configured, page will only be in DB');
     }
     
     // === DB Update with conflict retry ===

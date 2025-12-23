@@ -197,18 +197,61 @@ export function validateConfig(): void {
       throw new Error('SESSION_SECRET must be set in production.');
     }
     
-    // DEPLOYMENT INVARIANT: Static pages require S3_PUBLIC_BASE_URL
+    // DEPLOYMENT INVARIANT: Static pages require full storage configuration
     // Without this, /u/[slug] will 404 and /api/publish will 503
-    const publicBaseUrl = process.env.S3_PUBLIC_BASE_URL || process.env.PUBLIC_PAGES_BASE_URL;
-    if (!publicBaseUrl) {
+    validateStorageConfig();
+  }
+}
+
+/**
+ * Validate storage configuration in production.
+ * Called from validateConfig() - fails fast at boot with precise error messages.
+ */
+function validateStorageConfig(): void {
+  const missing: string[] = [];
+  
+  // check all required storage env vars
+  if (!process.env.S3_ENDPOINT) missing.push('S3_ENDPOINT');
+  if (!process.env.S3_BUCKET) missing.push('S3_BUCKET');
+  if (!process.env.S3_ACCESS_KEY_ID) missing.push('S3_ACCESS_KEY_ID');
+  if (!process.env.S3_SECRET_ACCESS_KEY) missing.push('S3_SECRET_ACCESS_KEY');
+  
+  const publicBaseUrl = process.env.S3_PUBLIC_BASE_URL || process.env.PUBLIC_PAGES_BASE_URL;
+  if (!publicBaseUrl) missing.push('S3_PUBLIC_BASE_URL');
+  
+  if (missing.length > 0) {
+    throw new Error(
+      `Production deployment requires object storage configuration.\n` +
+      `Missing environment variables:\n` +
+      missing.map(v => `  - ${v}`).join('\n') +
+      `\n\n` +
+      `Required for static page hosting:\n` +
+      `  S3_ENDPOINT         - S3-compatible endpoint (e.g., https://xxx.r2.cloudflarestorage.com)\n` +
+      `  S3_BUCKET           - Bucket name for page storage\n` +
+      `  S3_ACCESS_KEY_ID    - Access key for uploads\n` +
+      `  S3_SECRET_ACCESS_KEY- Secret key for uploads\n` +
+      `  S3_PUBLIC_BASE_URL  - Public CDN URL (e.g., https://cdn.yourdomain.com)\n\n` +
+      `See docs/SHIP_CHECKLIST.md for setup instructions.`
+    );
+  }
+  
+  // validate URL format
+  try {
+    const parsed = new URL(publicBaseUrl!);
+    if (!['http:', 'https:'].includes(parsed.protocol)) {
       throw new Error(
-        'S3_PUBLIC_BASE_URL is required in production. ' +
-        'Public pages are served from object storage. ' +
-        'Set S3_PUBLIC_BASE_URL to your CDN/storage public URL (e.g., https://cdn.yourdomain.com).'
+        `S3_PUBLIC_BASE_URL must use http or https protocol, got: ${parsed.protocol}`
       );
     }
-    console.log(`   Public Pages: ${publicBaseUrl}`);
+  } catch (e) {
+    if (e instanceof Error && e.message.includes('protocol')) {
+      throw e;
+    }
+    throw new Error(`S3_PUBLIC_BASE_URL is not a valid URL: ${publicBaseUrl}`);
   }
+  
+  console.log(`   Public Pages: ${publicBaseUrl}`);
+  console.log(`   Storage: S3-compatible (${process.env.S3_ENDPOINT})`);
 }
 
 // Export for client-side use (only public values)

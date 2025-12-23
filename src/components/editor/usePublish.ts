@@ -123,6 +123,19 @@ export function usePublish({
       console.log('[Publish] API response:', result);
       
       if (!response.ok) {
+        // handle storage not configured error with helpful message
+        if (response.status === 503 && result.code === 'STORAGE_NOT_CONFIGURED') {
+          const missingVars = result.missingEnvVars?.join(', ') || 'unknown';
+          const requiredVars = result.requiredEnvVars?.join(', ') || 
+            'S3_ENDPOINT, S3_BUCKET, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY, S3_PUBLIC_BASE_URL';
+          
+          throw new Error(
+            `Storage not configured. Missing: ${missingVars}\n\n` +
+            `Required environment variables:\n${requiredVars}\n\n` +
+            `See docs/SHIP_CHECKLIST.md for deployment setup.`
+          );
+        }
+        
         throw new Error(result.error || 'Failed to publish');
       }
       

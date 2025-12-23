@@ -81,6 +81,17 @@ export function isPublicPagesConfigured(): boolean {
 }
 
 /**
+ * Required environment variables for full storage functionality.
+ */
+export const REQUIRED_STORAGE_ENV_VARS = [
+  'S3_ENDPOINT',
+  'S3_BUCKET',
+  'S3_ACCESS_KEY_ID',
+  'S3_SECRET_ACCESS_KEY',
+  'S3_PUBLIC_BASE_URL',
+] as const;
+
+/**
  * Check if upload credentials are configured.
  * This requires secrets and is used by publish/upload endpoints.
  */
@@ -92,6 +103,73 @@ export function isUploadConfigured(): boolean {
     process.env.S3_BUCKET &&
     getPublicBaseUrl()
   );
+}
+
+/**
+ * Get missing storage environment variables.
+ * Returns an array of missing variable names.
+ */
+export function getMissingStorageEnvVars(): string[] {
+  const missing: string[] = [];
+  
+  if (!process.env.S3_ENDPOINT) missing.push('S3_ENDPOINT');
+  if (!process.env.S3_BUCKET) missing.push('S3_BUCKET');
+  if (!process.env.S3_ACCESS_KEY_ID) missing.push('S3_ACCESS_KEY_ID');
+  if (!process.env.S3_SECRET_ACCESS_KEY) missing.push('S3_SECRET_ACCESS_KEY');
+  if (!getPublicBaseUrl()) missing.push('S3_PUBLIC_BASE_URL');
+  
+  return missing;
+}
+
+/**
+ * Validate that S3_PUBLIC_BASE_URL is a valid URL.
+ * Returns error message if invalid, null if valid.
+ */
+export function validatePublicBaseUrl(): string | null {
+  const url = getPublicBaseUrl();
+  if (!url) return null; // not configured is handled elsewhere
+  
+  try {
+    const parsed = new URL(url);
+    if (!['http:', 'https:'].includes(parsed.protocol)) {
+      return `S3_PUBLIC_BASE_URL must use http or https protocol, got: ${parsed.protocol}`;
+    }
+    return null;
+  } catch {
+    return `S3_PUBLIC_BASE_URL is not a valid URL: ${url}`;
+  }
+}
+
+/**
+ * Get storage configuration or throw with a clear error listing missing keys.
+ * Use this when storage is required (e.g., production publish).
+ */
+export function getStorageConfigOrThrow(): StorageConfig {
+  const missing = getMissingStorageEnvVars();
+  
+  if (missing.length > 0) {
+    throw new Error(
+      `Storage not configured. Missing environment variables:\n` +
+      missing.map(v => `  - ${v}`).join('\n') +
+      `\n\nSee docs/SHIP_CHECKLIST.md for deployment setup.`
+    );
+  }
+  
+  // validate URL format
+  const urlError = validatePublicBaseUrl();
+  if (urlError) {
+    throw new Error(urlError);
+  }
+  
+  // at this point all vars are present
+  return {
+    endpoint: process.env.S3_ENDPOINT!,
+    accessKeyId: process.env.S3_ACCESS_KEY_ID!,
+    secretAccessKey: process.env.S3_SECRET_ACCESS_KEY!,
+    bucket: process.env.S3_BUCKET!,
+    publicBaseUrl: getPublicBaseUrl()!,
+    region: process.env.S3_REGION || 'auto',
+  };
 }
 
 /**

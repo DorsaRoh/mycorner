@@ -40,7 +40,7 @@ export const TextContentSchema = z.object({
 
 export const LinkContentSchema = z.object({
   label: z.string(),
-  url: z.string().url(),
+  url: z.string(), // Can be empty, placeholder, or full URL - validated/handled at render time
 });
 
 export const ImageContentSchema = z.object({
