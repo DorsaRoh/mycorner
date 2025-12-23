@@ -244,6 +244,10 @@ export default async function handler(
     // === CRITICAL: Upload to storage BEFORE DB update ===
     // If upload fails, we do NOT update DB - prevents "DB says published but artifact missing"
     let storageKey: string | null = null;
+    let storageWarning: string | null = null;
+    
+    // Check if we should allow DB-only publish (no S3)
+    const allowDbOnlyPublish = process.env.ALLOW_DB_ONLY_PUBLISH === 'true' || !isProduction;
     
     if (isUploadConfigured()) {
       try {
@@ -253,28 +257,41 @@ export default async function handler(
         const errorMsg = uploadError instanceof Error ? uploadError.message : 'Unknown upload error';
         console.error('[Publish] Storage upload failed:', errorMsg);
         
-        logPublish({
-          userId: user.id,
-          slug,
-          blocksCount: doc.blocks.length,
-          docSize,
-          htmlSize,
-          storageConfigured: true,
-          cdnConfigured: isPurgeConfigured(),
-          latencyMs: Date.now() - startTime,
-          success: false,
-          error: `Storage upload failed: ${errorMsg}`,
-        });
-        
-        return res.status(500).json({
-          success: false,
-          error: 'Failed to upload page to storage',
-        });
+        if (allowDbOnlyPublish) {
+          // Fallback: allow publish to proceed without storage
+          console.warn('[Publish] Continuing without storage due to ALLOW_DB_ONLY_PUBLISH=true');
+          storageWarning = `Storage upload failed (page will be served dynamically): ${errorMsg}`;
+        } else {
+          logPublish({
+            userId: user.id,
+            slug,
+            blocksCount: doc.blocks.length,
+            docSize,
+            htmlSize,
+            storageConfigured: true,
+            cdnConfigured: isPurgeConfigured(),
+            latencyMs: Date.now() - startTime,
+            success: false,
+            error: `Storage upload failed: ${errorMsg}`,
+          });
+          
+          return res.status(500).json({
+            success: false,
+            error: `Failed to upload page to storage: ${errorMsg}`,
+          });
+        }
       }
     } else {
-      // development without storage: this is a dev-only code path
-      // pages can still be "published" to DB but won't be accessible via CDN
-      console.warn('[Publish] Development mode: storage not configured, page will only be in DB');
+      // Storage not configured - allow if permitted
+      if (allowDbOnlyPublish) {
+        console.warn('[Publish] Storage not configured, page will only be in DB');
+        storageWarning = 'Storage not configured, page will be served dynamically';
+      } else {
+        return res.status(503).json({
+          success: false,
+          error: 'Storage not configured',
+        });
+      }
     }
     
     // === DB Update with conflict retry ===
@@ -365,8 +382,14 @@ export default async function handler(
       storageKey,
     };
     
-    if (purgeWarnings.length > 0) {
-      response.warnings = purgeWarnings;
+    // Collect all warnings
+    const allWarnings: string[] = [...purgeWarnings];
+    if (storageWarning) {
+      allWarnings.push(storageWarning);
+    }
+    
+    if (allWarnings.length > 0) {
+      response.warnings = allWarnings;
     }
     
     return res.status(200).json(response);

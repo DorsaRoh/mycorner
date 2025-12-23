@@ -26,6 +26,14 @@ export default async function handler(
     SESSION_SECRET: process.env.SESSION_SECRET ? '✓ set' : '✗ missing',
     DATABASE_URL: process.env.DATABASE_URL ? '✓ set' : '✗ missing',
     
+    // S3/Storage configuration
+    S3_ENDPOINT: process.env.S3_ENDPOINT ? '✓ set' : '✗ missing',
+    S3_BUCKET: process.env.S3_BUCKET ? '✓ set' : '✗ missing',
+    S3_ACCESS_KEY_ID: process.env.S3_ACCESS_KEY_ID ? '✓ set' : '✗ missing',
+    S3_SECRET_ACCESS_KEY: process.env.S3_SECRET_ACCESS_KEY ? '✓ set' : '✗ missing',
+    S3_PUBLIC_BASE_URL: process.env.S3_PUBLIC_BASE_URL ? '✓ set' : '✗ missing',
+    S3_REGION: process.env.S3_REGION || '(not set, defaults to auto)',
+    
     // Vercel-specific
     VERCEL: process.env.VERCEL,
     VERCEL_ENV: process.env.VERCEL_ENV,
