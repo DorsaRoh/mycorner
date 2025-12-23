@@ -210,16 +210,26 @@ export default async function handler(
   }
   
   // check authentication via session cookie
-  const { getUserFromRequest } = await import('@/server/auth/session');
+  // Allow both authenticated users and anonymous sessions (for draft mode)
+  const { getUserFromRequest, getAnonymousIdFromRequest } = await import('@/server/auth/session');
   const user = await getUserFromRequest(req);
-  if (!user?.id) {
-    return res.status(401).json({ 
-      success: false, 
-      error: 'Authentication required' 
-    });
-  }
   
-  const userId = user.id;
+  // Use user ID if authenticated, otherwise use anonymous session ID
+  let userId: string;
+  if (user?.id) {
+    userId = user.id;
+  } else {
+    // Allow anonymous uploads with session-based tracking
+    // Pass res to allow setting the anonymous cookie if needed
+    const anonymousId = await getAnonymousIdFromRequest(req, res);
+    if (!anonymousId) {
+      return res.status(401).json({ 
+        success: false, 
+        error: 'Session required' 
+      });
+    }
+    userId = anonymousId;
+  }
   
   // check storage configuration
   if (!isStorageConfigured()) {

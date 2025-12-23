@@ -373,7 +373,7 @@ export function Editor({
     }
 
     saveTimeoutRef.current = setTimeout(() => {
-      saveEditorDraft(state.blocks, state.title);
+      saveEditorDraft(state.blocks, state.title, 'default', state.background);
     }, 500);
 
     return () => {
@@ -381,7 +381,7 @@ export function Editor({
         clearTimeout(saveTimeoutRef.current);
       }
     };
-  }, [mode, state.title, state.blocks]);
+  }, [mode, state.title, state.blocks, state.background]);
 
   // Handle logout transition: clear editor and draft
   useEffect(() => {

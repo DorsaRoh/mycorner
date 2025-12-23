@@ -19,6 +19,7 @@ import { AuthGate } from '@/components/editor/AuthGate';
 import { OnboardingModal } from '@/components/editor/OnboardingModal';
 import { clearDraft, migrateLegacyDraft, loadEditorDraft, getDraftAsPageDoc } from '@/lib/draft';
 import { createStarterBlocks, DEFAULT_STARTER_BACKGROUND } from '@/lib/starter';
+import type { BackgroundConfig } from '@/shared/types';
 import styles from '@/styles/EditPage.module.css';
 
 // =============================================================================
@@ -56,7 +57,7 @@ export default function NewPage() {
   const [publishError, setPublishError] = useState<string | null>(null);
   const [initialBlocks, setInitialBlocks] = useState<any[]>([]);
   const [initialTitle, setInitialTitle] = useState('');
-  const [initialBackground, setInitialBackground] = useState(DEFAULT_STARTER_BACKGROUND);
+  const [initialBackground, setInitialBackground] = useState<BackgroundConfig>(DEFAULT_STARTER_BACKGROUND);
   const [initialized, setInitialized] = useState(false);
   
   // Auth state
@@ -105,7 +106,8 @@ export default function NewPage() {
       // Load from draft storage (already in legacy format for Editor)
       setInitialTitle(draft.title || '');
       setInitialBlocks(draft.blocks || []);
-      setInitialBackground(DEFAULT_STARTER_BACKGROUND);
+      // Use saved background or fall back to default
+      setInitialBackground(draft.background || DEFAULT_STARTER_BACKGROUND);
     } else {
       // No draft, use starter blocks (default to desktop layout)
       const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;

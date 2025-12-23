@@ -283,13 +283,15 @@ export function pageDocBlocksToLegacy(blocks: PageDocBlock[]): LegacyBlock[] {
 export function saveEditorDraft(
   blocks: LegacyBlock[],
   title: string,
-  themeId: string = 'default'
+  themeId: string = 'default',
+  background?: BackgroundConfig
 ): void {
   const doc: PageDoc = {
     version: 1,
     title: title || undefined,
     bio: undefined,
     themeId,
+    background,
     blocks: legacyBlocksToPageDoc(blocks),
   };
   
@@ -303,6 +305,7 @@ export function loadEditorDraft(): {
   blocks: LegacyBlock[];
   title: string;
   themeId: string;
+  background?: BackgroundConfig;
 } | null {
   const draft = getDraft();
   if (!draft?.doc) return null;
@@ -311,6 +314,7 @@ export function loadEditorDraft(): {
     blocks: pageDocBlocksToLegacy(draft.doc.blocks),
     title: draft.doc.title || '',
     themeId: draft.doc.themeId || 'default',
+    background: draft.doc.background as BackgroundConfig | undefined,
   };
 }
 

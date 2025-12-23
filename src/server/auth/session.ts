@@ -342,3 +342,59 @@ export function validateReturnTo(returnTo: string | undefined): string {
   return returnTo;
 }
 
+// =============================================================================
+// Anonymous Session Cookie (for draft mode uploads)
+// =============================================================================
+
+const ANONYMOUS_COOKIE_NAME = 'yourcorner_anon';
+const ANONYMOUS_MAX_AGE_SECONDS = 7 * 24 * 60 * 60; // 7 days
+
+/**
+ * Get or create an anonymous session ID from the request.
+ * This is used for rate limiting and storage tracking for anonymous users.
+ * Returns the anonymous ID or null if unable to get/create one.
+ */
+export async function getAnonymousIdFromRequest(req: NextApiRequest, res?: NextApiResponse): Promise<string | null> {
+  const cookies = parseCookies(req.headers.cookie);
+  
+  // Check if user is authenticated - if so, use their user ID
+  const sessionToken = cookies[SESSION_COOKIE_NAME];
+  if (sessionToken) {
+    const payload = verifySessionToken(sessionToken);
+    if (payload) {
+      return payload.userId;
+    }
+  }
+  
+  // Check for existing anonymous cookie
+  let anonId = cookies[ANONYMOUS_COOKIE_NAME];
+  
+  // If no anonymous cookie exists and we have a response object, create one
+  if (!anonId && res) {
+    anonId = `anon_${Date.now()}_${crypto.randomBytes(8).toString('hex')}`;
+    
+    const isProduction = process.env.NODE_ENV === 'production';
+    const cookieDomain = getCookieDomain();
+    
+    const cookie = serializeCookie(ANONYMOUS_COOKIE_NAME, anonId, {
+      maxAge: ANONYMOUS_MAX_AGE_SECONDS,
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: 'lax',
+      path: '/',
+      domain: cookieDomain,
+    });
+    
+    // Append to existing cookies if any
+    const existingCookies = res.getHeader('Set-Cookie');
+    if (existingCookies) {
+      const cookiesArray = Array.isArray(existingCookies) ? existingCookies : [existingCookies as string];
+      res.setHeader('Set-Cookie', [...cookiesArray, cookie]);
+    } else {
+      res.setHeader('Set-Cookie', cookie);
+    }
+  }
+  
+  return anonId || null;
+}
+
