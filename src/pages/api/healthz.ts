@@ -29,10 +29,13 @@ interface HealthStatus {
     publicPages: SubsystemStatus;
     upload: SubsystemStatus;
     purge: SubsystemStatus;
+    auth: SubsystemStatus;
   };
   config: {
     appOrigins: string[];
     publicBaseUrl: string | null;
+    appOrigin: string | null;
+    authConfigured: boolean;
   };
 }
 
@@ -59,6 +62,12 @@ export default function handler(
   const purgeConfigured = isPurgeConfigured();
   const appOrigins = getAppOrigins();
   
+  // check auth configuration
+  const googleClientId = process.env.GOOGLE_CLIENT_ID;
+  const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
+  const appOrigin = process.env.APP_ORIGIN || process.env.PUBLIC_URL;
+  const authConfigured = !!(googleClientId && googleClientSecret && appOrigin);
+  
   // build subsystem status
   const subsystems: HealthStatus['subsystems'] = {
     publicPages: {
@@ -82,6 +91,13 @@ export default function handler(
         ? 'APP_ORIGINS should be set when purge is configured'
         : undefined,
     },
+    auth: {
+      configured: authConfigured,
+      required: isProduction,
+      error: isProduction && !authConfigured
+        ? `Auth not fully configured. Has: CLIENT_ID=${!!googleClientId}, CLIENT_SECRET=${!!googleClientSecret}, APP_ORIGIN=${!!appOrigin}`
+        : undefined,
+    },
   };
   
   // determine overall status
@@ -92,6 +108,9 @@ export default function handler(
     status = 'unhealthy';
   }
   if (subsystems.upload.required && !subsystems.upload.configured) {
+    status = 'unhealthy';
+  }
+  if (subsystems.auth.required && !subsystems.auth.configured) {
     status = 'unhealthy';
   }
   
@@ -108,6 +127,8 @@ export default function handler(
     config: {
       appOrigins,
       publicBaseUrl: process.env.S3_PUBLIC_BASE_URL || null,
+      appOrigin: appOrigin || null,
+      authConfigured,
     },
   };
   

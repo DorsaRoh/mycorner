@@ -41,8 +41,14 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
-  // Only GET allowed
-  if (req.method !== 'GET') {
+  console.log('[auth/google] === OAuth Initiation Started ===');
+  console.log('[auth/google] Request Host:', req.headers.host);
+  console.log('[auth/google] APP_ORIGIN:', process.env.APP_ORIGIN);
+  console.log('[auth/google] PUBLIC_URL:', process.env.PUBLIC_URL);
+  console.log('[auth/google] NODE_ENV:', process.env.NODE_ENV);
+  
+  // Only GET/HEAD allowed
+  if (req.method !== 'GET' && req.method !== 'HEAD') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
   
@@ -69,6 +75,9 @@ export default async function handler(
   // Build Google OAuth URL
   const redirectUri = `${config.appOrigin}/api/auth/google/callback`;
   
+  console.log('[auth/google] Using redirect_uri:', redirectUri);
+  console.log('[auth/google] returnTo:', returnTo);
+  
   const params = new URLSearchParams({
     client_id: config.clientId!,
     redirect_uri: redirectUri,
@@ -83,7 +92,7 @@ export default async function handler(
   
   const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
   
-  console.log(`[auth/google] Redirecting to Google OAuth, returnTo=${returnTo}`);
+  console.log('[auth/google] Redirecting to Google OAuth');
   
   return res.redirect(302, googleAuthUrl);
 }

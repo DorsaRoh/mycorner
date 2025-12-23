@@ -107,6 +107,14 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
+  console.log('[auth/callback] === OAuth Callback Started ===');
+  console.log('[auth/callback] Request URL:', req.url);
+  console.log('[auth/callback] Host:', req.headers.host);
+  console.log('[auth/callback] APP_ORIGIN:', process.env.APP_ORIGIN);
+  console.log('[auth/callback] PUBLIC_URL:', process.env.PUBLIC_URL);
+  console.log('[auth/callback] NODE_ENV:', process.env.NODE_ENV);
+  console.log('[auth/callback] Cookies present:', !!req.headers.cookie);
+  
   // Only GET allowed
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -116,7 +124,11 @@ export default async function handler(
   
   // Check if Google OAuth is configured
   if (!config.isConfigured) {
-    console.error('[auth/callback] Google OAuth not configured');
+    console.error('[auth/callback] Google OAuth not configured. Missing:', {
+      clientId: !!config.clientId,
+      clientSecret: !!config.clientSecret,
+      appOrigin: !!config.appOrigin,
+    });
     return res.redirect('/?error=google_not_configured');
   }
   
@@ -124,50 +136,57 @@ export default async function handler(
   
   // Handle OAuth error (user cancelled, etc.)
   if (error) {
-    console.log('[auth/callback] OAuth error:', error);
+    console.log('[auth/callback] OAuth error from Google:', error);
     return res.redirect('/?error=auth_cancelled');
   }
   
   // Validate required params
   if (!code || typeof code !== 'string') {
-    console.error('[auth/callback] Missing code parameter');
-    return res.redirect('/?error=auth_error');
+    console.error('[auth/callback] Missing code parameter. Query:', JSON.stringify(req.query));
+    return res.redirect('/?error=auth_error&reason=missing_code');
   }
   
   if (!state || typeof state !== 'string') {
-    console.error('[auth/callback] Missing state parameter');
-    return res.redirect('/?error=auth_error');
+    console.error('[auth/callback] Missing state parameter. Query:', JSON.stringify(req.query));
+    return res.redirect('/?error=auth_error&reason=missing_state');
   }
+  
+  console.log('[auth/callback] Code and state present, verifying state...');
   
   // Verify state (CSRF protection)
   const stateResult = verifyOAuthState(req, res, state);
   if (!stateResult.valid) {
-    console.error('[auth/callback] Invalid state - possible CSRF attempt or cookie domain mismatch');
+    console.error('[auth/callback] STATE VERIFICATION FAILED');
     console.error('[auth/callback] Debug info:', {
       hasStateCookie: !!req.headers.cookie?.includes('yourcorner_oauth_state'),
-      cookieHeader: req.headers.cookie ? '[present]' : '[missing]',
-      appOrigin: process.env.APP_ORIGIN || process.env.PUBLIC_URL,
+      cookieNames: req.headers.cookie?.split(';').map(c => c.trim().split('=')[0]) || [],
+      appOrigin: config.appOrigin,
       host: req.headers.host,
+      nodeEnv: process.env.NODE_ENV,
     });
-    return res.redirect('/?error=auth_error');
+    return res.redirect('/?error=auth_error&reason=state_mismatch');
   }
   
+  console.log('[auth/callback] State verified successfully');
   const returnTo = stateResult.returnTo;
   
   try {
     const redirectUri = `${config.appOrigin}/api/auth/google/callback`;
+    console.log('[auth/callback] Using redirect_uri:', redirectUri);
     
     // Exchange code for tokens
     console.log('[auth/callback] Exchanging code for tokens...');
     const tokens = await exchangeCodeForTokens(code, redirectUri, config);
+    console.log('[auth/callback] Token exchange successful');
     
     // Fetch user info
     console.log('[auth/callback] Fetching user info...');
     const userInfo = await fetchUserInfo(tokens.access_token);
+    console.log('[auth/callback] User info received:', userInfo.email);
     
     if (!userInfo.email) {
       console.error('[auth/callback] No email in user info');
-      return res.redirect('/?error=auth_error');
+      return res.redirect('/?error=auth_error&reason=no_email');
     }
     
     // Upsert user in database
@@ -184,16 +203,16 @@ export default async function handler(
     // Set session cookie
     setSessionCookie(res, user.id);
     
-    console.log(`[auth/callback] User authenticated: ${user.id}, redirecting to ${returnTo}`);
+    console.log(`[auth/callback] SUCCESS! User authenticated: ${user.id}, redirecting to ${returnTo}`);
     
     // Redirect to returnTo URL
-    // If user has no username, we could redirect to onboarding, but the current flow
-    // just uses returnTo and lets the publish flow handle it
     return res.redirect(returnTo);
     
-  } catch (error) {
-    console.error('[auth/callback] Error:', error);
-    return res.redirect('/?error=auth_error');
+  } catch (err) {
+    console.error('[auth/callback] CAUGHT ERROR:', err);
+    console.error('[auth/callback] Error message:', err instanceof Error ? err.message : 'Unknown error');
+    console.error('[auth/callback] Error stack:', err instanceof Error ? err.stack : 'No stack');
+    return res.redirect('/?error=auth_error&reason=exception');
   }
 }
 
