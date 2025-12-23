@@ -44,7 +44,7 @@ export function legacyBlockToPageDoc(block: LegacyBlock): PageDocBlock | null {
         type: 'image' as const,
         content: { url: block.content, alt: undefined },
       };
-    case 'LINK':
+    case 'LINK': {
       let linkContent: { label: string; url: string };
       try {
         const parsed = JSON.parse(block.content);
@@ -60,6 +60,7 @@ export function legacyBlockToPageDoc(block: LegacyBlock): PageDocBlock | null {
         type: 'link' as const,
         content: linkContent,
       };
+    }
     default:
       return null;
   }

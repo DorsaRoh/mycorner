@@ -196,7 +196,7 @@ test('isUploadConfigured requires all credentials', () => {
 
 test('requirePublicPagesConfigured returns error in production without URL', () => {
   resetEnv();
-  process.env.NODE_ENV = 'production';
+  (process.env as Record<string, string | undefined>).NODE_ENV = 'production';
   
   const error = requirePublicPagesConfigured();
   assert(error !== null, 'Should return error in production without URL');
@@ -207,7 +207,7 @@ test('requirePublicPagesConfigured returns error in production without URL', () 
 
 test('requirePublicPagesConfigured returns null in production with URL', () => {
   resetEnv();
-  process.env.NODE_ENV = 'production';
+  (process.env as Record<string, string | undefined>).NODE_ENV = 'production';
   process.env.S3_PUBLIC_BASE_URL = 'https://cdn.example.com';
   
   const error = requirePublicPagesConfigured();
@@ -218,7 +218,7 @@ test('requirePublicPagesConfigured returns null in production with URL', () => {
 
 test('requirePublicPagesConfigured returns null in development without URL', () => {
   resetEnv();
-  process.env.NODE_ENV = 'development';
+  (process.env as Record<string, string | undefined>).NODE_ENV = 'development';
   
   const error = requirePublicPagesConfigured();
   assert(error === null, 'Should return null in development');

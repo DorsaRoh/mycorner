@@ -204,7 +204,7 @@ function convertLegacyBlocks(legacyBlocks: unknown[]): PageDoc['blocks'] {
           content: { url: content, alt: undefined },
         });
         break;
-      case 'link':
+      case 'link': {
         let linkContent: { label: string; url: string };
         try {
           const parsed = JSON.parse(content);
@@ -222,6 +222,7 @@ function convertLegacyBlocks(legacyBlocks: unknown[]): PageDoc['blocks'] {
           content: linkContent,
         });
         break;
+      }
     }
   }
   

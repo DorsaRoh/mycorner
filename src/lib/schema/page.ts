@@ -198,7 +198,7 @@ export function convertLegacyBlock(legacy: {
           type: 'image' as const,
           content: { url: legacy.content, alt: undefined },
         };
-      case 'LINK':
+      case 'LINK': {
         // Legacy link content might be URL or JSON
         let linkContent: { label: string; url: string };
         try {
@@ -215,6 +215,7 @@ export function convertLegacyBlock(legacy: {
           type: 'link' as const,
           content: linkContent,
         };
+      }
       default:
         return null;
     }

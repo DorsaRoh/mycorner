@@ -18,16 +18,21 @@ import { getTheme, type Theme } from '../../lib/themes';
 // Configuration
 // =============================================================================
 
-const APP_NAME = 'YourCorner';
 const APP_ORIGIN = process.env.APP_ORIGIN || process.env.PUBLIC_URL || 'https://yourcorner.com';
+// extract storage host from env
 const STORAGE_DOMAIN = process.env.S3_PUBLIC_BASE_URL 
   ? new URL(process.env.S3_PUBLIC_BASE_URL).host 
   : '';
 
-// Allowed image domains
+// optional secondary assets host
+const ASSETS_DOMAIN = process.env.ASSETS_PUBLIC_BASE_URL
+  ? new URL(process.env.ASSETS_PUBLIC_BASE_URL).host
+  : '';
+
+// allowed image domains - only these hosts are permitted for absolute urls
 const ALLOWED_IMAGE_DOMAINS = new Set([
   STORAGE_DOMAIN,
-  // Add other allowed domains here
+  ASSETS_DOMAIN,
 ].filter(Boolean));
 
 // =============================================================================
@@ -70,21 +75,21 @@ function isValidUrl(url: string): boolean {
 }
 
 function isAllowedImageUrl(url: string): boolean {
-  // Allow relative URLs (our own assets)
+  // allow relative urls (our own assets)
   if (url.startsWith('/')) return true;
   
   try {
     const parsed = new URL(url);
-    // Must be http/https
+    // must be http/https
     if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
       return false;
     }
-    // If we have allowed domains, check against them
-    if (ALLOWED_IMAGE_DOMAINS.size > 0) {
-      return ALLOWED_IMAGE_DOMAINS.has(parsed.host);
+    // fail closed: if no storage domain configured, disallow all absolute urls
+    if (ALLOWED_IMAGE_DOMAINS.size === 0) {
+      return false;
     }
-    // If no domains configured, allow all https
-    return parsed.protocol === 'https:';
+    // only allow if host matches configured storage/cdn domains
+    return ALLOWED_IMAGE_DOMAINS.has(parsed.host);
   } catch {
     return false;
   }
@@ -196,7 +201,7 @@ function renderImageBlock(block: ImageBlock): string {
   const style = getBlockStyles(block);
   
   return `<div class="block block-image" style="${style}">
-    <img src="${safeUrl}" alt="${alt}" loading="lazy" />
+    <img src="${safeUrl}" alt="${alt}" loading="lazy" decoding="async" />
   </div>`;
 }
 
@@ -251,15 +256,22 @@ function generateThemeCSS(theme: Theme): string {
   
   .block {
     overflow: hidden;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+  }
+  
+  .block-text {
+    display: block;
   }
   
   .block-text p {
     margin: 0;
     color: var(--text-primary);
     line-height: 1.5;
+  }
+  
+  .block-link {
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
   
   .block-link .link-button {
@@ -274,14 +286,12 @@ function generateThemeCSS(theme: Theme): string {
     text-decoration: none;
     font-weight: 500;
     border-radius: inherit;
-    transition: background 0.2s;
-  }
-  
-  .block-link .link-button:hover {
-    background: var(--accent-secondary);
   }
   
   .block-image {
+    display: flex;
+    align-items: center;
+    justify-content: center;
     padding: 0;
   }
   
@@ -293,6 +303,9 @@ function generateThemeCSS(theme: Theme): string {
   }
   
   .block-invalid {
+    display: flex;
+    align-items: center;
+    justify-content: center;
     background: var(--bg-secondary);
     color: var(--text-muted);
     font-size: 12px;
@@ -323,7 +336,7 @@ function generateThemeCSS(theme: Theme): string {
     margin: 0;
   }
   
-  /* CTA Button */
+  /* CTA Button - minimal, text-only, no hover effects for performance */
   .cta-container {
     position: fixed;
     top: 16px;
@@ -332,56 +345,14 @@ function generateThemeCSS(theme: Theme): string {
   }
   
   .cta-button {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 10px 16px;
+    display: inline-block;
+    padding: 8px 14px;
     background: var(--accent-primary);
     color: white;
     text-decoration: none;
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 500;
-    border-radius: 8px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-    transition: transform 0.2s, box-shadow 0.2s;
-  }
-  
-  .cta-button:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-  }
-  
-  .cta-logo {
-    width: 16px;
-    height: 16px;
-    border-radius: 4px;
-  }
-  
-  /* Footer */
-  .footer {
-    position: fixed;
-    bottom: 16px;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 100;
-  }
-  
-  .footer-link {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 8px 12px;
-    background: rgba(0,0,0,0.05);
-    color: var(--text-muted);
-    text-decoration: none;
-    font-size: 12px;
-    border-radius: 999px;
-    transition: background 0.2s;
-  }
-  
-  .footer-link:hover {
-    background: rgba(0,0,0,0.1);
-    color: var(--text-secondary);
+    border-radius: 6px;
   }
   
   /* Responsive */
@@ -407,21 +378,28 @@ function generateThemeCSS(theme: Theme): string {
 // =============================================================================
 
 function getSecurityMeta(): string {
-  // CSP for static HTML (using meta tag)
+  // build img-src directive - only allow self, data:, and configured storage domains
+  const imgSrcParts = ["'self'", 'data:'];
+  if (STORAGE_DOMAIN) imgSrcParts.push(STORAGE_DOMAIN);
+  if (ASSETS_DOMAIN) imgSrcParts.push(ASSETS_DOMAIN);
+  
+  // csp for static html - no scripts, strict policy
   const cspParts = [
     "default-src 'self'",
-    `img-src 'self' https: data:${STORAGE_DOMAIN ? ` ${STORAGE_DOMAIN}` : ''}`,
+    `img-src ${imgSrcParts.join(' ')}`,
     "style-src 'self' 'unsafe-inline'",
-    "script-src 'self'",
+    "script-src 'none'",  // no js needed for static pages
     "frame-src 'none'",
     "object-src 'none'",
     "base-uri 'self'",
+    "upgrade-insecure-requests",
   ];
   
   return `
     <meta http-equiv="Content-Security-Policy" content="${cspParts.join('; ')}">
     <meta http-equiv="X-Content-Type-Options" content="nosniff">
-    <meta name="referrer" content="strict-origin-when-cross-origin">`;
+    <meta name="referrer" content="strict-origin-when-cross-origin">
+    <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), geolocation=()">`;
 }
 
 // =============================================================================
@@ -433,8 +411,6 @@ export interface RenderOptions {
   appOrigin?: string;
   /** Include CTA button (default: true) */
   includeCta?: boolean;
-  /** Include footer branding (default: true) */
-  includeFooter?: boolean;
 }
 
 /**
@@ -444,12 +420,11 @@ export function renderPageHtml(doc: PageDoc, options: RenderOptions = {}): strin
   const {
     appOrigin = APP_ORIGIN,
     includeCta = true,
-    includeFooter = true,
   } = options;
   
   const theme = getTheme(doc.themeId);
   const title = doc.title || 'My Corner';
-  const description = doc.bio || `${title} - Built with ${APP_NAME}`;
+  const description = doc.bio || `${title} - My corner of the web`;
   
   // Render blocks
   const blocksHtml = doc.blocks.map(renderBlock).join('\n');
@@ -478,20 +453,12 @@ export function renderPageHtml(doc: PageDoc, options: RenderOptions = {}): strin
   <meta name="twitter:title" content="${escapeHtml(title)}">
   <meta name="twitter:description" content="${escapeHtml(description)}">
   
-  <!-- Google Fonts -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
-  
   <style>${themeCSS}</style>
 </head>
 <body>
   ${includeCta ? `
   <div class="cta-container">
-    <a href="${appOrigin}/new" class="cta-button">
-      <img src="${appOrigin}/logo.png" alt="" class="cta-logo">
-      Make your own
-    </a>
+    <a href="${appOrigin}/new" class="cta-button">Make your own</a>
   </div>
   ` : ''}
   
@@ -505,14 +472,6 @@ export function renderPageHtml(doc: PageDoc, options: RenderOptions = {}): strin
     
     ${blocksHtml}
   </div>
-  
-  ${includeFooter ? `
-  <footer class="footer">
-    <a href="${appOrigin}/new" class="footer-link">
-      Built with ${APP_NAME}
-    </a>
-  </footer>
-  ` : ''}
 </body>
 </html>`;
 }

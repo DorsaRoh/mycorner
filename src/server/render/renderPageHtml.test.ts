@@ -78,21 +78,12 @@ const tests: Array<{ name: string; fn: () => void }> = [
     },
   },
   {
-    name: 'includes footer by default',
+    name: 'does not include footer (removed for performance)',
     fn: () => {
       const doc = createTestPageDoc();
       const html = renderPageHtml(doc);
       
-      assert(html.includes('Built with YourCorner'), 'Should include footer branding');
-    },
-  },
-  {
-    name: 'excludes footer when includeFooter is false',
-    fn: () => {
-      const doc = createTestPageDoc();
-      const html = renderPageHtml(doc, { includeFooter: false });
-      
-      assert(!html.includes('<footer'), 'Should not include footer');
+      assert(!html.includes('<footer'), 'Should not include footer element');
     },
   },
   {
@@ -179,8 +170,9 @@ const tests: Array<{ name: string; fn: () => void }> = [
     },
   },
   {
-    name: 'renders image block with valid URL',
+    name: 'renders image block with relative URL',
     fn: () => {
+      // use relative URL since absolute URLs are blocked without storage domain configured
       const doc = createTestPageDoc({
         blocks: [{
           id: 'img-1',
@@ -189,12 +181,12 @@ const tests: Array<{ name: string; fn: () => void }> = [
           y: 100,
           width: 200,
           height: 150,
-          content: { url: 'https://example.com/image.png', alt: 'Test Image' },
+          content: { url: '/assets/image.png', alt: 'Test Image' },
         }],
       });
       const html = renderPageHtml(doc);
       
-      assert(html.includes('src="https://example.com/image.png"'), 'Should include img src');
+      assert(html.includes('src="/assets/image.png"'), 'Should include img src');
       assert(html.includes('alt="Test Image"'), 'Should include alt text');
       assert(html.includes('loading="lazy"'), 'Should use lazy loading');
     },
@@ -220,12 +212,14 @@ const tests: Array<{ name: string; fn: () => void }> = [
     },
   },
   {
-    name: 'respects custom appOrigin',
+    name: 'respects custom appOrigin for CTA link',
     fn: () => {
       const doc = createTestPageDoc();
       const html = renderPageHtml(doc, { appOrigin: 'https://custom.com' });
       
       assert(html.includes('https://custom.com/new'), 'Should use custom origin for CTA');
+      // cta is text-only, no logo image
+      assert(!html.includes('/logo.png'), 'CTA should be text-only, no logo');
     },
   },
   {
@@ -256,6 +250,108 @@ const tests: Array<{ name: string; fn: () => void }> = [
       
       assert(textSize > emptySize, 'Text doc should be larger');
       assert(textSize - emptySize >= 2000, 'Should increase by at least 2KB for 1000 chars');
+    },
+  },
+  // ==========================================================================
+  // performance budget tests (bear blog fast)
+  // ==========================================================================
+  {
+    name: 'PERF: no google fonts references',
+    fn: () => {
+      const doc = createTestPageDoc();
+      const html = renderPageHtml(doc);
+      
+      assert(!html.includes('fonts.googleapis.com'), 'Should not reference Google Fonts API');
+      assert(!html.includes('fonts.gstatic.com'), 'Should not reference Google Fonts static');
+    },
+  },
+  {
+    name: 'PERF: no script tags',
+    fn: () => {
+      const doc = createTestPageDoc();
+      const html = renderPageHtml(doc);
+      
+      assert(!html.includes('<script'), 'Should not contain script tags');
+    },
+  },
+  {
+    name: 'PERF: no appOrigin logo references in CTA',
+    fn: () => {
+      const doc = createTestPageDoc();
+      const html = renderPageHtml(doc, { appOrigin: 'https://example.com' });
+      
+      assert(!html.includes('https://example.com/logo.png'), 'Should not reference logo.png');
+      assert(!html.includes('/logo.png'), 'Should not reference any logo.png');
+    },
+  },
+  {
+    name: 'PERF: CSP has script-src none',
+    fn: () => {
+      const doc = createTestPageDoc();
+      const html = renderPageHtml(doc);
+      
+      assert(html.includes("script-src 'none'"), 'CSP should have script-src none');
+    },
+  },
+  {
+    name: 'PERF: includes Permissions-Policy',
+    fn: () => {
+      const doc = createTestPageDoc();
+      const html = renderPageHtml(doc);
+      
+      assert(html.includes('Permissions-Policy'), 'Should include Permissions-Policy header');
+      assert(html.includes('camera=()'), 'Should disable camera');
+    },
+  },
+  {
+    name: 'PERF: small page stays under 60KB',
+    fn: () => {
+      const doc = createTestPageDoc({
+        blocks: [
+          { id: 'text-1', type: 'text', x: 0, y: 0, width: 300, height: 50, content: { text: 'Hello world' } },
+          { id: 'link-1', type: 'link', x: 0, y: 60, width: 300, height: 50, content: { label: 'My Link', url: 'https://example.com' } },
+        ],
+      });
+      const html = renderPageHtml(doc);
+      const sizeBytes = new TextEncoder().encode(html).length;
+      
+      assert(sizeBytes < 60000, `HTML should be under 60KB, got ${sizeBytes} bytes`);
+    },
+  },
+  {
+    name: 'PERF: images have decoding=async',
+    fn: () => {
+      const doc = createTestPageDoc({
+        blocks: [{
+          id: 'img-1',
+          type: 'image',
+          x: 0, y: 0, width: 200, height: 150,
+          content: { url: '/assets/test.png', alt: 'Test' },
+        }],
+      });
+      const html = renderPageHtml(doc);
+      
+      assert(html.includes('decoding="async"'), 'Images should have decoding=async');
+    },
+  },
+  {
+    name: 'blocks remote images when no storage domain configured',
+    fn: () => {
+      // this test verifies fail-closed behavior
+      // when ALLOWED_IMAGE_DOMAINS is empty, absolute URLs should be blocked
+      const doc = createTestPageDoc({
+        blocks: [{
+          id: 'img-1',
+          type: 'image',
+          x: 0, y: 0, width: 200, height: 150,
+          content: { url: 'https://random-site.com/image.png', alt: 'External' },
+        }],
+      });
+      const html = renderPageHtml(doc);
+      
+      // the image should be blocked and show placeholder
+      assert(html.includes('Image unavailable'), 'Should show image unavailable for blocked URLs');
+      assert(!html.includes('https://random-site.com/image.png'), 'Should not include blocked image URL');
     },
   },
 ];
