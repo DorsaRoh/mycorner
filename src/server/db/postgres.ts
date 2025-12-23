@@ -54,6 +54,43 @@ async function ensureInitialized(): Promise<ReturnType<typeof drizzle>> {
  * This is a safety check in case drizzle-kit push hasn't been run yet.
  */
 async function ensureTablesExist(): Promise<void> {
+  // Create users table if it doesn't exist
+  await pool!.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      email TEXT NOT NULL UNIQUE,
+      google_sub TEXT NOT NULL UNIQUE,
+      name TEXT,
+      avatar_url TEXT,
+      username TEXT UNIQUE,
+      created_at TIMESTAMP DEFAULT NOW() NOT NULL,
+      updated_at TIMESTAMP DEFAULT NOW() NOT NULL
+    )
+  `);
+  
+  // Create pages table if it doesn't exist
+  await pool!.query(`
+    CREATE TABLE IF NOT EXISTS pages (
+      id TEXT PRIMARY KEY,
+      user_id UUID REFERENCES users(id),
+      owner_id TEXT NOT NULL,
+      title TEXT,
+      slug TEXT UNIQUE,
+      content JSONB DEFAULT '[]'::jsonb NOT NULL,
+      background JSONB,
+      published_content JSONB,
+      published_background JSONB,
+      published_at TIMESTAMP,
+      published_revision INTEGER,
+      is_published BOOLEAN DEFAULT false NOT NULL,
+      forked_from_id TEXT,
+      server_revision INTEGER DEFAULT 1 NOT NULL,
+      schema_version INTEGER DEFAULT 1 NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW() NOT NULL,
+      updated_at TIMESTAMP DEFAULT NOW() NOT NULL
+    )
+  `);
+  
   // Create product_feedback table if it doesn't exist
   await pool!.query(`
     CREATE TABLE IF NOT EXISTS product_feedback (
@@ -68,7 +105,7 @@ async function ensureTablesExist(): Promise<void> {
   await pool!.query(`
     CREATE TABLE IF NOT EXISTS feedback (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      page_id UUID NOT NULL,
+      page_id TEXT NOT NULL REFERENCES pages(id),
       message TEXT NOT NULL,
       email TEXT,
       created_at TIMESTAMP DEFAULT NOW() NOT NULL
