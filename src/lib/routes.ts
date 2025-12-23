@@ -205,6 +205,13 @@ export function encodePathSegment(segment: string): string {
 const USERNAME_REGEX = /^[a-z0-9_-]{3,20}$/;
 
 /**
+ * Check if a username is reserved (system paths that cannot be usernames)
+ */
+export function isReservedUsername(username: string): boolean {
+  return RESERVED_PATHS.has(username.toLowerCase());
+}
+
+/**
  * Check if a username is valid (format only, not availability)
  */
 export function isValidUsername(username: string): boolean {
