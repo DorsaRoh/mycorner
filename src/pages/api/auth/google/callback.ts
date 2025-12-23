@@ -189,27 +189,49 @@ export default async function handler(
       return res.redirect('/?error=auth_error&reason=no_email');
     }
     
-    // Upsert user in database
-    console.log('[auth/callback] Upserting user:', userInfo.email);
+    // upsert user in database
+    console.log('[auth/callback] upserting user:', userInfo.email);
     
-    // Import database functions dynamically to avoid module loading issues in serverless
-    // In production (Vercel), use PostgreSQL directly
-    const isProduction = process.env.NODE_ENV === 'production';
-    const dbModule = isProduction 
-      ? await import('@/server/db/postgres')
-      : await import('@/server/db/sqlite');
+    // import database functions dynamically to avoid module loading issues in serverless
+    const db = await import('@/server/db');
     
-    const user = await dbModule.upsertUserByGoogleSub({
+    const user = await db.upsertUserByGoogleSub({
       googleSub: userInfo.sub,
       email: userInfo.email,
       name: userInfo.name,
       avatarUrl: userInfo.picture,
     });
     
-    // Set session cookie
+    // ensure user has a username (generate if missing)
+    if (!user.username) {
+      console.log('[auth/callback] user has no username, generating one...');
+      const baseUsername = db.generateUsernameBase(userInfo.email, userInfo.name);
+      console.log('[auth/callback] base username:', baseUsername);
+      
+      try {
+        const uniqueUsername = await db.ensureUniqueUsername(baseUsername, db.isUsernameTaken);
+        console.log('[auth/callback] unique username:', uniqueUsername);
+        
+        const setResult = await db.setUsernameIfMissing(user.id, uniqueUsername);
+        if (setResult.success) {
+          console.log('[auth/callback] username set successfully:', uniqueUsername);
+        } else if (setResult.alreadySet) {
+          console.log('[auth/callback] username already set by another process');
+        } else {
+          console.warn('[auth/callback] failed to set username:', setResult.error);
+        }
+      } catch (usernameError) {
+        // non-fatal - user can still use the app, they'll be prompted in onboarding
+        console.error('[auth/callback] error generating username:', usernameError);
+      }
+    } else {
+      console.log('[auth/callback] user already has username:', user.username);
+    }
+    
+    // set session cookie
     setSessionCookie(res, user.id);
     
-    console.log(`[auth/callback] SUCCESS! User authenticated: ${user.id}, redirecting to ${returnTo}`);
+    console.log(`[auth/callback] success! user authenticated: ${user.id}, redirecting to ${returnTo}`);
     
     // Redirect to returnTo URL
     return res.redirect(returnTo);

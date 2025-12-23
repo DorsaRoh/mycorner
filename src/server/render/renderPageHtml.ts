@@ -62,7 +62,7 @@ function escapeUrl(url: string): string {
 }
 
 // =============================================================================
-// URL Validation
+// URL Validation and Resolution
 // =============================================================================
 
 function isValidUrl(url: string): boolean {
@@ -74,9 +74,38 @@ function isValidUrl(url: string): boolean {
   }
 }
 
-function isAllowedImageUrl(url: string): boolean {
-  // allow relative urls (our own assets)
-  if (url.startsWith('/')) return true;
+/**
+ * resolve a relative asset url to absolute using app origin.
+ * this ensures static HTML served from R2 can load assets from the app domain.
+ * 
+ * @param url - the url to resolve (e.g., "/hero-flowers.png")
+ * @param appOrigin - the app origin (e.g., "https://www.itsmycorner.com")
+ * @returns absolute url if input was relative, otherwise unchanged
+ */
+function resolveAssetUrl(url: string, appOrigin: string): string {
+  // only resolve relative urls (starting with /)
+  if (!url.startsWith('/')) {
+    return url;
+  }
+  
+  // skip protocol-relative urls (starting with //)
+  if (url.startsWith('//')) {
+    return url;
+  }
+  
+  // make absolute using app origin
+  return `${appOrigin}${url}`;
+}
+
+/**
+ * check if an image url is allowed.
+ * allows relative urls (which will be resolved) and urls from allowed domains.
+ */
+function isAllowedImageUrl(url: string, appOrigin?: string): boolean {
+  // allow relative urls (our own assets) - they'll be resolved to app origin
+  if (url.startsWith('/') && !url.startsWith('//')) {
+    return true;
+  }
   
   try {
     const parsed = new URL(url);
@@ -84,6 +113,19 @@ function isAllowedImageUrl(url: string): boolean {
     if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
       return false;
     }
+    
+    // allow urls from the app origin
+    if (appOrigin) {
+      try {
+        const appOriginUrl = new URL(appOrigin);
+        if (parsed.host === appOriginUrl.host) {
+          return true;
+        }
+      } catch {
+        // ignore invalid app origin
+      }
+    }
+    
     // fail closed: if no storage domain configured, disallow all absolute urls
     if (ALLOWED_IMAGE_DOMAINS.size === 0) {
       return false;
@@ -186,18 +228,20 @@ function renderLinkBlock(block: LinkBlock): string {
   </div>`;
 }
 
-function renderImageBlock(block: ImageBlock): string {
+function renderImageBlock(block: ImageBlock, appOrigin: string): string {
   const url = block.content.url;
   const alt = escapeHtml(block.content.alt || '');
   
-  // Validate image URL
-  if (!isAllowedImageUrl(url)) {
+  // validate image URL
+  if (!isAllowedImageUrl(url, appOrigin)) {
     return `<div class="block block-image block-invalid" style="${getBlockStyles(block)}">
       <div class="image-placeholder">Image unavailable</div>
     </div>`;
   }
   
-  const safeUrl = escapeUrl(url);
+  // resolve relative urls to absolute using app origin
+  const resolvedUrl = resolveAssetUrl(url, appOrigin);
+  const safeUrl = escapeUrl(resolvedUrl);
   const style = getBlockStyles(block);
   
   return `<div class="block block-image" style="${style}">
@@ -205,14 +249,14 @@ function renderImageBlock(block: ImageBlock): string {
   </div>`;
 }
 
-function renderBlock(block: Block): string {
+function renderBlock(block: Block, appOrigin: string): string {
   switch (block.type) {
     case 'text':
       return renderTextBlock(block);
     case 'link':
       return renderLinkBlock(block);
     case 'image':
-      return renderImageBlock(block);
+      return renderImageBlock(block, appOrigin);
     default:
       return '';
   }
@@ -407,9 +451,9 @@ function getSecurityMeta(): string {
 // =============================================================================
 
 export interface RenderOptions {
-  /** Base URL for CTA links (defaults to APP_ORIGIN) */
+  /** base URL for CTA links and asset resolution (defaults to APP_ORIGIN) */
   appOrigin?: string;
-  /** Include CTA button (default: true) */
+  /** include CTA button (default: true) */
   includeCta?: boolean;
 }
 
@@ -426,8 +470,8 @@ export function renderPageHtml(doc: PageDoc, options: RenderOptions = {}): strin
   const title = doc.title || 'My Corner';
   const description = doc.bio || `${title} - My corner of the web`;
   
-  // Render blocks
-  const blocksHtml = doc.blocks.map(renderBlock).join('\n');
+  // render blocks with asset url resolution
+  const blocksHtml = doc.blocks.map(block => renderBlock(block, appOrigin)).join('\n');
   
   // Generate CSS
   const themeCSS = generateThemeCSS(theme);

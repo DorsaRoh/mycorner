@@ -239,13 +239,13 @@ export function isUsernameTaken(username: string): boolean {
 }
 
 export function setUsername(userId: string, username: string): { success: boolean; error?: string } {
-  // Validate username format (a-z, 0-9, _, -)
-  const usernameRegex = /^[a-z0-9_-]{3,20}$/;
+  // validate username format (a-z, 0-9, _, -)
+  const usernameRegex = /^[a-z0-9_-]{3,32}$/;
   if (!usernameRegex.test(username)) {
-    return { success: false, error: 'Username must be 3-20 characters: lowercase letters, numbers, underscores, hyphens' };
+    return { success: false, error: 'Username must be 3-32 characters: lowercase letters, numbers, underscores, hyphens' };
   }
 
-  // Check if taken
+  // check if taken
   if (isUsernameTaken(username)) {
     return { success: false, error: 'Username is already taken' };
   }
@@ -256,9 +256,29 @@ export function setUsername(userId: string, username: string): { success: boolea
     `).run(username.toLowerCase(), userId);
     return { success: true };
   } catch (err) {
-    // Unique constraint violation (race condition)
+    // unique constraint violation (race condition)
     return { success: false, error: 'Username is already taken' };
   }
+}
+
+/**
+ * set username only if user doesn't already have one.
+ * used during oauth login to auto-assign username without overwriting existing.
+ */
+export function setUsernameIfMissing(userId: string, username: string): { success: boolean; error?: string; alreadySet?: boolean } {
+  // check if user already has a username
+  const user = getUserById(userId);
+  if (!user) {
+    return { success: false, error: 'User not found' };
+  }
+  
+  if (user.username) {
+    // already has username, no action needed
+    return { success: true, alreadySet: true };
+  }
+  
+  // set the username
+  return setUsername(userId, username);
 }
 
 // ============================================================================

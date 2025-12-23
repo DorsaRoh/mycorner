@@ -1,21 +1,22 @@
 /**
  * POST /api/publish
  * 
- * Production publish endpoint that:
- * 1. Validates authenticated user
- * 2. Validates PageDoc with Zod
- * 3. Generates or reuses slug (NEVER based on username)
- * 4. Renders static HTML
- * 5. Uploads to object storage (MUST succeed before DB update)
- * 6. Upserts DB record
- * 7. Purges CDN cache
- * 8. Returns slug
+ * production publish endpoint that:
+ * 1. validates authenticated user
+ * 2. validates PageDoc with Zod
+ * 3. uses username as slug (requires username to be set)
+ * 4. renders static HTML with absolute asset URLs
+ * 5. uploads to object storage (MUST succeed before DB update)
+ * 6. upserts DB record
+ * 7. purges CDN cache
+ * 8. returns slug and publicUrl
  * 
  * PRODUCTION INVARIANTS:
- * - Storage must be configured (returns 503 if not)
- * - Upload must succeed before DB is updated
- * - Slug is based on userId, never username
- * - Conflict detection with one retry
+ * - storage must be configured (returns 503 if not)
+ * - upload must succeed before DB is updated
+ * - slug is the user's username
+ * - share url is always APP_ORIGIN/{username}
+ * - conflict detection with one retry
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
@@ -27,7 +28,6 @@ import {
   isUploadConfigured, 
   requirePublicPagesConfigured,
   isValidSlug,
-  generateBaseSlug,
   getMissingStorageEnvVars,
   REQUIRED_STORAGE_ENV_VARS,
 } from '@/server/storage/client';
@@ -52,36 +52,11 @@ const MAX_DOC_SIZE_BYTES = 500_000; // 500KB
 const MAX_HTML_SIZE_BYTES = 1_000_000; // 1MB
 
 // =============================================================================
-// Slug Generation (userId-based, NEVER username)
+// app origin for public urls
 // =============================================================================
 
-/**
- * Ensure slug is unique by appending -2, -3, etc. if needed.
- */
-async function ensureUniqueSlug(
-  baseSlug: string,
-  db: typeof import('@/server/db')
-): Promise<string> {
-  // Validate base slug
-  if (!isValidSlug(baseSlug)) {
-    throw new Error(`Invalid base slug: ${baseSlug}`);
-  }
-  
-  // Check if base slug is available
-  const existing = await db.getPageBySlug(baseSlug);
-  if (!existing) return baseSlug;
-  
-  // Try numeric suffixes
-  for (let i = 2; i <= 100; i++) {
-    const candidate = `${baseSlug}-${i}`;
-    if (candidate.length > 64) break; // Slug too long
-    const exists = await db.getPageBySlug(candidate);
-    if (!exists) return candidate;
-  }
-  
-  // Fallback: append random string
-  const random = Math.random().toString(36).slice(2, 8);
-  return `${baseSlug}-${random}`;
+function getAppOrigin(): string {
+  return process.env.APP_ORIGIN || process.env.PUBLIC_URL || 'https://www.itsmycorner.com';
 }
 
 // =============================================================================
@@ -136,17 +111,39 @@ export default async function handler(
     return; // response already sent
   }
   
-  // Get user from session cookie
+  // get user from session cookie
   const { getUserFromRequest } = await import('@/server/auth/session');
-  const user = await getUserFromRequest(req);
-  if (!user?.id) {
+  const sessionUser = await getUserFromRequest(req);
+  if (!sessionUser?.id) {
     return res.status(401).json({ 
       success: false, 
       error: 'Authentication required' 
     });
   }
   
-  let slug = '';
+  // import database
+  const db = await import('@/server/db');
+  
+  // load full user record to get username
+  const user = await db.getUserById(sessionUser.id);
+  if (!user) {
+    return res.status(401).json({
+      success: false,
+      error: 'User not found. Please re-login.',
+    });
+  }
+  
+  // require username to publish
+  if (!user.username) {
+    return res.status(400).json({
+      success: false,
+      error: 'Username required. Please complete onboarding first.',
+      code: 'USERNAME_REQUIRED',
+    });
+  }
+  
+  // slug is the username
+  const slug = user.username;
   
   try {
     // === PRODUCTION GATE: Storage must be fully configured ===
@@ -200,37 +197,31 @@ export default async function handler(
       });
     }
     
-    // Import database
-    const db = await import('@/server/db');
+    // validate slug format
+    if (!isValidSlug(slug)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid username format for publishing. Please update your username.',
+        code: 'INVALID_USERNAME',
+      });
+    }
     
-    // Get or generate slug (NEVER based on username)
+    // get or create page for user
     const existingPages = await db.getPagesByUserId(user.id);
     let pageId: string | null = null;
     let baseServerRevision: number = 1;
     
     if (existingPages && existingPages.length > 0) {
-      // User already has a page - reuse existing slug (immutable)
+      // user already has a page - reuse it
       const existingPage = existingPages[0];
       pageId = existingPage.id;
       baseServerRevision = existingPage.server_revision;
-      
-      // Reuse existing slug if valid, otherwise regenerate
-      if (existingPage.slug && isValidSlug(existingPage.slug)) {
-        slug = existingPage.slug;
-      } else {
-        // Existing page has no slug or invalid slug - generate one
-        const baseSlug = generateBaseSlug(user.id);
-        slug = await ensureUniqueSlug(baseSlug, db);
-      }
-    } else {
-      // New user - generate unique slug based on userId (NEVER username)
-      const baseSlug = generateBaseSlug(user.id);
-      slug = await ensureUniqueSlug(baseSlug, db);
     }
     
-    // Render static HTML
+    // render static HTML with absolute asset urls
+    const appOrigin = getAppOrigin();
     const html = renderPageHtml(doc, {
-      appOrigin: process.env.APP_ORIGIN || process.env.PUBLIC_URL,
+      appOrigin,
     });
     
     const htmlSize = html.length;
@@ -375,14 +366,18 @@ export default async function handler(
       success: true,
     });
     
+    // build public url - always uses app domain, never storage url
+    const publicUrl = `${appOrigin}/${slug}`;
+    
     // include warnings in response if any
     const response: Record<string, unknown> = {
       success: true,
       slug,
-      storageKey,
+      publicUrl,
+      storageKey, // for debugging only, clients should use publicUrl
     };
     
-    // Collect all warnings
+    // collect all warnings
     const allWarnings: string[] = [...purgeWarnings];
     if (storageWarning) {
       allWarnings.push(storageWarning);

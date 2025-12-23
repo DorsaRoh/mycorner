@@ -76,6 +76,14 @@ export async function setUsername(userId: string, username: string) {
   return adapter.setUsername(userId, username);
 }
 
+export async function setUsernameIfMissing(userId: string, username: string) {
+  const adapter = await getAdapter();
+  return adapter.setUsernameIfMissing(userId, username);
+}
+
+// re-export username generation helpers
+export { generateUsernameBase, ensureUniqueUsername, isValidUsernameFormat } from './username';
+
 // =============================================================================
 // Page Operations
 // =============================================================================

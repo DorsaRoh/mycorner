@@ -139,24 +139,36 @@ export function usePublish({
         throw new Error(result.error || 'Failed to publish');
       }
       
-      // Success!
+      // success!
       setIsPublished(true);
-      setPublishedRevision(Date.now()); // Use timestamp as revision marker
+      setPublishedRevision(Date.now()); // use timestamp as revision marker
       
-      const publicUrl = `/u/${result.slug}`;
+      // use publicUrl from response (points to app domain, not storage url)
+      // fallback to /{slug} if publicUrl not provided (legacy)
+      const publicUrl = result.publicUrl || `/${result.slug}`;
       setPublishedUrl(publicUrl);
       
-      // Clear draft
+      // clear draft
       clearDraft();
       
-      // Clear any stored publish intent
+      // clear any stored publish intent
       if (typeof window !== 'undefined') {
         sessionStorage.removeItem('publishIntent');
       }
       
-      // Redirect
-      const redirectUrl = options?.redirectTo || publicUrl;
-      console.log('[Publish] Redirecting to:', redirectUrl);
+      // redirect to the public page
+      // extract path from publicUrl if it's a full url
+      let redirectPath: string;
+      try {
+        const url = new URL(publicUrl);
+        redirectPath = url.pathname;
+      } catch {
+        // publicUrl is already a path
+        redirectPath = publicUrl;
+      }
+      
+      const redirectUrl = options?.redirectTo || redirectPath;
+      console.log('[Publish] redirecting to:', redirectUrl);
       router.replace(redirectUrl);
       
     } catch (error) {

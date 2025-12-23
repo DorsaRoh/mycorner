@@ -1,32 +1,34 @@
 #!/usr/bin/env ts-node
 /**
- * Smoke test for the publish flow.
+ * smoke test for the publish flow.
  * 
- * This script verifies the full publish pipeline works:
- * 1. Publishes a test document to storage
- * 2. Fetches the published page from /u/{slug}
- * 3. Verifies the HTML contains expected marker text
+ * this script verifies the full publish pipeline works:
+ * 1. publishes a test document to storage
+ * 2. fetches the published page from /{username} (follows redirect to R2)
+ * 3. verifies the HTML contains expected marker text
+ * 4. reports headers like cache-control and final url
  * 
- * Usage:
- *   npx ts-node scripts/smoke-test-publish.ts
+ * usage:
+ *   APP_ORIGIN=http://localhost:3000 SESSION_COOKIE="yourcorner_session=..." npx tsx scripts/smoke-test-publish.ts
  * 
- * Requirements:
- *   - Server running at APP_ORIGIN or localhost:3000
- *   - Valid session cookie for authentication (or use --skip-auth for dev)
- *   - S3_PUBLIC_BASE_URL configured
+ * requirements:
+ *   - server running at APP_ORIGIN or localhost:3000
+ *   - valid session cookie for authentication (yourcorner_session)
+ *   - S3_PUBLIC_BASE_URL configured (for production-like testing)
  */
 
 import { createEmptyPageDoc } from '../src/lib/schema/page';
 
 // =============================================================================
-// Configuration
+// configuration
 // =============================================================================
 
 const APP_ORIGIN = process.env.APP_ORIGIN || process.env.PUBLIC_URL || 'http://localhost:3000';
+const SESSION_COOKIE = process.env.SESSION_COOKIE;
 const MARKER_TEXT = 'SMOKE_TEST_MARKER_' + Date.now();
 
 // =============================================================================
-// Test Document
+// test document
 // =============================================================================
 
 function createTestDoc() {
@@ -47,25 +49,32 @@ function createTestDoc() {
 }
 
 // =============================================================================
-// Main Test
+// main test
 // =============================================================================
+
+interface PublishResponse {
+  success: boolean;
+  slug?: string;
+  publicUrl?: string;
+  storageKey?: string;
+  error?: string;
+  code?: string;
+}
 
 async function main() {
   console.log('🔥 Smoke Test: Publish Flow\n');
   console.log(`   App Origin: ${APP_ORIGIN}`);
-  console.log(`   Marker Text: ${MARKER_TEXT}\n`);
+  console.log(`   Marker Text: ${MARKER_TEXT}`);
+  console.log(`   Session Cookie: ${SESSION_COOKIE ? 'provided' : 'not provided'}\n`);
   
-  const skipAuth = process.argv.includes('--skip-auth');
-  const sessionCookie = process.env.SESSION_COOKIE;
-  
-  if (!skipAuth && !sessionCookie) {
+  if (!SESSION_COOKIE) {
     console.error('❌ SESSION_COOKIE environment variable required for authenticated publish.');
-    console.error('   Set SESSION_COOKIE to your connect.sid cookie value, or use --skip-auth for dev testing.');
-    console.error('   Example: SESSION_COOKIE="s%3A..." npx ts-node scripts/smoke-test-publish.ts');
+    console.error('   Set SESSION_COOKIE to your yourcorner_session cookie value.');
+    console.error('   Example: SESSION_COOKIE="yourcorner_session=eyJ..." npx tsx scripts/smoke-test-publish.ts');
     process.exit(1);
   }
   
-  // Step 1: Publish the test document
+  // step 1: publish the test document
   console.log('1️⃣  Publishing test document...');
   
   const doc = createTestDoc();
@@ -75,7 +84,7 @@ async function main() {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      ...(sessionCookie ? { 'Cookie': `connect.sid=${sessionCookie}` } : {}),
+      'Cookie': SESSION_COOKIE,
     },
     body: JSON.stringify({ doc }),
   });
@@ -84,10 +93,23 @@ async function main() {
     const text = await publishRes.text();
     console.error(`❌ Publish failed: ${publishRes.status}`);
     console.error(`   Response: ${text}`);
+    
+    // try to parse and provide helpful info
+    try {
+      const parsed = JSON.parse(text);
+      if (parsed.code === 'USERNAME_REQUIRED') {
+        console.error('\n   💡 Hint: User needs a username. Complete onboarding first.');
+      } else if (parsed.code === 'STORAGE_NOT_CONFIGURED') {
+        console.error('\n   💡 Hint: Storage not configured. Set S3_* environment variables.');
+      }
+    } catch {
+      // ignore parse error
+    }
+    
     process.exit(1);
   }
   
-  const publishData = await publishRes.json() as { success: boolean; slug?: string; error?: string };
+  const publishData = await publishRes.json() as PublishResponse;
   
   if (!publishData.success || !publishData.slug) {
     console.error(`❌ Publish returned failure: ${publishData.error}`);
@@ -95,15 +117,34 @@ async function main() {
   }
   
   const slug = publishData.slug;
-  console.log(`   ✅ Published to slug: ${slug}`);
+  const publicUrl = publishData.publicUrl;
+  const storageKey = publishData.storageKey;
   
-  // Step 2: Fetch the published page
+  console.log(`   ✅ Published to slug: ${slug}`);
+  console.log(`   📍 Public URL: ${publicUrl}`);
+  console.log(`   🗄️  Storage Key: ${storageKey}`);
+  
+  // step 2: fetch the published page using the public url
   console.log('\n2️⃣  Fetching published page...');
   
-  const pageUrl = `${APP_ORIGIN}/u/${slug}`;
+  // use publicUrl path or construct from slug
+  let pageUrl: string;
+  if (publicUrl) {
+    try {
+      const url = new URL(publicUrl);
+      // use app origin with the path from publicUrl (in case publicUrl uses different host)
+      pageUrl = `${APP_ORIGIN}${url.pathname}`;
+    } catch {
+      // publicUrl is already a path
+      pageUrl = `${APP_ORIGIN}${publicUrl.startsWith('/') ? publicUrl : '/' + publicUrl}`;
+    }
+  } else {
+    pageUrl = `${APP_ORIGIN}/${slug}`;
+  }
+  
   console.log(`   URL: ${pageUrl}`);
   
-  // Allow redirects to follow to the actual storage URL
+  // allow redirects to follow to the actual storage URL
   const pageRes = await fetch(pageUrl, {
     redirect: 'follow',
   });
@@ -115,9 +156,10 @@ async function main() {
   }
   
   const html = await pageRes.text();
-  console.log(`   ✅ Fetched ${html.length} bytes from ${pageRes.url}`);
+  console.log(`   ✅ Fetched ${html.length} bytes`);
+  console.log(`   📍 Final URL: ${pageRes.url}`);
   
-  // Step 3: Verify marker text
+  // step 3: verify marker text
   console.log('\n3️⃣  Verifying content...');
   
   if (!html.includes(MARKER_TEXT)) {
@@ -129,23 +171,30 @@ async function main() {
   
   console.log(`   ✅ Marker text found in HTML`);
   
-  // Step 4: Verify cache headers (if we can access them)
+  // step 4: report headers
+  console.log('\n4️⃣  Response headers:');
   const cacheControl = pageRes.headers.get('cache-control');
+  const contentType = pageRes.headers.get('content-type');
+  
   if (cacheControl) {
-    console.log(`\n4️⃣  Cache headers: ${cacheControl}`);
-    if (cacheControl.includes('max-age=')) {
-      console.log(`   ✅ Cache-Control is set`);
-    }
+    console.log(`   Cache-Control: ${cacheControl}`);
+  } else {
+    console.log(`   Cache-Control: (not set)`);
   }
   
-  // Success!
+  if (contentType) {
+    console.log(`   Content-Type: ${contentType}`);
+  }
+  
+  // success!
   console.log('\n✨ Smoke test passed!\n');
-  console.log(`   Published page: ${pageUrl}`);
+  console.log(`   Published slug: ${slug}`);
+  console.log(`   Public URL: ${publicUrl || `${APP_ORIGIN}/${slug}`}`);
   console.log(`   Storage URL: ${pageRes.url}`);
 }
 
 // =============================================================================
-// Run
+// run
 // =============================================================================
 
 main().catch((err) => {

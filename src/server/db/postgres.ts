@@ -251,10 +251,10 @@ export async function isUsernameTaken(username: string): Promise<boolean> {
 export async function setUsername(userId: string, username: string): Promise<{ success: boolean; error?: string }> {
   const d = await getDbLazy();
   
-  // Validate username format (a-z, 0-9, _, -)
-  const usernameRegex = /^[a-z0-9_-]{3,20}$/;
+  // validate username format (a-z, 0-9, _, -)
+  const usernameRegex = /^[a-z0-9_-]{3,32}$/;
   if (!usernameRegex.test(username)) {
-    return { success: false, error: 'Username must be 3-20 characters: lowercase letters, numbers, underscores, hyphens' };
+    return { success: false, error: 'Username must be 3-32 characters: lowercase letters, numbers, underscores, hyphens' };
   }
 
   if (await isUsernameTaken(username)) {
@@ -269,6 +269,26 @@ export async function setUsername(userId: string, username: string): Promise<{ s
   } catch {
     return { success: false, error: 'Username is already taken' };
   }
+}
+
+/**
+ * set username only if user doesn't already have one.
+ * used during oauth login to auto-assign username without overwriting existing.
+ */
+export async function setUsernameIfMissing(userId: string, username: string): Promise<{ success: boolean; error?: string; alreadySet?: boolean }> {
+  // check if user already has a username
+  const user = await getUserById(userId);
+  if (!user) {
+    return { success: false, error: 'User not found' };
+  }
+  
+  if (user.username) {
+    // already has username, no action needed
+    return { success: true, alreadySet: true };
+  }
+  
+  // set the username
+  return setUsername(userId, username);
 }
 
 // =============================================================================

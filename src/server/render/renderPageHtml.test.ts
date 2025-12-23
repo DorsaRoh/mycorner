@@ -170,9 +170,10 @@ const tests: Array<{ name: string; fn: () => void }> = [
     },
   },
   {
-    name: 'renders image block with relative URL',
+    name: 'renders image block with relative URL resolved to absolute',
     fn: () => {
-      // use relative URL since absolute URLs are blocked without storage domain configured
+      // relative URLs are resolved to absolute using appOrigin
+      // this ensures static HTML served from R2 can load assets from app domain
       const doc = createTestPageDoc({
         blocks: [{
           id: 'img-1',
@@ -184,9 +185,10 @@ const tests: Array<{ name: string; fn: () => void }> = [
           content: { url: '/assets/image.png', alt: 'Test Image' },
         }],
       });
-      const html = renderPageHtml(doc);
+      const html = renderPageHtml(doc, { appOrigin: 'https://example.com' });
       
-      assert(html.includes('src="/assets/image.png"'), 'Should include img src');
+      // relative url should be resolved to absolute
+      assert(html.includes('src="https://example.com/assets/image.png"'), 'Should resolve relative URL to absolute');
       assert(html.includes('alt="Test Image"'), 'Should include alt text');
       assert(html.includes('loading="lazy"'), 'Should use lazy loading');
     },
@@ -329,7 +331,7 @@ const tests: Array<{ name: string; fn: () => void }> = [
           content: { url: '/assets/test.png', alt: 'Test' },
         }],
       });
-      const html = renderPageHtml(doc);
+      const html = renderPageHtml(doc, { appOrigin: 'https://example.com' });
       
       assert(html.includes('decoding="async"'), 'Images should have decoding=async');
     },
