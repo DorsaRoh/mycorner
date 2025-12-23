@@ -16,7 +16,7 @@ import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import type { Block as BlockType, BlockType as BlockTypeEnum, BackgroundConfig } from '@/shared/types';
 import { Block } from './Block';
 import { CreationPalette } from './CreationPalette';
-import { CanvasShell } from '@/components/canvas';
+import { CanvasShell, CanvasShellRef } from '@/components/canvas';
 import { uploadAsset, isAcceptedImageType } from '@/lib/upload';
 import { isImageUrl, getMarginOverlayColor } from '@/shared/utils/blockStyles';
 import { 
@@ -115,15 +115,15 @@ export function Canvas({
   const [marquee, setMarquee] = useState<MarqueeState | null>(null);
   const isMarqueeActive = useRef(false);
   
-  // Track dimensions in state
+  // track dimensions in state
   const [dimensions, setDimensions] = useState<CanvasDimensions>(DEFAULT_DIMENSIONS);
   
-  // Keep a ref to dimensions for use in callbacks
+  // keep a ref to dimensions for use in callbacks
   const dimsRef = useRef(dimensions);
   useEffect(() => { dimsRef.current = dimensions; }, [dimensions]);
   
-  // Container ref for mouse position calculations
-  const containerRef = useRef<HTMLDivElement | null>(null);
+  // ref to CanvasShell - used to get the actual measurement container for mouse calculations
+  const shellRef = useRef<CanvasShellRef>(null);
   
   // Handle dimension changes from shell
   const handleDimensionsChange = useCallback((dims: CanvasDimensions) => {
@@ -143,11 +143,11 @@ export function Canvas({
     setTimeout(() => setDropError(null), 3000);
   }, []);
 
-  // Handle mousedown for marquee selection
+  // handle mousedown for marquee selection
   const handleCanvasMouseDown = useCallback((e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
     
-    // Only trigger on empty canvas areas
+    // only trigger on empty canvas areas
     const isCanvasClick = target.classList.contains(styles.paperSheet) ||
       target.classList.contains(styles.canvas);
     
@@ -155,20 +155,20 @@ export function Canvas({
       return;
     }
     
-    // Close palette if open
+    // close palette if open
     if (palette) {
       setPalette(null);
     }
     
-    // Deselect all
+    // deselect all
     onSelectBlock(null);
     onSelectMultiple(new Set());
     
-    // Get container for position calculation
-    const container = containerRef.current;
+    // get container for position calculation - use shell's container ref for consistency
+    const container = shellRef.current?.containerRef.current;
     if (!container) return;
     
-    // Start potential marquee selection (screen coordinates for visual rendering)
+    // start potential marquee selection (screen coordinates for visual rendering)
     const rect = container.getBoundingClientRect();
     const screenX = e.clientX - rect.left;
     const screenY = e.clientY - rect.top;
@@ -182,14 +182,14 @@ export function Canvas({
     });
   }, [palette, onSelectBlock, onSelectMultiple]);
 
-  // Handle click on empty canvas - show creation palette
+  // handle click on empty canvas - show creation palette
   const handleCanvasClick = useCallback((e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
     
-    // Trigger first interaction to hide hint
+    // trigger first interaction to hide hint
     onFirstInteraction?.();
     
-    // Only trigger on empty canvas areas
+    // only trigger on empty canvas areas
     const isCanvasClick = target.classList.contains(styles.paperSheet) ||
       target.classList.contains(styles.canvas);
     
@@ -197,7 +197,7 @@ export function Canvas({
       return;
     }
     
-    // If we did a marquee selection, don't show palette
+    // if we did a marquee selection, don't show palette
     if (marquee && (
       Math.abs(marquee.currentX - marquee.startX) > 5 ||
       Math.abs(marquee.currentY - marquee.startY) > 5
@@ -205,19 +205,20 @@ export function Canvas({
       return;
     }
     
-    const container = containerRef.current;
+    // use shell's container ref for consistency with measurement
+    const container = shellRef.current?.containerRef.current;
     if (!container) return;
     
-    // Calculate positions: screen coords for palette, reference coords for block
+    // calculate positions: screen coords for palette, reference coords for block
     const rect = container.getBoundingClientRect();
     const screenX = e.clientX - rect.left;
     const screenY = e.clientY - rect.top;
     
-    // Convert screen position to reference coordinates for block placement
+    // convert screen position to reference coordinates for block placement
     const dims = dimsRef.current;
     const refPos = pxToRef({ x: screenX, y: screenY, width: 0, height: 0 }, dims);
     
-    // Show palette at screen location, store reference coords for block
+    // show palette at screen location, store reference coords for block
     setPalette({
       x: e.clientX,
       y: e.clientY,
@@ -226,12 +227,13 @@ export function Canvas({
     });
   }, [marquee, onFirstInteraction]);
   
-  // Handle marquee mouse move and up
+  // handle marquee mouse move and up
   useEffect(() => {
     if (!marquee) return;
     
     const handleMouseMove = (e: MouseEvent) => {
-      const container = containerRef.current;
+      // use shell's container ref for consistency with measurement
+      const container = shellRef.current?.containerRef.current;
       if (!isMarqueeActive.current || !container) return;
       
       const rect = container.getBoundingClientRect();
@@ -244,20 +246,20 @@ export function Canvas({
         currentY,
       } : null);
       
-      // Convert marquee screen bounds to reference coordinates for block hit testing
+      // convert marquee screen bounds to reference coordinates for block hit testing
       const dims = dimsRef.current;
       const minScreenX = Math.min(marquee.startX, currentX);
       const maxScreenX = Math.max(marquee.startX, currentX);
       const minScreenY = Math.min(marquee.startY, currentY);
       const maxScreenY = Math.max(marquee.startY, currentY);
       
-      // Convert screen bounds to reference coords
+      // convert screen bounds to reference coords
       const minRef = pxToRef({ x: minScreenX, y: minScreenY, width: 0, height: 0 }, dims);
       const maxRef = pxToRef({ x: maxScreenX, y: maxScreenY, width: 0, height: 0 }, dims);
       
       const selectedBlocks = new Set<string>();
       blocks.forEach(block => {
-        // Check if block (in reference coords) overlaps with marquee (in reference coords)
+        // check if block (in reference coords) overlaps with marquee (in reference coords)
         const blockRight = block.x + block.width;
         const blockBottom = block.y + block.height;
         
@@ -307,29 +309,30 @@ export function Canvas({
 
   const handleDrop = useCallback(async (e: React.DragEvent) => {
     e.preventDefault();
-    const container = containerRef.current;
+    // use shell's container ref for consistency with measurement
+    const container = shellRef.current?.containerRef.current;
     if (!container) return;
     
     const rect = container.getBoundingClientRect();
     const screenX = e.clientX - rect.left;
     const screenY = e.clientY - rect.top;
     
-    // Convert screen position to reference coordinates
+    // convert screen position to reference coordinates
     const dims = dimsRef.current;
     const refPos = pxToRef({ x: screenX, y: screenY, width: 0, height: 0 }, dims);
 
-    // Handle image file drop
+    // handle image file drop
     const files = Array.from(e.dataTransfer.files);
     const imageFile = files.find(f => f.type.startsWith('image/'));
     
     if (imageFile) {
-      // Validate image type
+      // validate image type
       if (!isAcceptedImageType(imageFile.type)) {
         showDropError('Please use PNG, JPG, WebP, or GIF images');
         return;
       }
       
-      // Upload file first, then create block with URL
+      // upload file first, then create block with URL
       const result = await uploadAsset(imageFile);
       if (result.success) {
         onAddBlock('IMAGE', refPos.x, refPos.y, result.data.url);
@@ -339,10 +342,10 @@ export function Canvas({
       return;
     }
 
-    // Handle URL drop - pass content directly (no upload needed for external URLs)
+    // handle URL drop - pass content directly (no upload needed for external URLs)
     const url = e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain');
     if (url && url.startsWith('http')) {
-      // Check if it's an image URL
+      // check if it's an image URL
       if (isImageUrl(url)) {
         onAddBlock('IMAGE', refPos.x, refPos.y, url);
       } else {
@@ -377,23 +380,16 @@ export function Canvas({
     return SAFE_ZONE_MARGIN * dimensions.scale;
   }, [dimensions.scale]);
 
-  // Get block bounds for content sizing
+  // get block bounds for content sizing
   const blockBounds = useMemo(() => 
     blocks.map(b => ({ x: b.x, y: b.y, width: b.width, height: b.height })),
     [blocks]
   );
-  
-  // Capture container ref from shell
-  const handleShellRef = useCallback((el: HTMLDivElement | null) => {
-    containerRef.current = el;
-  }, []);
 
   return (
-    <div 
-      className={styles.canvasWrapper}
-      ref={handleShellRef}
-    >
+    <div className={styles.canvasWrapper}>
       <CanvasShell
+        ref={shellRef}
         mode="editor"
         background={background}
         blockBounds={blockBounds}

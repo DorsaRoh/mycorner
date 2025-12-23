@@ -72,6 +72,13 @@
   padding: 0;
 }
 
+/* ensure full-height containers so canvas measurement never sees collapsed parents */
+html,
+body,
+#__next {
+  height: 100%;
+}
+
 html {
   font-size: 16px;
   -webkit-font-smoothing: antialiased;
@@ -83,7 +90,7 @@ body {
   background-color: var(--color-bg-pure);
   color: var(--color-text);
   min-height: 100vh;
-  /* Allow overflow for viewer pages, editor handles its own overflow */
+  /* allow overflow for viewer pages, editor handles its own overflow */
 }
 
 a {

@@ -15,10 +15,11 @@ import {
   REFERENCE_HEIGHT 
 } from './coordinates';
 
-// Minimum valid container size - smaller than this means container isn't ready
-const MIN_VALID_SIZE = 50;
-// Maximum retry attempts for initial measurement
-const MAX_MEASURE_RETRIES = 10;
+// minimum valid container size - must be large enough to reject partial layouts
+// 300 ensures we don't accept measurements during hydration with collapsed containers
+const MIN_VALID_SIZE = 300;
+// maximum retry attempts for initial measurement
+const MAX_MEASURE_RETRIES = 20;
 
 export interface UseCanvasSizeOptions {
   /**
@@ -93,35 +94,50 @@ export function useCanvasSize(options: UseCanvasSizeOptions = {}): UseCanvasSize
   const lastDimensionsRef = useRef<{ width: number; height: number } | null>(null);
   
   /**
-   * Core measurement function that reads container bounds and updates state.
-   * Returns true if measurement was successful (valid dimensions obtained).
+   * core measurement function that reads container bounds and updates state.
+   * returns true if measurement was successful (valid dimensions obtained).
    */
   const measure = useCallback((): boolean => {
     if (!containerRef.current) return false;
     
     const rect = containerRef.current.getBoundingClientRect();
     
-    // Check if container has valid dimensions
+    // check if container has valid dimensions - must be large enough to be a real viewport
     const isValid = rect.width >= MIN_VALID_SIZE && rect.height >= MIN_VALID_SIZE;
     
-    if (!isValid && !hasMeasured.current) {
-      // Container not ready yet - will retry
+    // dev-only logging to help verify measurements
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[useCanvasSize] measure() called:', {
+        route: router.asPath,
+        rectWidth: rect.width,
+        rectHeight: rect.height,
+        isValid,
+        hasMeasuredAlready: hasMeasured.current,
+        retryCount: retryCountRef.current,
+      });
+    }
+    
+    // only mark as measured when we get a valid full-size rect
+    // do not lock in small/partial measurements
+    if (!isValid) {
+      // container not ready yet - will retry
       return false;
     }
     
+    // now we have a valid measurement, lock it in
     hasMeasured.current = true;
     const rawDims = getCanvasDimensions(rect.width, rect.height);
     const newDims = sanitizeDimensions(rawDims);
     
-    // Only update if dimensions actually changed
+    // only update if dimensions actually changed
     const last = lastDimensionsRef.current;
     if (!last || last.width !== rect.width || last.height !== rect.height) {
       lastDimensionsRef.current = { width: rect.width, height: rect.height };
       setDimensions(newDims);
       
-      // DEBUG: Log measurement in development
+      // dev-only log: confirm accepted measurement
       if (process.env.NODE_ENV !== 'production') {
-        console.log('[useCanvasSize] Measured:', {
+        console.log('[useCanvasSize] ✓ accepted measurement:', {
           route: router.asPath,
           containerWidth: rect.width,
           containerHeight: rect.height,

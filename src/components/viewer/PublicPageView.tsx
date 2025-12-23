@@ -141,14 +141,12 @@ export function PublicPageView({ doc, slug }: PublicPageViewProps) {
     console.log('[PublicPageView] Theme:', doc.themeId, theme.name);
   }
   
-  // Get background style from theme
+  // get background style from theme
   const backgroundStyle = getThemeBackground(theme);
   
-  // Apply theme CSS variables
-  const themeVars = Object.entries(theme.variables).reduce((acc, [key, value]) => {
-    acc[key as keyof React.CSSProperties] = value;
-    return acc;
-  }, {} as Record<string, string>);
+  // apply theme css variables - cast to CSSProperties for safe inline usage
+  // this ensures all theme vars are present for child components
+  const themeVars = theme.variables as unknown as React.CSSProperties;
 
   return (
     <>
@@ -173,10 +171,14 @@ export function PublicPageView({ doc, slug }: PublicPageViewProps) {
         style={{
           ...themeVars,
           ...backgroundStyle,
-          minHeight: '100vh',
+          // map theme vars to global css var names used by ViewerBlock styles
           '--color-bg-pure': theme.variables['--bg-primary'],
           '--color-text': theme.variables['--text-primary'],
           '--font-sans': 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+          // ensure container fills viewport
+          position: 'relative',
+          minHeight: '100vh',
+          width: '100%',
         } as React.CSSProperties}
       >
         <ViewerCanvas 
