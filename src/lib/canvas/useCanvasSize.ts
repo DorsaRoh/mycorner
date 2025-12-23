@@ -7,6 +7,7 @@
  */
 
 import { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
+import { useRouter } from 'next/router';
 import { 
   CanvasDimensions, 
   getCanvasDimensions, 
@@ -70,12 +71,15 @@ function sanitizeDimensions(dims: CanvasDimensions): CanvasDimensions {
  */
 export function useCanvasSize(options: UseCanvasSizeOptions = {}): UseCanvasSizeResult {
   const { debounceMs = 16, onResizeStart } = options;
+  const router = useRouter();
   
   const containerRef = useRef<HTMLDivElement>(null!);
   // Track if we've done initial measurement (for SSR → client hydration)
   const hasMeasured = useRef(false);
   // Track retry attempts for initial measurement
   const retryCountRef = useRef(0);
+  // Track the element we're observing to detect ref changes
+  const observedElementRef = useRef<HTMLDivElement | null>(null);
   
   // Initialize with reference size (scale=1, no offset)
   // This ensures blocks are visible even before first measurement
@@ -114,10 +118,22 @@ export function useCanvasSize(options: UseCanvasSizeOptions = {}): UseCanvasSize
     if (!last || last.width !== rect.width || last.height !== rect.height) {
       lastDimensionsRef.current = { width: rect.width, height: rect.height };
       setDimensions(newDims);
+      
+      // DEBUG: Log measurement in development
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('[useCanvasSize] Measured:', {
+          route: router.asPath,
+          containerWidth: rect.width,
+          containerHeight: rect.height,
+          scale: newDims.scale.toFixed(4),
+          offsetX: newDims.offsetX,
+          offsetY: newDims.offsetY,
+        });
+      }
     }
     
     return true;
-  }, []);
+  }, [router.asPath]);
   
   /**
    * Measurement with retry logic for handling hydration/route transitions.
@@ -138,10 +154,37 @@ export function useCanvasSize(options: UseCanvasSizeOptions = {}): UseCanvasSize
     attemptMeasure();
   }, [measure]);
   
+  // Reset measurement state when route changes
+  // This ensures we re-measure on navigation
+  useEffect(() => {
+    // Reset measurement state on route change
+    hasMeasured.current = false;
+    lastDimensionsRef.current = null;
+    retryCountRef.current = 0;
+    
+    // Trigger new measurement
+    measureWithRetry();
+    
+    return () => {
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current);
+      }
+    };
+  }, [router.asPath, measureWithRetry]);
+  
   // Use useLayoutEffect for synchronous initial measurement before paint
   // This prevents the "flash of wrong layout" on route transitions
   useLayoutEffect(() => {
     if (typeof window === 'undefined') return;
+    
+    // Check if the ref element changed
+    const currentElement = containerRef.current;
+    if (currentElement !== observedElementRef.current) {
+      // Ref element changed - reset measurement state
+      hasMeasured.current = false;
+      lastDimensionsRef.current = null;
+      observedElementRef.current = currentElement;
+    }
     
     // Attempt immediate synchronous measurement
     const success = measure();
@@ -264,4 +307,3 @@ export function useResizeCancellation(isResizing: boolean): React.MutableRefObje
   
   return shouldCancelRef;
 }
-

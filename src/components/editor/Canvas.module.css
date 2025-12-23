@@ -1,22 +1,26 @@
-.canvas {
+/**
+ * Canvas - Editor canvas styles.
+ * 
+ * The main canvas sizing is now handled by CanvasShell.
+ * These styles handle editor-specific overlays and interactions.
+ */
+
+/* Wrapper to contain the canvas shell */
+.canvasWrapper {
   position: relative;
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0; /* Allow flex shrinking */
   width: 100%;
   height: 100%;
-  min-height: 0; /* Allow flex shrinking */
-  background: var(--color-bg-pure);
-  overflow: auto; /* Allow scrolling in both directions */
-  overflow-x: auto;
-  overflow-y: auto;
-  /* Prevent default touch behaviors for smoother mobile interaction */
-  touch-action: pan-x pan-y;
-  -webkit-touch-callout: none;
-  -webkit-user-select: none;
-  user-select: none;
-  /* Ensure canvas is the scroll container */
-  -webkit-overflow-scrolling: touch;
 }
 
+/* Canvas class applied to CanvasShell */
+.canvas {
+  /* Additional editor-specific canvas styles */
+  cursor: default;
+}
 
 /* Content sizer - invisible div that sizes the scrollable area */
 .contentSizer {
@@ -41,7 +45,7 @@
   top: 0;
   bottom: 0;
   pointer-events: none;
-  z-index: 1;
+  z-index: 10;
   transition: background-color 0.2s ease, opacity 0.2s ease;
 }
 
@@ -56,8 +60,8 @@
 @media (max-width: 768px) {
   .canvas {
     /* Only allow vertical scrolling on mobile to prevent accidental horizontal panning */
-    overflow-x: hidden;
-    overflow-y: auto;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
   }
 }
 

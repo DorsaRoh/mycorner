@@ -1,14 +1,27 @@
+/**
+ * Canvas - Editor canvas with full interactivity.
+ * 
+ * Uses shared CanvasShell for consistent sizing and layering
+ * with the viewer, ensuring preview matches published pages.
+ * 
+ * Features:
+ * - Block rendering with selection/editing states
+ * - Marquee multi-selection
+ * - Creation palette on click
+ * - Drag and drop support
+ * - Margin overlays for safe zone visualization
+ */
+
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import type { Block as BlockType, BlockType as BlockTypeEnum, BackgroundConfig } from '@/shared/types';
 import { Block } from './Block';
 import { CreationPalette } from './CreationPalette';
+import { CanvasShell } from '@/components/canvas';
 import { uploadAsset, isAcceptedImageType } from '@/lib/upload';
-import { isImageUrl, getBackgroundStyles, getMarginOverlayColor } from '@/shared/utils/blockStyles';
+import { isImageUrl, getMarginOverlayColor } from '@/shared/utils/blockStyles';
 import { 
-  useCanvasSize, 
   CanvasDimensions,
   pxToRef,
-  refToPx,
   REFERENCE_WIDTH,
   REFERENCE_HEIGHT,
   SAFE_ZONE_MARGIN,
@@ -61,6 +74,17 @@ interface CanvasProps {
   onSendToBack?: (id: string) => void;
 }
 
+// Default dimensions for initial render
+const DEFAULT_DIMENSIONS: CanvasDimensions = {
+  width: REFERENCE_WIDTH,
+  height: REFERENCE_HEIGHT,
+  scale: 1,
+  scaleX: 1,
+  scaleY: 1,
+  offsetX: 0,
+  offsetY: 0,
+};
+
 export function Canvas({
   blocks,
   background,
@@ -91,24 +115,27 @@ export function Canvas({
   const [marquee, setMarquee] = useState<MarqueeState | null>(null);
   const isMarqueeActive = useRef(false);
   
-  // Use responsive canvas sizing with ResizeObserver
-  const { dimensions, containerRef, isResizing } = useCanvasSize({
-    debounceMs: 16,
-    onResizeStart: () => {
-      // Cancel active interactions during resize
-      setMarquee(null);
-      isMarqueeActive.current = false;
-    },
-  });
-  
-  // Notify parent of dimension changes
-  useEffect(() => {
-    onDimensionsChange?.(dimensions);
-  }, [dimensions, onDimensionsChange]);
+  // Track dimensions in state
+  const [dimensions, setDimensions] = useState<CanvasDimensions>(DEFAULT_DIMENSIONS);
   
   // Keep a ref to dimensions for use in callbacks
   const dimsRef = useRef(dimensions);
   useEffect(() => { dimsRef.current = dimensions; }, [dimensions]);
+  
+  // Container ref for mouse position calculations
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  
+  // Handle dimension changes from shell
+  const handleDimensionsChange = useCallback((dims: CanvasDimensions) => {
+    setDimensions(dims);
+    onDimensionsChange?.(dims);
+  }, [onDimensionsChange]);
+  
+  // Handle resize start - cancel active interactions
+  const handleResizeStart = useCallback(() => {
+    setMarquee(null);
+    isMarqueeActive.current = false;
+  }, []);
 
   // Clear drop error after a delay
   const showDropError = useCallback((message: string) => {
@@ -119,10 +146,12 @@ export function Canvas({
   // Handle mousedown for marquee selection
   const handleCanvasMouseDown = useCallback((e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
-    const container = containerRef.current;
     
-    // Only trigger on canvas or paper sheet (empty areas)
-    if (target !== container && !target.classList.contains(styles.paperSheet)) {
+    // Only trigger on empty canvas areas
+    const isCanvasClick = target.classList.contains(styles.paperSheet) ||
+      target.classList.contains(styles.canvas);
+    
+    if (!isCanvasClick) {
       return;
     }
     
@@ -135,6 +164,8 @@ export function Canvas({
     onSelectBlock(null);
     onSelectMultiple(new Set());
     
+    // Get container for position calculation
+    const container = containerRef.current;
     if (!container) return;
     
     // Start potential marquee selection (screen coordinates for visual rendering)
@@ -149,18 +180,20 @@ export function Canvas({
       currentX: screenX,
       currentY: screenY,
     });
-  }, [palette, onSelectBlock, onSelectMultiple, containerRef]);
+  }, [palette, onSelectBlock, onSelectMultiple]);
 
   // Handle click on empty canvas - show creation palette
   const handleCanvasClick = useCallback((e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
-    const container = containerRef.current;
     
     // Trigger first interaction to hide hint
     onFirstInteraction?.();
     
-    // Only trigger on canvas or paper sheet (empty areas)
-    if (target !== container && !target.classList.contains(styles.paperSheet)) {
+    // Only trigger on empty canvas areas
+    const isCanvasClick = target.classList.contains(styles.paperSheet) ||
+      target.classList.contains(styles.canvas);
+    
+    if (!isCanvasClick) {
       return;
     }
     
@@ -172,6 +205,7 @@ export function Canvas({
       return;
     }
     
+    const container = containerRef.current;
     if (!container) return;
     
     // Calculate positions: screen coords for palette, reference coords for block
@@ -190,7 +224,7 @@ export function Canvas({
       refX: refPos.x,
       refY: refPos.y,
     });
-  }, [marquee, containerRef, onFirstInteraction]);
+  }, [marquee, onFirstInteraction]);
   
   // Handle marquee mouse move and up
   useEffect(() => {
@@ -249,7 +283,7 @@ export function Canvas({
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [marquee, blocks, onSelectMultiple, containerRef]);
+  }, [marquee, blocks, onSelectMultiple]);
 
   // Handle palette selection - positions are in reference coordinates
   const handlePaletteSelect = useCallback((type: BlockTypeEnum, content?: string) => {
@@ -315,7 +349,7 @@ export function Canvas({
         onAddBlock('LINK', refPos.x, refPos.y, url);
       }
     }
-  }, [onAddBlock, showDropError, containerRef]);
+  }, [onAddBlock, showDropError]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -335,8 +369,6 @@ export function Canvas({
   const marqueeRect = getMarqueeRect();
   const isMarqueeVisible = marqueeRect && (marqueeRect.width > 5 || marqueeRect.height > 5);
 
-  const { canvasStyle, bgImageStyle } = useMemo(() => getBackgroundStyles(background), [background]);
-  
   // Get margin overlay color (slightly lighter than background)
   const marginOverlayColor = useMemo(() => getMarginOverlayColor(background), [background]);
   
@@ -345,128 +377,107 @@ export function Canvas({
     return SAFE_ZONE_MARGIN * dimensions.scale;
   }, [dimensions.scale]);
 
-  // Calculate content bounds to ensure canvas can scroll to show all blocks
-  const contentBounds = useMemo(() => {
-    if (blocks.length === 0) {
-      return { 
-        width: REFERENCE_WIDTH * dimensions.scale,
-        height: REFERENCE_HEIGHT * dimensions.scale 
-      };
-    }
-    
-    // Find the maximum extent of all blocks in reference coords
-    let maxRefX = REFERENCE_WIDTH;
-    let maxRefY = REFERENCE_HEIGHT;
-    
-    blocks.forEach(block => {
-      const blockRight = block.x + block.width;
-      const blockBottom = block.y + block.height;
-      maxRefX = Math.max(maxRefX, blockRight);
-      maxRefY = Math.max(maxRefY, blockBottom);
-    });
-    
-    // Convert to pixels and add some padding
-    return {
-      width: maxRefX * dimensions.scale + dimensions.offsetX + 40,
-      height: maxRefY * dimensions.scale + 40,
-    };
-  }, [blocks, dimensions]);
+  // Get block bounds for content sizing
+  const blockBounds = useMemo(() => 
+    blocks.map(b => ({ x: b.x, y: b.y, width: b.width, height: b.height })),
+    [blocks]
+  );
+  
+  // Capture container ref from shell
+  const handleShellRef = useCallback((el: HTMLDivElement | null) => {
+    containerRef.current = el;
+  }, []);
 
   return (
-    <div
-      ref={containerRef}
-      className={styles.canvas}
-      style={canvasStyle}
-      onMouseDown={handleCanvasMouseDown}
-      onClick={handleCanvasClick}
-      onDrop={handleDrop}
-      onDragOver={handleDragOver}
+    <div 
+      className={styles.canvasWrapper}
+      ref={handleShellRef}
     >
-      {/* Content sizer - ensures canvas can scroll to show all content */}
-      <div 
-        className={styles.contentSizer} 
-        style={{ 
-          minWidth: contentBounds.width, 
-          minHeight: contentBounds.height 
-        }} 
-      />
-
-      {/* Background image layer (separate for opacity support) */}
-      {bgImageStyle && (
-        <div className={styles.bgImageLayer} style={bgImageStyle} />
-      )}
-
-      {/* Left margin overlay - blocks cannot be placed here */}
-      <div 
-        className={styles.marginOverlay}
-        style={{
-          left: dimensions.offsetX,
-          width: marginWidth,
-          backgroundColor: marginOverlayColor,
-        }}
-      />
-      
-      {/* Right margin overlay - blocks cannot be placed here */}
-      <div 
-        className={styles.marginOverlay}
-        style={{
-          left: dimensions.offsetX + (REFERENCE_WIDTH - SAFE_ZONE_MARGIN) * dimensions.scale,
-          width: marginWidth,
-          backgroundColor: marginOverlayColor,
-        }}
-      />
-
-      {/* Clickable canvas area */}
-      <div className={styles.paperSheet} />
-
-      {blocks.map((block) => (
-        <Block
-          key={block.id}
-          block={block}
-          selected={selectedId === block.id}
-          multiSelected={selectedIds.has(block.id) && selectedId !== block.id}
-          isNew={newBlockIds.has(block.id)}
-          isEditing={editingId === block.id}
-          canvasDimensions={dimensions}
-          onSelect={() => onSelectBlock(block.id)}
-          onUpdate={(updates) => onUpdateBlock(block.id, updates)}
-          onUpdateMultiple={onUpdateMultipleBlocks}
-          onDragMultiple={onDragMultipleBlocks}
-          selectedIds={selectedIds}
-          allBlocks={blocks}
-          onDelete={() => onDeleteBlock(block.id)}
-          onSetEditing={(editing) => onSetEditing?.(editing ? block.id : null)}
-          onInteractionStart={onInteractionStart}
-          onFirstInteraction={onFirstInteraction}
-          onBringForward={onBringForward ? () => onBringForward(block.id) : undefined}
-          onSendBackward={onSendBackward ? () => onSendBackward(block.id) : undefined}
-          onBringToFront={onBringToFront ? () => onBringToFront(block.id) : undefined}
-          onSendToBack={onSendToBack ? () => onSendToBack(block.id) : undefined}
-        />
-      ))}
-      
-      
-      {/* Marquee selection box - uses screen coordinates */}
-      {isMarqueeVisible && (
+      <CanvasShell
+        mode="editor"
+        background={background}
+        blockBounds={blockBounds}
+        onDimensionsChange={handleDimensionsChange}
+        onResizeStart={handleResizeStart}
+        onMouseDown={handleCanvasMouseDown}
+        onClick={handleCanvasClick}
+        onDrop={handleDrop}
+        onDragOver={handleDragOver}
+        className={styles.canvas}
+        showDebug={false}
+      >
+        {/* Left margin overlay - blocks cannot be placed here */}
         <div 
-          className={styles.marquee}
+          className={styles.marginOverlay}
           style={{
-            left: marqueeRect.x,
-            top: marqueeRect.y,
-            width: marqueeRect.width,
-            height: marqueeRect.height,
+            left: dimensions.offsetX,
+            width: marginWidth,
+            backgroundColor: marginOverlayColor,
           }}
         />
-      )}
-      
-      {/* Drop error message */}
-      {dropError && (
-        <div className={styles.dropError}>
-          {dropError}
-        </div>
-      )}
+        
+        {/* Right margin overlay - blocks cannot be placed here */}
+        <div 
+          className={styles.marginOverlay}
+          style={{
+            left: dimensions.offsetX + (REFERENCE_WIDTH - SAFE_ZONE_MARGIN) * dimensions.scale,
+            width: marginWidth,
+            backgroundColor: marginOverlayColor,
+          }}
+        />
 
-      {/* Creation palette - appears at click position */}
+        {/* Clickable canvas area */}
+        <div className={styles.paperSheet} />
+
+        {blocks.map((block) => (
+          <Block
+            key={block.id}
+            block={block}
+            selected={selectedId === block.id}
+            multiSelected={selectedIds.has(block.id) && selectedId !== block.id}
+            isNew={newBlockIds.has(block.id)}
+            isEditing={editingId === block.id}
+            canvasDimensions={dimensions}
+            onSelect={() => onSelectBlock(block.id)}
+            onUpdate={(updates) => onUpdateBlock(block.id, updates)}
+            onUpdateMultiple={onUpdateMultipleBlocks}
+            onDragMultiple={onDragMultipleBlocks}
+            selectedIds={selectedIds}
+            allBlocks={blocks}
+            onDelete={() => onDeleteBlock(block.id)}
+            onSetEditing={(editing) => onSetEditing?.(editing ? block.id : null)}
+            onInteractionStart={onInteractionStart}
+            onFirstInteraction={onFirstInteraction}
+            onBringForward={onBringForward ? () => onBringForward(block.id) : undefined}
+            onSendBackward={onSendBackward ? () => onSendBackward(block.id) : undefined}
+            onBringToFront={onBringToFront ? () => onBringToFront(block.id) : undefined}
+            onSendToBack={onSendToBack ? () => onSendToBack(block.id) : undefined}
+          />
+        ))}
+        
+        
+        {/* Marquee selection box - uses screen coordinates */}
+        {isMarqueeVisible && (
+          <div 
+            className={styles.marquee}
+            style={{
+              left: marqueeRect.x,
+              top: marqueeRect.y,
+              width: marqueeRect.width,
+              height: marqueeRect.height,
+            }}
+          />
+        )}
+        
+        {/* Drop error message */}
+        {dropError && (
+          <div className={styles.dropError}>
+            {dropError}
+          </div>
+        )}
+      </CanvasShell>
+
+      {/* Creation palette - appears at click position (outside shell for fixed positioning) */}
       {palette && (
         <CreationPalette
           x={palette.x}
@@ -474,15 +485,6 @@ export function Canvas({
           onSelect={handlePaletteSelect}
           onClose={handlePaletteClose}
         />
-      )}
-      
-      {/* Debug overlay for responsive testing (dev only) */}
-      {process.env.NODE_ENV === 'development' && typeof window !== 'undefined' && (window as unknown as { __CANVAS_DEBUG?: boolean }).__CANVAS_DEBUG && (
-        <div className={styles.debugOverlay}>
-          <div className={styles.debugInfo}>
-            {`Canvas: ${dimensions.width.toFixed(0)}×${dimensions.height.toFixed(0)}px\nScale: ${dimensions.scale.toFixed(3)}\nOffset: ${dimensions.offsetX.toFixed(0)}, ${dimensions.offsetY.toFixed(0)}\nRef: 1200×800`}
-          </div>
-        </div>
       )}
     </div>
   );

@@ -1,69 +1,28 @@
+/**
+ * ViewerCanvas - Viewer-specific styles.
+ * 
+ * Main canvas sizing and layering is now handled by CanvasShell.
+ * This file contains only viewer-specific overrides if needed.
+ */
+
+/* 
+ * Note: ViewerCanvas now uses CanvasShell for all sizing and layering.
+ * The styles below are kept for backwards compatibility with any
+ * existing class references, but the actual styling comes from CanvasShell.
+ */
+
 .canvas {
-  position: relative;
-  width: 100%;
-  min-height: 100vh;
-  min-height: 100dvh; /* Dynamic viewport height for mobile */
-  background: var(--color-bg-pure);
-  overflow-x: auto; /* Allow horizontal scroll if content extends beyond */
-  overflow-y: visible;
-  -webkit-overflow-scrolling: touch;
+  /* Viewer-specific canvas styles go here */
 }
 
-
-/* Content sizer - invisible div that sizes the scrollable area */
 .contentSizer {
-  position: absolute;
-  top: 0;
-  left: 0;
-  pointer-events: none;
-  z-index: 0;
+  /* Handled by CanvasShell */
 }
 
-/* Background image layer - separate for opacity support */
 .bgImageLayer {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 1;
+  /* Handled by CanvasShell */
 }
 
-/* Inner container for blocks - above background layers */
 .blocksContainer {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  min-height: 100vh;
-  min-height: 100dvh;
-}
-
-/* ========================================
-   MOBILE RESPONSIVENESS
-   ======================================== */
-
-@media (max-width: 768px) {
-  .canvas {
-    /* Allow vertical scrolling for content that extends below viewport */
-    min-height: auto;
-    padding-bottom: 60px; /* Space for share button */
-  }
-
-  .blocksContainer {
-    /* Use transform to offset content down and avoid banner overlap */
-    transform: translateY(56px);
-    min-height: calc(100vh + 56px);
-    min-height: calc(100dvh + 56px);
-  }
-}
-
-@media (max-width: 480px) {
-  .canvas {
-    padding-bottom: 56px;
-  }
-
-  .blocksContainer {
-    /* More offset on small phones where banner takes full width */
-    transform: translateY(64px);
-    min-height: calc(100vh + 64px);
-    min-height: calc(100dvh + 64px);
-  }
+  /* Handled by CanvasShell */
 }

@@ -1,0 +1,125 @@
+/**
+ * CanvasShell - Shared canvas container for consistent sizing and layering.
+ * 
+ * CRITICAL: This component provides the SAME DOM structure and sizing
+ * for both the editor (/new) and viewer (/{slug}) to ensure identical
+ * rendering between preview and published pages.
+ * 
+ * z-index layers:
+ *   0: contentSizer (invisible, for scrollable area sizing)
+ *   1: bgImageLayer (background image/gradient)
+ *   2: blocksContainer (all blocks)
+ *   100+: overlays (CTA, debug, etc.)
+ */
+
+.shell {
+  /* Fixed viewport sizing - CRITICAL for consistent measurement */
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh; /* Dynamic viewport height for mobile */
+  
+  /* Default background - overridden by canvasStyle prop */
+  background: var(--color-bg-pure, #faf9f7);
+  
+  /* Scrolling behavior */
+  overflow-x: auto;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  
+  /* Prevent touch behaviors that interfere with canvas */
+  touch-action: pan-x pan-y;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Content sizer - invisible div that sizes the scrollable area */
+.contentSizer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Background image layer - full canvas area, below blocks */
+.bgImageLayer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Blocks container - above background layers */
+.blocksContainer {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  /* Ensure container doesn't block pointer events to shell */
+  pointer-events: none;
+}
+
+/* Make children of blocksContainer receive pointer events */
+.blocksContainer > * {
+  pointer-events: auto;
+}
+
+/* Debug overlay - fixed position, always visible */
+.debugOverlay {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  background: rgba(0, 0, 0, 0.85);
+  color: #00ff00;
+  font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+  font-size: 10px;
+  padding: 8px 12px;
+  border-radius: 4px;
+  z-index: 9999;
+  white-space: pre;
+  line-height: 1.5;
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* Editor mode - inherits from parent flex layout */
+.shell.editorMode {
+  /* In editor, we want to fill the available flex space */
+  width: 100%;
+  height: 100%;
+  flex: 1;
+  min-height: 0; /* Allow flex shrinking */
+}
+
+/* Viewer mode - full viewport */
+.shell.viewerMode {
+  /* Ensure full viewport coverage */
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+/* ========================================
+   MOBILE RESPONSIVENESS
+   ======================================== */
+
+@media (max-width: 768px) {
+  .shell.viewerMode {
+    /* On mobile viewer, ensure content doesn't get clipped */
+    min-height: auto;
+    padding-bottom: 60px; /* Space for CTA button */
+  }
+  
+  .shell.editorMode {
+    /* Editor maintains full height on mobile */
+    overflow-x: hidden; /* Prevent horizontal scroll on mobile editor */
+    overflow-y: auto;
+  }
+}
+
+@media (max-width: 480px) {
+  .shell.viewerMode {
+    padding-bottom: 56px;
+  }
+}
+

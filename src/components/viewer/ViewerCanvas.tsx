@@ -1,18 +1,45 @@
-import { useMemo, useEffect } from 'react';
+/**
+ * ViewerCanvas - Public page canvas renderer.
+ * 
+ * Uses shared CanvasShell for consistent sizing and layering
+ * with the editor, ensuring published pages look identical
+ * to the editor preview.
+ */
+
+import { useMemo, useEffect, useState, useCallback } from 'react';
 import type { Block as BlockType, BackgroundConfig } from '@/shared/types';
 import { ViewerBlock } from './ViewerBlock';
-import { getBackgroundStyles } from '@/shared/utils/blockStyles';
-import { useCanvasSize, REFERENCE_WIDTH, REFERENCE_HEIGHT } from '@/lib/canvas';
-import styles from './ViewerCanvas.module.css';
+import { CanvasShell } from '@/components/canvas';
+import { 
+  CanvasDimensions,
+  REFERENCE_WIDTH, 
+  REFERENCE_HEIGHT 
+} from '@/lib/canvas';
 
 interface ViewerCanvasProps {
   blocks: BlockType[];
   background?: BackgroundConfig;
 }
 
+// Default dimensions for initial render (before measurement)
+const DEFAULT_DIMENSIONS: CanvasDimensions = {
+  width: REFERENCE_WIDTH,
+  height: REFERENCE_HEIGHT,
+  scale: 1,
+  scaleX: 1,
+  scaleY: 1,
+  offsetX: 0,
+  offsetY: 0,
+};
+
 export function ViewerCanvas({ blocks, background }: ViewerCanvasProps) {
-  // Use responsive canvas sizing
-  const { dimensions, containerRef } = useCanvasSize({ debounceMs: 16 });
+  // Track dimensions in state so blocks re-render when they change
+  const [dimensions, setDimensions] = useState<CanvasDimensions>(DEFAULT_DIMENSIONS);
+  
+  // Handle dimension changes from shell
+  const handleDimensionsChange = useCallback((dims: CanvasDimensions) => {
+    setDimensions(dims);
+  }, []);
   
   // DEBUG: Log canvas dimensions in development (moved out of render)
   useEffect(() => {
@@ -27,65 +54,27 @@ export function ViewerCanvas({ blocks, background }: ViewerCanvasProps) {
     }
   }, [dimensions, blocks.length]);
   
-  const { canvasStyle, bgImageStyle } = useMemo(() => getBackgroundStyles(background), [background]);
-
-  // Calculate content bounds to ensure canvas can scroll to show all blocks
-  // Guard against invalid scale/offset values during initial render
-  const contentBounds = useMemo(() => {
-    // Ensure scale and offset are valid finite numbers
-    const safeScale = Number.isFinite(dimensions.scale) && dimensions.scale > 0 
-      ? dimensions.scale 
-      : 1;
-    const safeOffsetX = Number.isFinite(dimensions.offsetX) 
-      ? dimensions.offsetX 
-      : 0;
-    
-    if (blocks.length === 0) {
-      return { 
-        width: REFERENCE_WIDTH * safeScale,
-        height: REFERENCE_HEIGHT * safeScale 
-      };
-    }
-    
-    // Find the maximum extent of all blocks in reference coords
-    let maxRefX = REFERENCE_WIDTH;
-    let maxRefY = REFERENCE_HEIGHT;
-    
-    blocks.forEach(block => {
-      const blockRight = block.x + block.width;
-      const blockBottom = block.y + block.height;
-      maxRefX = Math.max(maxRefX, blockRight);
-      maxRefY = Math.max(maxRefY, blockBottom);
-    });
-    
-    // Convert to pixels and add some padding
-    return {
-      width: maxRefX * safeScale + safeOffsetX + 40,
-      height: maxRefY * safeScale + 40,
-    };
-  }, [blocks, dimensions]);
+  // Get block bounds for content sizing
+  const blockBounds = useMemo(() => 
+    blocks.map(b => ({ x: b.x, y: b.y, width: b.width, height: b.height })),
+    [blocks]
+  );
 
   return (
-    <div ref={containerRef} className={styles.canvas} style={canvasStyle}>
-      {/* Content sizer - ensures canvas can scroll to show all content */}
-      <div 
-        className={styles.contentSizer} 
-        style={{ 
-          minWidth: contentBounds.width, 
-          minHeight: contentBounds.height 
-        }} 
-      />
-      
-      {bgImageStyle && <div className={styles.bgImageLayer} style={bgImageStyle} />}
-      <div className={styles.blocksContainer}>
-        {blocks.map((block) => (
-          <ViewerBlock 
-            key={block.id} 
-            block={block} 
-            canvasDimensions={dimensions}
-          />
-        ))}
-      </div>
-    </div>
+    <CanvasShell
+      mode="viewer"
+      background={background}
+      blockBounds={blockBounds}
+      onDimensionsChange={handleDimensionsChange}
+      showDebug={false}
+    >
+      {blocks.map((block) => (
+        <ViewerBlock 
+          key={block.id} 
+          block={block} 
+          canvasDimensions={dimensions}
+        />
+      ))}
+    </CanvasShell>
   );
 }
