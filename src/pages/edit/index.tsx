@@ -1,8 +1,16 @@
+/**
+ * /edit - Authenticated editor page
+ * 
+ * For editing existing published pages.
+ * - If not authenticated → redirect to /new
+ * - If authenticated but no page → redirect to /new  
+ * - If authenticated with page → load from server and show editor
+ */
+
 import { useEffect, useState } from 'react';
 import { useQuery, gql } from '@apollo/client';
 import { useRouter } from 'next/router';
 import { GET_MY_PAGE } from '@/lib/graphql/mutations';
-import { getActiveDraftId, generateDraftId, setActiveDraftId, clearAuthContinuation, clearAllDrafts } from '@/lib/draft/storage';
 import { Editor } from '@/components/editor/Editor';
 import Head from 'next/head';
 import styles from '@/styles/EditPage.module.css';
@@ -19,24 +27,9 @@ const ME_QUERY = gql`
   }
 `;
 
-/**
- * /edit - Canonical editor page
- * 
- * This is the single entry point for editing. The URL is always /edit.
- * Internally resolves which page to load:
- * 1. If ?fresh=1 → always create a fresh new draft (for "make your own corner" CTA)
- * 2. If authenticated with existing server page → load that
- * 3. If has active draft in localStorage → load that
- * 4. Otherwise → create new draft
- */
 export default function EditPage() {
   const router = useRouter();
-  const [resolvedPageId, setResolvedPageId] = useState<string | null>(null);
-  const [mode, setMode] = useState<'draft' | 'server' | null>(null);
-  const [freshModeHandled, setFreshModeHandled] = useState(false);
-  
-  // Check for fresh param - when set, always create a new fresh draft
-  const isFresh = router.query.fresh === '1';
+  const [isReady, setIsReady] = useState(false);
   
   // Check authentication status
   const { data: meData, loading: meLoading } = useQuery(ME_QUERY, {
@@ -45,74 +38,35 @@ export default function EditPage() {
   const isAuthenticated = !!meData?.me;
   
   // Check if user has an existing server page
-  const { data, loading: queryLoading } = useQuery(GET_MY_PAGE, {
+  const { data: pageData, loading: pageLoading } = useQuery(GET_MY_PAGE, {
     fetchPolicy: 'network-only',
-    // Skip the query if we're creating a fresh page
-    skip: isFresh,
+    skip: !isAuthenticated,
   });
 
-  // Resolve which page to load
+  // Handle redirects
   useEffect(() => {
-    // Wait for router to be ready so we can check query params
-    if (!router.isReady) return;
-    
-    // Wait for auth check to complete
     if (meLoading) return;
     
-    // Priority 0: Fresh mode - always create a new draft
-    if (isFresh) {
-      clearAuthContinuation();
-      const newDraftId = generateDraftId();
-      // Only set active draft ID if authenticated
-      if (isAuthenticated) {
-        setActiveDraftId(newDraftId);
-      }
-      setResolvedPageId(newDraftId);
-      setMode('draft');
-      setFreshModeHandled(true);
-      // Clear the fresh param from URL without triggering a reload
-      router.replace('/edit', undefined, { shallow: true });
+    // Not authenticated - go to /new
+    if (!isAuthenticated) {
+      router.replace('/new');
       return;
     }
     
-    // If we just handled fresh mode, don't re-resolve even if fresh param is gone
-    if (freshModeHandled) return;
+    if (pageLoading) return;
     
-    if (queryLoading) return;
-
-    // Priority 1: User has an existing published page (only when authenticated)
-    // myPage now returns the most recently published page, or null if none exist
-    if (isAuthenticated && data?.myPage?.id) {
-      // Clear any stale auth continuation - user already has a page, no need for auto-publish
-      clearAuthContinuation();
-      setResolvedPageId(data.myPage.id);
-      setMode('server');
+    // Authenticated but no page - go to /new
+    if (!pageData?.myPage) {
+      router.replace('/new');
       return;
     }
+    
+    // Has page, ready to edit
+    setIsReady(true);
+  }, [meLoading, pageLoading, isAuthenticated, pageData, router]);
 
-    // Priority 2: Create a new draft with starter template
-    // This happens when:
-    // - User is authenticated but has no published pages (myPage is null)
-    // - User is authenticated and never published before
-    if (isAuthenticated) {
-      clearAuthContinuation();
-      const newDraftId = generateDraftId();
-      setActiveDraftId(newDraftId);
-      setResolvedPageId(newDraftId);
-      setMode('draft');
-      return;
-    }
-
-    // Priority 3: Not authenticated - create a new draft for anonymous editing
-    // Anonymous users can create and edit drafts, but need to authenticate to publish
-    const newDraftId = generateDraftId();
-    // Don't set active draft ID for anonymous users until they make changes
-    setResolvedPageId(newDraftId);
-    setMode('draft');
-  }, [data, queryLoading, isFresh, freshModeHandled, router.isReady, router, isAuthenticated, meLoading]);
-
-  // Still resolving...
-  if (!resolvedPageId || !mode) {
+  // Loading state
+  if (!isReady) {
     return (
       <>
         <Head>
@@ -125,20 +79,7 @@ export default function EditPage() {
     );
   }
 
-  // Draft mode - render editor directly
-  if (mode === 'draft') {
-    return (
-      <>
-        <Head>
-          <title>Edit – my corner</title>
-        </Head>
-        <Editor pageId={resolvedPageId} mode="draft" />
-      </>
-    );
-  }
-
-  // Server mode - render with server data
-  const page = data?.myPage;
+  const page = pageData?.myPage;
   if (!page) {
     return (
       <>

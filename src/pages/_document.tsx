@@ -12,6 +12,8 @@ export default function Document() {
         <link rel="apple-touch-icon" href="/logo.png" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        {/* Google Fonts - Press Start 2P (pixelated/retro font) */}
+        <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet" />
         {/* Plausible Analytics - privacy-respecting, no cookies */}
         {plausibleDomain && (
           <script

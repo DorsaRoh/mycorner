@@ -179,6 +179,66 @@ export function useEditorActions(
     });
   }, [actions]);
 
+  // Duplicate blocks (used for copy-paste)
+  // Accepts blocks to duplicate, creates new copies with new IDs and offset positions
+  const handleDuplicateBlocks = useCallback((blocksToDuplicate: Block[]) => {
+    exitStarterMode();
+    
+    const PASTE_OFFSET = 20; // Offset in reference coordinates
+    const newBlocks: Block[] = [];
+    const newIds = new Set<string>();
+    
+    for (const block of blocksToDuplicate) {
+      const newId = generateBlockId();
+      newIds.add(newId);
+      
+      // Calculate new position with offset, clamped to safe zone
+      const { x: safeX, y: safeY } = clampToSafeZone(
+        block.x + PASTE_OFFSET,
+        block.y + PASTE_OFFSET,
+        block.width,
+        block.height
+      );
+      
+      // Create new block with all properties copied
+      const newBlock: Block = {
+        ...block,
+        id: newId,
+        x: safeX,
+        y: safeY,
+        isStarter: undefined, // Don't copy starter flag
+      };
+      
+      newBlocks.push(newBlock);
+    }
+    
+    // Add all new blocks
+    actions.setBlocks((prev) => [...prev, ...newBlocks]);
+    
+    // Animate the new blocks
+    actions.setNewBlockIds(prev => {
+      const next = new Set(prev);
+      newIds.forEach(id => next.add(id));
+      return next;
+    });
+    setTimeout(() => {
+      actions.setNewBlockIds(prev => {
+        const next = new Set(prev);
+        newIds.forEach(id => next.delete(id));
+        return next;
+      });
+    }, 200);
+    
+    // Select the pasted blocks
+    if (newBlocks.length === 1) {
+      actions.setSelectedId(newBlocks[0].id);
+      actions.setSelectedIds(new Set());
+    } else if (newBlocks.length > 1) {
+      actions.setSelectedId(null);
+      actions.setSelectedIds(new Set(newBlocks.map(b => b.id)));
+    }
+  }, [generateBlockId, exitStarterMode, actions]);
+
   return {
     handleAddBlock,
     handleUpdateBlock,
@@ -190,6 +250,7 @@ export function useEditorActions(
     handleSendBackward,
     handleBringToFront,
     handleSendToBack,
+    handleDuplicateBlocks,
     exitStarterMode,
   };
 }

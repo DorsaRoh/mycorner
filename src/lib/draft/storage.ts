@@ -1,9 +1,312 @@
 /**
- * Local draft storage for anonymous page editing.
- * Drafts are stored in localStorage until the user publishes (which requires auth).
+ * Draft storage for anonymous page editing.
+ * 
+ * SINGLE KEY PATTERN:
+ * All draft data is stored in ONE localStorage key: 'yourcorner:draft:v1'
+ * 
+ * This stores the complete PageDoc (or a wrapper with metadata).
+ * No draft IDs, no prefixes, no multiple keys.
  */
 
-import type { Block, BackgroundConfig } from '@/shared/types';
+import type { PageDoc } from '@/lib/schema/page';
+
+// =============================================================================
+// Constants
+// =============================================================================
+
+const DRAFT_KEY = 'yourcorner:draft:v1';
+
+// Legacy keys to migrate from (one-time migration)
+const LEGACY_KEYS = [
+  'mycorner:draft:',
+  'mycorner:activeDraft',
+  'mycorner:authContinuation',
+  'mycorner:starterDismissed:',
+  'mycorner:publishToast',
+];
+
+// =============================================================================
+// Draft Interface
+// =============================================================================
+
+export interface DraftDoc {
+  /** The page document */
+  doc: PageDoc;
+  /** Timestamp of last update */
+  updatedAt: number;
+  /** Timestamp of creation */
+  createdAt: number;
+}
+
+// =============================================================================
+// Core Functions
+// =============================================================================
+
+/**
+ * Get the current draft.
+ */
+export function getDraft(): DraftDoc | null {
+  if (typeof window === 'undefined') return null;
+  
+  try {
+    const data = localStorage.getItem(DRAFT_KEY);
+    if (!data) return null;
+    
+    const parsed = JSON.parse(data);
+    
+    // Validate basic structure
+    if (!parsed.doc || typeof parsed.updatedAt !== 'number') {
+      return null;
+    }
+    
+    return parsed as DraftDoc;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Save a draft.
+ */
+export function saveDraft(doc: PageDoc): void {
+  if (typeof window === 'undefined') return;
+  
+  try {
+    const existing = getDraft();
+    const draft: DraftDoc = {
+      doc,
+      updatedAt: Date.now(),
+      createdAt: existing?.createdAt || Date.now(),
+    };
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+  } catch (e) {
+    console.error('Failed to save draft:', e);
+  }
+}
+
+/**
+ * Clear the draft.
+ */
+export function clearDraft(): void {
+  if (typeof window === 'undefined') return;
+  localStorage.removeItem(DRAFT_KEY);
+}
+
+/**
+ * Check if a draft exists.
+ */
+export function hasDraft(): boolean {
+  return getDraft() !== null;
+}
+
+// =============================================================================
+// Migration from Legacy Storage
+// =============================================================================
+
+/**
+ * One-time migration from legacy storage patterns.
+ * Call this on app init.
+ */
+export function migrateLegacyDraft(): void {
+  if (typeof window === 'undefined') return;
+  
+  try {
+    // Check if we already have a draft in new format
+    if (getDraft()) return;
+    
+    // Look for legacy draft data
+    const allKeys = Object.keys(localStorage);
+    
+    for (const key of allKeys) {
+      // Check for old draft pattern: mycorner:draft:{id}
+      if (key.startsWith('mycorner:draft:')) {
+        try {
+          const data = localStorage.getItem(key);
+          if (!data) continue;
+          
+          const parsed = JSON.parse(data);
+          
+          // Old format had: { id, title, blocks, background, createdAt, updatedAt }
+          if (parsed.blocks && Array.isArray(parsed.blocks)) {
+            // Convert to new PageDoc format
+            const doc: PageDoc = {
+              version: 1,
+              title: parsed.title || undefined,
+              bio: undefined,
+              themeId: 'default',
+              blocks: convertLegacyBlocks(parsed.blocks),
+            };
+            
+            saveDraft(doc);
+            console.log('[Draft] Migrated legacy draft from', key);
+            
+            // Clean up legacy key
+            localStorage.removeItem(key);
+            break;
+          }
+        } catch {
+          // Continue to next key
+        }
+      }
+    }
+    
+    // Clean up other legacy keys
+    for (const key of allKeys) {
+      for (const prefix of LEGACY_KEYS) {
+        if (key.startsWith(prefix) || key === prefix.slice(0, -1)) {
+          localStorage.removeItem(key);
+        }
+      }
+    }
+    
+    // Also remove the old draft key pointer
+    localStorage.removeItem('yourcorner:draft:v1'); // The old format stored draft ID here
+    
+  } catch (e) {
+    console.error('Failed to migrate legacy draft:', e);
+  }
+}
+
+/**
+ * Convert legacy blocks format to new format.
+ */
+function convertLegacyBlocks(legacyBlocks: unknown[]): PageDoc['blocks'] {
+  const blocks: PageDoc['blocks'] = [];
+  
+  for (const legacy of legacyBlocks) {
+    if (!legacy || typeof legacy !== 'object') continue;
+    
+    const l = legacy as Record<string, unknown>;
+    const id = String(l.id || `blk_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`);
+    const x = Number(l.x) || 0;
+    const y = Number(l.y) || 0;
+    const width = Number(l.width) || 200;
+    const height = Number(l.height) || 100;
+    const rotation = l.rotation ? Number(l.rotation) : undefined;
+    
+    const type = String(l.type || 'TEXT').toLowerCase();
+    const content = l.content as string || '';
+    
+    switch (type) {
+      case 'text':
+        blocks.push({
+          id,
+          type: 'text',
+          x, y, width, height, rotation,
+          content: { text: content },
+        });
+        break;
+      case 'image':
+        blocks.push({
+          id,
+          type: 'image',
+          x, y, width, height, rotation,
+          content: { url: content, alt: undefined },
+        });
+        break;
+      case 'link':
+        let linkContent: { label: string; url: string };
+        try {
+          const parsed = JSON.parse(content);
+          linkContent = {
+            label: String(parsed.label || parsed.text || 'Link'),
+            url: String(parsed.url || content),
+          };
+        } catch {
+          linkContent = { label: 'Link', url: content };
+        }
+        blocks.push({
+          id,
+          type: 'link',
+          x, y, width, height, rotation,
+          content: linkContent,
+        });
+        break;
+    }
+  }
+  
+  return blocks;
+}
+
+// =============================================================================
+// Legacy Compatibility Stubs (for gradual migration)
+// =============================================================================
+
+// These functions are no-ops to prevent import errors during migration.
+// Remove once all usages are updated.
+
+/** @deprecated Use getDraft() instead */
+export function generateDraftId(): string {
+  return 'draft-v1';
+}
+
+/** @deprecated No longer used */
+export function deleteDraft(_draftId?: string): void {
+  clearDraft();
+}
+
+/** @deprecated No longer used */
+export function setActiveDraftId(_draftId: string): void {}
+
+/** @deprecated No longer used */
+export function clearActiveDraftId(): void {}
+
+/** @deprecated No longer used */
+export function getActiveDraftId(): string | null { return null; }
+
+/** @deprecated No longer used */
+export function setAuthContinuation(_continuation: unknown): void {}
+
+/** @deprecated No longer used */
+export function getAuthContinuation(): null { return null; }
+
+/** @deprecated No longer used */
+export function clearAuthContinuation(): void {}
+
+/** @deprecated No longer used */
+export function hasStarterBeenDismissed(_draftId: string): boolean { return false; }
+
+/** @deprecated No longer used */
+export function setStarterDismissed(_draftId: string): void {}
+
+/** @deprecated No longer used */
+export function setPublishToastData(_url: string): void {}
+
+/** @deprecated No longer used */
+export function getPublishToastData(): null { return null; }
+
+/** @deprecated No longer used */
+export function clearPublishToastData(): void {}
+
+/** @deprecated No longer used */
+export function clearAllDrafts(): void { clearDraft(); }
+
+/** @deprecated No longer used */
+export function getAllDraftIds(): string[] { return []; }
+
+// =============================================================================
+// Legacy Block/Background Types (for compatibility)
+// =============================================================================
+
+// These types match the old format for migration purposes
+export interface Block {
+  id: string;
+  type: 'TEXT' | 'IMAGE' | 'LINK';
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  content: string;
+  style?: Record<string, unknown>;
+  effects?: Record<string, unknown>;
+  rotation?: number;
+}
+
+export interface BackgroundConfig {
+  mode: 'solid' | 'gradient';
+  solid?: { color: string };
+  gradient?: { type: 'linear' | 'radial'; colorA: string; colorB: string; angle: number };
+}
 
 export interface DraftData {
   id: string;
@@ -12,289 +315,4 @@ export interface DraftData {
   background?: BackgroundConfig;
   createdAt: number;
   updatedAt: number;
-}
-
-const STORAGE_PREFIX = 'mycorner:draft:';
-const ACTIVE_DRAFT_KEY = 'mycorner:activeDraftId';
-const PENDING_PUBLISH_KEY = 'mycorner:pendingPublish';
-const USER_INTERACTED_KEY = 'mycorner:hasInteracted';
-const STARTER_DISMISSED_PREFIX = 'mycorner:starterDismissed:';
-
-/**
- * Generate a unique draft ID
- */
-export function generateDraftId(): string {
-  return `draft_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
-}
-
-/**
- * Get the active draft ID (the one the user was last working on)
- */
-export function getActiveDraftId(): string | null {
-  if (typeof window === 'undefined') return null;
-  return localStorage.getItem(ACTIVE_DRAFT_KEY);
-}
-
-/**
- * Set the active draft ID
- */
-export function setActiveDraftId(draftId: string): void {
-  if (typeof window === 'undefined') return;
-  localStorage.setItem(ACTIVE_DRAFT_KEY, draftId);
-}
-
-/**
- * Clear the active draft ID
- */
-export function clearActiveDraftId(): void {
-  if (typeof window === 'undefined') return;
-  localStorage.removeItem(ACTIVE_DRAFT_KEY);
-}
-
-/**
- * Get a draft by ID
- */
-export function getDraft(draftId: string): DraftData | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    const data = localStorage.getItem(`${STORAGE_PREFIX}${draftId}`);
-    if (!data) return null;
-    return JSON.parse(data) as DraftData;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Save a draft
- */
-export function saveDraft(draft: DraftData): void {
-  if (typeof window === 'undefined') return;
-  try {
-    localStorage.setItem(`${STORAGE_PREFIX}${draft.id}`, JSON.stringify(draft));
-  } catch (e) {
-    console.error('Failed to save draft:', e);
-  }
-}
-
-/**
- * Delete a draft
- */
-export function deleteDraft(draftId: string): void {
-  if (typeof window === 'undefined') return;
-  localStorage.removeItem(`${STORAGE_PREFIX}${draftId}`);
-  
-  // Clear active draft if it matches
-  if (getActiveDraftId() === draftId) {
-    clearActiveDraftId();
-  }
-}
-
-/**
- * Get all draft IDs
- */
-export function getAllDraftIds(): string[] {
-  if (typeof window === 'undefined') return [];
-  const ids: string[] = [];
-  for (let i = 0; i < localStorage.length; i++) {
-    const key = localStorage.key(i);
-    if (key?.startsWith(STORAGE_PREFIX)) {
-      ids.push(key.slice(STORAGE_PREFIX.length));
-    }
-  }
-  return ids;
-}
-
-/**
- * Auth continuation data - stores intent and context when auth is triggered.
- * This allows resuming the user's action after OAuth redirect.
- */
-export interface AuthContinuation {
-  /** What action to continue after auth */
-  intent: 'publish';
-  /** The draft ID being edited */
-  draftId: string;
-  /** Route to return to (always /edit - canonical route) */
-  returnTo: string;
-  /** When this continuation was created */
-  timestamp: number;
-  /** Local revision number to guard against stale continuations */
-  localRevision?: number;
-}
-
-const AUTH_CONTINUATION_KEY = 'mycorner:authContinuation';
-const CONTINUATION_EXPIRY_MS = 15 * 60 * 1000; // 15 minutes
-
-/**
- * Set auth continuation for resuming after OAuth
- * Uses localStorage instead of sessionStorage because sessionStorage can be lost
- * during OAuth redirects (especially on mobile browsers or cross-origin flows)
- */
-export function setAuthContinuation(continuation: Omit<AuthContinuation, 'timestamp'>): void {
-  if (typeof window === 'undefined') return;
-  const data: AuthContinuation = {
-    ...continuation,
-    timestamp: Date.now(),
-  };
-  localStorage.setItem(AUTH_CONTINUATION_KEY, JSON.stringify(data));
-}
-
-/**
- * Get auth continuation if valid and not expired
- */
-export function getAuthContinuation(): AuthContinuation | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    const data = localStorage.getItem(AUTH_CONTINUATION_KEY);
-    if (!data) return null;
-    const parsed = JSON.parse(data) as AuthContinuation;
-    // Expire after 15 minutes
-    if (Date.now() - parsed.timestamp > CONTINUATION_EXPIRY_MS) {
-      clearAuthContinuation();
-      return null;
-    }
-    return parsed;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Clear auth continuation
- */
-export function clearAuthContinuation(): void {
-  if (typeof window === 'undefined') return;
-  localStorage.removeItem(AUTH_CONTINUATION_KEY);
-}
-
-// Legacy aliases for backwards compatibility
-export type PendingPublish = AuthContinuation;
-
-export function setPendingPublish(draftId: string, returnTo?: string): void {
-  setAuthContinuation({
-    intent: 'publish',
-    draftId,
-    returnTo: returnTo || '/edit',
-  });
-}
-
-export function getPendingPublish(): AuthContinuation | null {
-  return getAuthContinuation();
-}
-
-export function clearPendingPublish(): void {
-  clearAuthContinuation();
-}
-
-/**
- * Check if user has interacted with the canvas (used to hide placeholder)
- */
-export function hasUserInteracted(): boolean {
-  if (typeof window === 'undefined') return false;
-  return localStorage.getItem(USER_INTERACTED_KEY) === 'true';
-}
-
-/**
- * Mark that user has interacted with the canvas
- */
-export function setUserInteracted(value: boolean = true): void {
-  if (typeof window === 'undefined') return;
-  if (value) {
-    localStorage.setItem(USER_INTERACTED_KEY, 'true');
-  } else {
-    localStorage.removeItem(USER_INTERACTED_KEY);
-  }
-}
-
-/**
- * Check if starter mode has been dismissed for a specific draft
- */
-export function hasStarterBeenDismissed(draftId: string): boolean {
-  if (typeof window === 'undefined') return false;
-  return localStorage.getItem(`${STARTER_DISMISSED_PREFIX}${draftId}`) === 'true';
-}
-
-/**
- * Mark starter mode as dismissed for a specific draft
- */
-export function setStarterDismissed(draftId: string): void {
-  if (typeof window === 'undefined') return;
-  localStorage.setItem(`${STARTER_DISMISSED_PREFIX}${draftId}`, 'true');
-}
-
-/**
- * Publish toast data - stores the URL to show in toast after navigation
- */
-export interface PublishToastData {
-  url: string;
-  timestamp: number;
-}
-
-const PUBLISH_TOAST_KEY = 'mycorner:publishToast';
-const PUBLISH_TOAST_EXPIRY_MS = 30 * 1000; // 30 seconds
-
-/**
- * Set publish toast data to show after navigation
- */
-export function setPublishToastData(url: string): void {
-  if (typeof window === 'undefined') return;
-  const data: PublishToastData = {
-    url,
-    timestamp: Date.now(),
-  };
-  sessionStorage.setItem(PUBLISH_TOAST_KEY, JSON.stringify(data));
-}
-
-/**
- * Get publish toast data if valid and not expired
- */
-export function getPublishToastData(): PublishToastData | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    const data = sessionStorage.getItem(PUBLISH_TOAST_KEY);
-    if (!data) return null;
-    const parsed = JSON.parse(data) as PublishToastData;
-    // Expire after 30 seconds
-    if (Date.now() - parsed.timestamp > PUBLISH_TOAST_EXPIRY_MS) {
-      clearPublishToastData();
-      return null;
-    }
-    return parsed;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Clear publish toast data
- */
-export function clearPublishToastData(): void {
-  if (typeof window === 'undefined') return;
-  sessionStorage.removeItem(PUBLISH_TOAST_KEY);
-}
-
-/**
- * Clear all draft-related data from localStorage
- * Used when logging out or to prevent draft leakage for anonymous users
- */
-export function clearAllDrafts(): void {
-  if (typeof window === 'undefined') return;
-  
-  // Clear all draft data
-  const draftIds = getAllDraftIds();
-  draftIds.forEach(id => deleteDraft(id));
-  
-  // Clear active draft ID
-  clearActiveDraftId();
-  
-  // Clear user interaction flag
-  setUserInteracted(false);
-  
-  // Clear all starter dismissed flags
-  for (let i = 0; i < localStorage.length; i++) {
-    const key = localStorage.key(i);
-    if (key?.startsWith(STARTER_DISMISSED_PREFIX)) {
-      localStorage.removeItem(key);
-    }
-  }
 }

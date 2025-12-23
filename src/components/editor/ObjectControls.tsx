@@ -16,6 +16,7 @@ const FONT_FAMILIES = [
   { value: 'Courier New, monospace', label: 'Mono' },
   { value: 'Comic Sans MS, cursive', label: 'Comic' },
   { value: 'Impact, sans-serif', label: 'Impact' },
+  { value: '"Press Start 2P", cursive', label: 'Pixel' },
 ];
 
 interface ObjectControlsProps {

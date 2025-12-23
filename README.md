@@ -1,118 +1,211 @@
-# my corner
+# YourCorner
 
-A minimal "personal internet page" product. Create a blank canvas, add text, images, and links anywhere, publish it, and share via URL. Others can view and fork your page to make their own.
+A minimal "corner of the internet" product. Create your personal page with text, images, and links, publish it as static HTML, and share your unique URL.
 
-## Quick Start
+## Production Architecture
 
-```bash
-# Install dependencies
-npm install
-
-# Start development server
-npm run dev
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│   PUBLIC PAGE VIEWS (No database, no app server)                           │
+│                                                                             │
+│   Browser → CDN → Object Storage (S3/R2)                                   │
+│              ↓                                                              │
+│   /u/{slug} → pages/{slug}/index.html (static HTML)                        │
+│                                                                             │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│   PUBLISH FLOW                                                              │
+│                                                                             │
+│   Editor (/new) → POST /api/publish                                        │
+│                         ↓                                                   │
+│   1. Validate PageDoc (Zod)                                                │
+│   2. Render static HTML                                                     │
+│   3. Upload to S3/R2 → pages/{slug}/index.html                             │
+│   4. Upsert DB row (metadata only)                                         │
+│   5. Purge CDN cache                                                        │
+│   6. Return slug → redirect to /u/{slug}                                   │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+**Non-negotiable production goals:**
+1. Public page views do NOT hit the database or app server
+2. Public pages are served as static HTML from CDN backed by object storage
+3. Database is used only for editor/auth metadata and publish operations
+4. Minimal, reliable, and cheap at scale
+
+## Production Invariants
+
+These invariants are enforced in code and must not be violated:
+
+### 1. Public Pages are DB-Free
+- `/u/[slug]` in production NEVER touches the database
+- It redirects to `${S3_PUBLIC_BASE_URL}/pages/${slug}/index.html`
+- The redirect uses only `S3_PUBLIC_BASE_URL` (no upload secrets required)
+
+### 2. Storage Base URL Required in Production
+- `S3_PUBLIC_BASE_URL` MUST be set in production
+- Without it, `/api/publish` returns 503 Service Unavailable
+- Without it, `/u/[slug]` returns 404
+
+### 3. Upload-Before-DB Guarantee
+- Publishing uploads HTML to storage BEFORE updating the database
+- If storage upload fails, the DB is NOT updated
+- This prevents "DB says published but artifact missing" bugs
+
+### 4. Slug Generation Rules
+- Slugs are based on `userId`, NEVER on `username`
+- Format: `user-{first 8 chars of userId}`
+- Existing slugs are immutable (reused on re-publish)
+- Slugs must match `^[a-z0-9-]{1,64}$`
+
+### 5. Bounded Cache TTL Without Purge
+- If CDN purge is configured: HTML cache = 1 hour (purge on update)
+- If CDN purge NOT configured: HTML cache = 5 minutes (bounded staleness)
+- Assets are immutable: `max-age=31536000, immutable`
+
+### 6. CDN Purge Targets (Multi-Origin)
+When purging, we target all URLs users might hit:
+- `${origin}/u/${slug}` for each origin in `APP_ORIGINS`
+- `${S3_PUBLIC_BASE_URL}/pages/${slug}/index.html` - Storage artifact
+
+Use `APP_ORIGINS` (comma-separated) for multiple domains (e.g., `https://example.com,https://www.example.com`).
+
+### 7. No Silent Failures in Production
+- Storage not configured → 503 (not silent success)
+- Upload fails → 500 (not "published" in DB)
+- Invalid slugs → 404 (early rejection)
+
+## The Viral Loop
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│   User A visits User B's page (/u/alice)  ← Static HTML from CDN           │
+│                 ↓                                                           │
+│   Sees persistent CTA: "Make your own corner"                              │
+│                 ↓                                                           │
+│   Clicks → goes to /new (anonymous editor)                                 │
+│                 ↓                                                           │
+│   Edits their page (saved to localStorage)                                 │
+│                 ↓                                                           │
+│   Clicks Publish → redirected to auth                                      │
+│                 ↓                                                           │
+│   Signs in with Google → immediately published                             │
+│   (NO username step - slug is auto-generated)                              │
+│                 ↓                                                           │
+│   Static HTML rendered → uploaded to storage                               │
+│                 ↓                                                           │
+│   Redirected to /u/{auto-slug}                                             │
+│                 ↓                                                           │
+│   User C visits User A's page → cycle repeats                              │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+## Routes
+
+| Route | Description | Auth | Database |
+|-------|-------------|------|----------|
+| `/` | Landing page → CTA to /new | No | No |
+| `/new` | Anonymous editor (localStorage) | No | No |
+| `/u/[slug]` | Public page (static from CDN) | No | **No** |
+| `/edit` | Authenticated editor | Yes | Yes |
+| `/auth/google` | Google OAuth login | No | Yes |
+| `/api/publish` | Publish draft → static HTML | Yes | Yes |
+| `/api/upload` | Upload images | Yes | No (storage only) |
+| `/api/healthz` | Health check | No | No |
+
+### Legacy Routes
+
+| Route | Behavior |
+|-------|----------|
+| `/[username]` | Redirects to `/u/[slug]` if published, else 404 |
 
 ## Tech Stack
 
 | Layer | Technology |
 |-------|------------|
-| Framework | Next.js 14 + React 18 |
+| Framework | Next.js 14 (Pages Router) |
 | Language | TypeScript |
-| Data | GraphQL (Apollo Client + Server) |
-| Database | PostgreSQL (prod) / SQLite (dev) |
+| Validation | Zod |
+| Database | PostgreSQL (Neon/Supabase) |
 | ORM | Drizzle ORM |
-| Storage | Supabase Storage (prod) / Local disk (dev) |
-| Server | Node.js + Express |
+| Object Storage | S3-compatible (Cloudflare R2 recommended) |
+| CDN | Cloudflare |
 | Auth | Passport.js + Google OAuth |
-| Hosting | Render |
 
-## Production Deployment
+## How Publishing Works
 
-### Prerequisites
+1. **User edits on `/new`** - Draft stored in localStorage (`yourcorner:draft:v1`)
+2. **User clicks Publish** - If not authenticated, redirected to `/auth/google?returnTo=/new?publish=1`
+3. **After auth** - Back on `/new?publish=1`, calls `POST /api/publish` with PageDoc
+4. **Server validates** - Zod validates the PageDoc
+5. **Static HTML rendered** - Full HTML page with inline CSS, OG tags, CTA
+6. **Uploaded to storage** - `pages/{slug}/index.html` in S3/R2
+7. **DB updated** - Single row upserted with metadata
+8. **CDN purged** - Cache cleared for the slug
+9. **Redirect to `/u/[slug]`** - User sees their published page (served from CDN)
 
-1. **Supabase** - For PostgreSQL database and file storage
-2. **Google Cloud Console** - For OAuth credentials  
-3. **Render, Fly.io, or Railway** - For hosting
-
-### Quick Deploy
-
-1. **Create Supabase project** at [supabase.com](https://supabase.com)
-   - Note your database connection string (Settings → Database → URI)
-   - Create a storage bucket named `uploads` (set to public)
-
-2. **Configure Google OAuth** at [console.cloud.google.com](https://console.cloud.google.com/apis/credentials)
-   - Create OAuth 2.0 Client ID (Web application)
-   - Add redirect URI: `https://your-domain.com/auth/google/callback`
-
-3. **Deploy** - Set these environment variables on your platform:
-
-| Variable | Description |
-|----------|-------------|
-| `DATABASE_URL` | Supabase connection string (use pooler, port 6543) |
-| `GOOGLE_CLIENT_ID` | From Google Cloud Console |
-| `GOOGLE_CLIENT_SECRET` | From Google Cloud Console |
-| `SESSION_SECRET` | Generate with `openssl rand -base64 32` |
-| `SUPABASE_URL` | Your Supabase project URL |
-| `SUPABASE_SERVICE_KEY` | Supabase service role key |
-| `PUBLIC_URL` | Your production URL (e.g., https://mycorner.app) |
-| `CORS_ORIGIN` | Same as PUBLIC_URL |
-
-### Deploy with Docker
-
-```bash
-docker build -t my-corner .
-docker run -p 3000:3000 --env-file .env.prod my-corner
-```
-
-### Deploy to Render
-
-Use the `render.yaml` blueprint or create a Web Service:
-- Build: `npm ci --include=dev && npm run build`
-- Start: `npm start`
-
-### Deploy to Fly.io
-
-```bash
-fly launch
-fly secrets set DATABASE_URL="..." GOOGLE_CLIENT_ID="..." # etc
-fly deploy
-```
+**No username onboarding step.** Slug is deterministic (`user-{userId.slice(0,8)}`) and immutable for MVP.
 
 ## Environment Variables
 
-Create a `.env.prod` file with your production credentials:
+See `env.example.txt` for all variables.
 
 ```bash
+# Required for production
 NODE_ENV=production
 PORT=3000
 PUBLIC_URL=https://your-domain.com
-CORS_ORIGIN=https://your-domain.com
+SESSION_SECRET=...  # Generate with: openssl rand -base64 32
 DATABASE_URL=postgresql://...
 GOOGLE_CLIENT_ID=...
 GOOGLE_CLIENT_SECRET=...
-SESSION_SECRET=...  # Generate with: openssl rand -base64 32
-SUPABASE_URL=https://yourproject.supabase.co
-SUPABASE_SERVICE_KEY=...
-SUPABASE_STORAGE_BUCKET=uploads
+
+# Object Storage (S3-compatible)
+S3_ENDPOINT=https://xxx.r2.cloudflarestorage.com
+S3_ACCESS_KEY_ID=...
+S3_SECRET_ACCESS_KEY=...
+S3_BUCKET=yourcorner
+S3_REGION=auto
+S3_PUBLIC_BASE_URL=https://cdn.yourcorner.com
+
+# CDN Purge (optional but recommended)
+CLOUDFLARE_API_TOKEN=...
+CLOUDFLARE_ZONE_ID=...
+
+# App origins for CTA links and purge (comma-separated for multiple)
+APP_ORIGINS=https://yourcorner.com,https://www.yourcorner.com
+
+# Rate limiting provider: memory (default), upstash, or cloudflare
+RATE_LIMIT_PROVIDER=upstash
+UPSTASH_REDIS_REST_URL=https://...
+UPSTASH_REDIS_REST_TOKEN=...
 ```
 
 For local development, the app uses SQLite by default (no config needed).
 
-## Available Scripts
+## CDN Configuration (Cloudflare)
 
-| Command | Description |
-|---------|-------------|
-| `npm run dev` | Start development server on port 3000 |
-| `npm run build` | Build for production |
-| `npm start` | Start production server |
-| `npm run lint` | Run ESLint |
-| `npm run type-check` | Run TypeScript compiler check |
-| `npm run db:generate` | Generate database migrations |
-| `npm run db:migrate` | Run database migrations |
-| `npm run db:push` | Push schema to database |
-| `npm run db:studio` | Open Drizzle Studio |
+See **[docs/cdn-cloudflare.md](docs/cdn-cloudflare.md)** for complete setup instructions including:
+- Transform Rules for edge rewriting
+- Cache Rules configuration
+- Rate limiting at the edge
+- Cache purge setup
+
+Quick summary:
+- **Option A (Recommended):** Cloudflare Transform Rule rewrites `/u/{slug}` → `/pages/{slug}/index.html`
+- **Option B (Fallback):** Next.js route redirects to storage URL (307 Temporary)
+
+### Required Environment Variables
+```bash
+S3_PUBLIC_BASE_URL=https://cdn.yourcorner.com
+APP_ORIGINS=https://yourcorner.com,https://www.yourcorner.com
+CLOUDFLARE_API_TOKEN=...  # optional, for cache purge
+CLOUDFLARE_ZONE_ID=...    # optional, for cache purge
+```
 
 ## Project Structure
 
@@ -120,143 +213,197 @@ For local development, the app uses SQLite by default (no config needed).
 src/
 ├── components/
 │   ├── editor/           # Page editor components
-│   │   ├── Editor.tsx    # Main editor orchestration
+│   │   ├── Editor.tsx    # Main editor (used by /new and /edit)
 │   │   ├── Canvas.tsx    # Draggable block canvas
-│   │   ├── Block.tsx     # Individual block (text/image/link)
-│   │   └── ...
-│   └── viewer/           # Public page viewer
-│       ├── ViewerCanvas.tsx
-│       ├── ViewerBlock.tsx
-│       └── FloatingAction.tsx
+│   │   ├── usePublish.ts # Publish hook (calls /api/publish)
+│   │   └── AuthGate.tsx  # Auth modal for publishing
+│   └── viewer/           # Public page viewer (dev fallback only)
 ├── lib/
-│   ├── apollo/           # Apollo Client setup (SSR)
-│   ├── config.ts         # Typed environment config
-│   ├── graphql/          # Queries and mutations
-│   ├── hooks/            # Custom hooks (autosave)
-│   └── upload.ts         # Client-side upload utility
+│   ├── schema/           # Zod schemas
+│   │   └── page.ts       # PageDoc schema + validation
+│   ├── themes.ts         # 10 theme presets
+│   └── draft/            # LocalStorage draft management
+│       ├── storage.ts    # getDraft, saveDraft, clearDraft
+│       └── index.ts      # Format conversion helpers
 ├── pages/
-│   ├── index.tsx         # Home - create new page
-│   ├── edit/[id].tsx     # Editor route
-│   ├── p/[id].tsx        # Public viewer (by ID)
-│   └── u/[username].tsx  # Public viewer (by username)
-├── server/
-│   ├── index.ts          # Express + Next.js server
-│   ├── auth/             # Passport Google OAuth
-│   ├── db/               # Database (SQLite/PostgreSQL)
-│   ├── graphql/          # Apollo Server + resolvers
-│   ├── rateLimit.ts      # Rate limiting middleware
-│   ├── storage.ts        # File storage (local/Supabase)
-│   └── upload.ts         # Upload endpoint
-├── shared/
-│   └── types/            # Shared TypeScript types
-└── styles/               # CSS modules
-
-docs/
-├── ARCHITECTURE.md       # System architecture
-└── SHIP_CHECKLIST.md     # Production checklist
+│   ├── index.tsx         # Landing page → /new
+│   ├── new.tsx           # Anonymous editor
+│   ├── u/
+│   │   └── [slug].tsx    # Redirect to storage (or dev fallback)
+│   ├── edit/
+│   │   └── index.tsx     # Authenticated editor
+│   └── api/
+│       ├── publish.ts    # Publish endpoint (render → upload → purge)
+│       └── upload.ts     # Image upload endpoint
+└── server/
+    ├── index.ts          # Express + Next.js server
+    ├── auth/             # Passport Google OAuth
+    ├── db/               # Database (PostgreSQL/SQLite)
+    ├── storage/          # S3-compatible storage client
+    │   └── client.ts
+    ├── cdn/              # CDN cache purge
+    │   └── purge.ts
+    └── render/           # Static HTML renderer
+        └── renderPageHtml.ts
 ```
 
-## Routes
+## PageDoc Schema
 
-| Route | Description | Auth Required |
-|-------|-------------|---------------|
-| `/` | Create new page | No |
-| `/edit/[id]` | Edit page (draft or server) | Owner only |
-| `/p/[id]` | View published page by ID | No |
-| `/u/[username]` | View published page by username | No |
-| `/graphql` | GraphQL endpoint | No |
-| `/auth/google` | Google OAuth login | No |
-| `/auth/google/callback` | OAuth callback | No |
-| `/api/assets/upload` | Upload files | No |
-| `/health` | Health check | No |
+Pages are validated with Zod:
 
-## Core Features
+```typescript
+interface PageDoc {
+  version: 1;
+  title?: string;
+  bio?: string;
+  themeId: string;
+  blocks: Block[];
+}
 
-### 1. Page Editor (`/edit/[id]`)
+type Block = TextBlock | LinkBlock | ImageBlock;
 
-- **Add blocks**: Click + buttons or double-click canvas
-- **Drag blocks**: Click and drag anywhere on a block
-- **Resize blocks**: Drag the corner handle when selected
-- **Style blocks**: Use the toolbar for text styling, effects
-- **Autosave**: Changes save automatically after 1 second
-- **Publish**: Click "Publish" to make page public
+interface TextBlock {
+  id: string;
+  type: 'text';
+  x: number; y: number; width: number; height: number;
+  content: { text: string };
+  style?: { align?: 'left'|'center'|'right'; card?: boolean; radius?: 'none'|'sm'|'md'|'lg'|'full'; shadow?: 'none'|'sm'|'md'|'lg' };
+}
 
-### 2. Public Viewer (`/p/[id]` or `/u/[username]`)
+interface LinkBlock {
+  id: string;
+  type: 'link';
+  x: number; y: number; width: number; height: number;
+  content: { label: string; url: string }; // URL validated
+  style?: { ... };
+}
 
-- **Server-side rendered** for fast loading + SEO
-- **Read-only** view of published pages
-- **Share button**: Copy URL to clipboard
-- **Fork button**: "Make your own" creates editable copy
+interface ImageBlock {
+  id: string;
+  type: 'image';
+  x: number; y: number; width: number; height: number;
+  content: { url: string; alt?: string }; // URL validated at publish
+  style?: { ... };
+}
+```
 
-### 3. Authentication
+## Storage Layout
 
-Uses **Google OAuth** for authentication:
+```
+bucket/
+├── pages/
+│   ├── alice/
+│   │   └── index.html       # Static page for /u/alice
+│   └── user-a1b2c3d4/
+│       └── index.html       # Auto-generated slug
+└── assets/
+    └── {userId}/
+        └── {uuid}.{ext}     # Uploaded images
+```
 
-1. Click "Publish" on your page
-2. Sign in with Google
-3. **First time**: Choose your username and page title
-4. Your page is published at `/u/{username}`
+Cache headers:
+- `pages/*`: `Cache-Control: public, max-age=3600` (purge on publish)
+- `assets/*`: `Cache-Control: public, max-age=31536000, immutable`
 
-## Security Features
+## Themes
 
-- **Rate limiting** on all API endpoints
-- **Zod validation** for all user inputs
-- **Reserved usernames** (admin, api, etc.)
-- **Owner-only** page modifications
-- **Secure sessions** (httpOnly, secure cookies in prod)
-- **CORS** protection in production
-
-## Analytics
-
-Privacy-respecting analytics via [Plausible](https://plausible.io):
-
-1. Sign up at plausible.io
-2. Add your domain
-3. Set `NEXT_PUBLIC_PLAUSIBLE_DOMAIN` env var
-
-No cookies, no personal data collected.
-
-## Common Issues
-
-### "Page not found" when editing
-- Check if you own the page
-- Try signing in with Google
-
-### Publish fails
-- You must be signed in to publish
-- Check console for errors
-
-### Changes not saving
-- Check browser console for errors
-- Look for "Saved" indicator
-- Check network tab for 413 errors (content too large)
-
-### Images not uploading
-- Check file size (max 15MB)
-- Check file type (PNG, JPG, WebP, GIF only)
-- In production, check Supabase storage configuration
+10 built-in themes in `/src/lib/themes.ts`:
+- default, midnight, sunset, ocean, forest
+- lavender, monochrome, coral, aurora, vintage
 
 ## Local Development
 
-### Without Google OAuth
+```bash
+# Install dependencies
+npm install
 
-You can run the app without OAuth configured - you just won't be able to publish:
+# Start dev server (uses SQLite by default)
+npm run dev
+
+# Run tests
+npm test
+```
+
+Open [http://localhost:3000](http://localhost:3000)
+
+In development without S3 configured, `/u/[slug]` falls back to server-side rendering from the database.
+
+## Deployment
+
+### Deploy to Render
+
+Use the `render.yaml` blueprint or create a Web Service:
+- Build: `npm ci --include=dev && npm run build`
+- Start: `npm start`
+
+### Deploy with Docker
 
 ```bash
-npm run dev
+docker build -t yourcorner .
+docker run -p 3000:3000 --env-file .env.prod yourcorner
 ```
 
-### With SQLite (default in dev)
+### Cloudflare R2 Setup
 
-Development uses SQLite by default. Data is stored in `./data/my-corner.db`.
+1. Create an R2 bucket
+2. Create an API token with Object Read & Write permissions
+3. Configure public access or add a custom domain
+4. Set `S3_*` environment variables
+5. (Optional) Configure Cloudflare cache purge with API token
 
-### With PostgreSQL locally
+## Security
 
-Set `DATABASE_URL` in `.env` and unset `USE_SQLITE`:
+- **CSP**: Static pages include Content-Security-Policy meta tag
+- **Input validation**: All inputs validated with Zod at boundaries
+- **URL validation**: Link URLs must be http/https; image URLs must be from allowed domains
+- **Rate limiting**: Publish and upload endpoints are rate limited (memory, Upstash, or Cloudflare)
+- **No inline scripts**: Static pages use no JavaScript
+- **Upload protection**:
+  - Auth required
+  - Magic byte validation (not just Content-Type)
+  - Max file size: 10MB
+  - Max dimensions: 4096x4096
+  - Per-user quota: 200MB
 
-```env
-DATABASE_URL=postgresql://user:pass@localhost:5432/mycorner
+## Available Scripts
+
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Start development server |
+| `npm run build` | Build for production |
+| `npm start` | Start production server |
+| `npm test` | Run schema validation tests |
+| `npm run lint` | Run ESLint |
+| `npm run type-check` | Run TypeScript compiler check |
+| `npm run smoke-test` | End-to-end publish flow test |
+| `npm run audit-page -- --slug <slug>` | Audit cache headers for a page |
+| `npm run db:push` | Push schema to database |
+
+## Health Check
+
+Use `/api/healthz` for deployment health checks:
+
+```bash
+curl https://your-domain.com/api/healthz
 ```
+
+Returns:
+- `200 OK` if all required subsystems are configured
+- `503 Service Unavailable` if critical config is missing
+
+Response includes status of: public pages, upload, and purge subsystems.
+
+## Rate Limiting
+
+Three rate limiting backends are supported:
+
+| Provider | Use Case | Config |
+|----------|----------|--------|
+| `memory` | Development, single instance | Default |
+| `upstash` | Production, multi-instance | `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` |
+| `cloudflare` | Edge-based (configure in dashboard) | See [docs/cdn-cloudflare.md](docs/cdn-cloudflare.md) |
+
+Set `RATE_LIMIT_PROVIDER` to choose. Defaults to `upstash` in production if configured.
 
 ## License
 

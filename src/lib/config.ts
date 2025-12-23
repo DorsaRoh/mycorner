@@ -192,6 +192,18 @@ export function validateConfig(): void {
     if (config.sessionSecret === 'dev-secret-change-in-production') {
       throw new Error('SESSION_SECRET must be set in production.');
     }
+    
+    // DEPLOYMENT INVARIANT: Static pages require S3_PUBLIC_BASE_URL
+    // Without this, /u/[slug] will 404 and /api/publish will 503
+    const publicBaseUrl = process.env.S3_PUBLIC_BASE_URL || process.env.PUBLIC_PAGES_BASE_URL;
+    if (!publicBaseUrl) {
+      throw new Error(
+        'S3_PUBLIC_BASE_URL is required in production. ' +
+        'Public pages are served from object storage. ' +
+        'Set S3_PUBLIC_BASE_URL to your CDN/storage public URL (e.g., https://cdn.yourdomain.com).'
+      );
+    }
+    console.log(`   Public Pages: ${publicBaseUrl}`);
   }
 }
 
