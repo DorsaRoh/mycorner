@@ -15,6 +15,7 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { verifyOAuthState, setSessionCookie } from '@/server/auth/session';
+import { upsertUserByGoogleSub } from '@/server/db';
 
 // =============================================================================
 // Configuration
@@ -191,7 +192,6 @@ export default async function handler(
     
     // Upsert user in database
     console.log('[auth/callback] Upserting user:', userInfo.email);
-    const { upsertUserByGoogleSub } = await import('@/server/db');
     
     const user = await upsertUserByGoogleSub({
       googleSub: userInfo.sub,
