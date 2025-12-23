@@ -22,43 +22,16 @@ const SESSION_MAX_AGE_SECONDS = 30 * 24 * 60 * 60; // 30 days
 
 /**
  * Get the cookie domain from APP_ORIGIN/PUBLIC_URL.
- * Returns the base domain (e.g., ".itsmycorner.com") to allow cookies to work
- * across both www and non-www subdomains.
+ * Returns undefined to use the default behavior (current hostname).
+ * This ensures cookies work reliably in serverless environments like Vercel.
  * 
- * Returns undefined in development (uses default behavior).
+ * Note: We don't set an explicit domain to avoid cross-subdomain cookie issues.
+ * Cookies will be set for the exact hostname (e.g., www.itsmycorner.com).
  */
 function getCookieDomain(): string | undefined {
-  if (process.env.NODE_ENV !== 'production') {
-    return undefined; // Let cookies use default behavior in development
-  }
-  
-  const origin = process.env.APP_ORIGIN || process.env.PUBLIC_URL;
-  if (!origin) {
-    return undefined;
-  }
-  
-  try {
-    const url = new URL(origin);
-    const hostname = url.hostname;
-    
-    // Don't set domain for localhost
-    if (hostname === 'localhost' || hostname === '127.0.0.1') {
-      return undefined;
-    }
-    
-    // Check if it's an IP address (don't set domain for IPs)
-    if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostname)) {
-      return undefined;
-    }
-    
-    // Remove "www." prefix if present and add leading dot to allow subdomains
-    // e.g., "www.itsmycorner.com" -> ".itsmycorner.com"
-    // e.g., "itsmycorner.com" -> ".itsmycorner.com"
-    const baseDomain = hostname.replace(/^www\./, '');
-    return `.${baseDomain}`;
-  } catch {
-    return undefined;
-  }
+  // Always return undefined to use default cookie behavior
+  // This ensures cookies are set for the exact hostname that receives the request
+  return undefined;
 }
 
 // Get secret from environment
@@ -200,8 +173,8 @@ export async function getUserFromRequest(req: NextApiRequest): Promise<DbUser | 
   }
   
   // Fetch user from database
-  const db = await import('../db');
-  const user = await db.getUserById(payload.userId);
+  const { getUserById: getUserByIdFn } = await import('../db');
+  const user = await getUserByIdFn(payload.userId);
   
   return user || null;
 }
