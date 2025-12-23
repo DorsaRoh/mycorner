@@ -109,12 +109,16 @@ function loadConfig(): Config {
     ? optional('SESSION_SECRET', 'dev-secret-change-in-production')
     : required('SESSION_SECRET');
   
-  // Public URL
+  // Public URL - support both APP_ORIGIN (Vercel) and PUBLIC_URL
   const port = optionalInt('PORT', 3000);
   const defaultUrl = isDev ? `http://localhost:${port}` : '';
-  const publicUrl = isDev
-    ? optional('PUBLIC_URL', defaultUrl)
-    : required('PUBLIC_URL');
+  const publicUrl = process.env.APP_ORIGIN 
+    || process.env.PUBLIC_URL 
+    || (isDev ? defaultUrl : '');
+  
+  if (!publicUrl && !isDev) {
+    throw new Error('Missing required environment variable: APP_ORIGIN or PUBLIC_URL');
+  }
   
   return {
     isDev,
