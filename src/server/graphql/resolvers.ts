@@ -536,11 +536,11 @@ export const resolvers = {
       });
     },
 
-    sendFeedback: (
+    sendFeedback: async (
       _parent: unknown,
       args: { pageId: string; message: string; email?: string }
     ) => {
-      const page = db.getPageById(args.pageId);
+      const page = await db.getPageById(args.pageId);
       
       // Only allow feedback on published pages
       if (!page || !page.is_published) {
@@ -558,7 +558,7 @@ export const resolvers = {
         return { success: false, message: 'Invalid email address' };
       }
 
-      const feedback = db.addFeedback(args.pageId, message, email);
+      const feedback = await db.addFeedback(args.pageId, message, email);
       
       // Log feedback in development
       console.log(`\n💬 New feedback for page ${args.pageId}:`);
@@ -569,7 +569,7 @@ export const resolvers = {
       return { success: true, message: 'Thank you for your feedback!' };
     },
 
-    sendProductFeedback: (
+    sendProductFeedback: async (
       _parent: unknown,
       args: { message: string; email?: string }
     ) => {
@@ -584,7 +584,7 @@ export const resolvers = {
         return { success: false, message: 'Invalid email address' };
       }
 
-      const feedback = db.addProductFeedback(message, email);
+      const feedback = await db.addProductFeedback(message, email);
 
       // Log feedback in development
       console.log(`\n💬 New product feedback:`);
