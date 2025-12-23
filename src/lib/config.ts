@@ -198,7 +198,7 @@ export function validateConfig(): void {
     }
     
     // DEPLOYMENT INVARIANT: Static pages require full storage configuration
-    // Without this, /u/[slug] will 404 and /api/publish will 503
+    // Without this, /[slug] will 404 and /api/publish will 503
     validateStorageConfig();
   }
 }

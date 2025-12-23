@@ -74,7 +74,7 @@ export function getPublicBaseUrl(): string | null {
 
 /**
  * Check if public page serving is configured (no secrets required).
- * Used by /u/[slug] to determine if redirect to static storage should happen.
+ * Used by /[slug] to fetch and serve static HTML from storage.
  */
 export function isPublicPagesConfigured(): boolean {
   return !!getPublicBaseUrl();
@@ -453,6 +453,36 @@ class StorageClient {
   }
   
   /**
+   * Get file contents from storage.
+   * Returns null if the file does not exist.
+   */
+  async get(key: string): Promise<string | null> {
+    const signed = await signS3Request(
+      this.config,
+      'GET',
+      key,
+      '',
+      'application/octet-stream'
+    );
+    
+    const response = await fetch(signed.url, {
+      method: 'GET',
+      headers: signed.headers,
+    });
+    
+    if (response.status === 404) {
+      return null;
+    }
+    
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`Storage get failed: ${response.status} ${text}`);
+    }
+    
+    return response.text();
+  }
+  
+  /**
    * Get the public URL for a key.
    */
   getPublicUrl(key: string): string {
@@ -559,15 +589,12 @@ export async function uploadAsset(
 }
 
 /**
- * Get the public URL for a page.
+ * Get the canonical public URL for a page.
+ * Always returns the app-served canonical path.
  */
 export function getPagePublicUrl(slug: string): string {
-  const baseUrl = getPublicBaseUrl();
-  if (!baseUrl) {
-    // Fallback to app-served URL if storage not configured
-    return `/u/${slug}`;
-  }
-  return `${baseUrl}/pages/${slug}/index.html`;
+  // canonical url is always /{slug} - served by the app, not R2 directly
+  return `/${slug}`;
 }
 
 /**
@@ -579,4 +606,41 @@ export async function deletePageHtml(slug: string): Promise<void> {
   
   const key = `pages/${slug}/index.html`;
   await client.delete(key);
+}
+
+/**
+ * Fetch published page HTML from storage.
+ * Returns null if the page does not exist.
+ * Throws if storage is not configured or fetch fails.
+ */
+export async function getPageHtml(slug: string): Promise<string | null> {
+  // validate slug format
+  if (!isValidSlug(slug)) {
+    return null;
+  }
+  
+  const client = getStorageClient();
+  if (!client) {
+    throw new Error('Storage is not configured');
+  }
+  
+  const key = `pages/${slug}/index.html`;
+  return client.get(key);
+}
+
+/**
+ * Check if a published page exists in storage.
+ */
+export async function pageExists(slug: string): Promise<boolean> {
+  if (!isValidSlug(slug)) {
+    return false;
+  }
+  
+  const client = getStorageClient();
+  if (!client) {
+    return false;
+  }
+  
+  const key = `pages/${slug}/index.html`;
+  return client.exists(key);
 }

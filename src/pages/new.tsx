@@ -6,7 +6,7 @@
  * 2. Edits their corner locally (localStorage)
  * 3. Clicks Publish → triggers auth if needed
  * 4. After auth, immediately publishes (NO username step)
- * 5. Redirects to /u/[slug]
+ * 5. Redirects to /{slug} (canonical public URL)
  * 
  * Draft storage: localStorage key 'yourcorner:draft:v1'
  */
@@ -160,14 +160,9 @@ export default function NewPage() {
       // Clear draft
       clearDraft();
       
-      // Redirect to published page
-      // If user has username, use that route (will redirect to /u/slug)
-      // Otherwise use /u/slug directly
-      if (currentUser?.username) {
-        router.push(`/${currentUser.username}`);
-      } else {
-        router.push(`/u/${result.slug}`);
-      }
+      // Redirect to published page using canonical url from response
+      const redirectUrl = result.url || `/${result.slug}`;
+      router.push(redirectUrl);
       
     } catch (error) {
       console.error('Publish error:', error);

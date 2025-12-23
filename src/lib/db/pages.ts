@@ -43,7 +43,7 @@ export interface UpsertResult {
 
 /**
  * Get a published page by its slug (username).
- * Used for public page viewing at /u/[slug].
+ * Used for public page viewing at /[slug].
  */
 export async function getPublishedPageBySlug(slug: string): Promise<PublishedPage | null> {
   // Import dynamically to avoid client-side bundling

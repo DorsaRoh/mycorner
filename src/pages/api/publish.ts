@@ -366,15 +366,17 @@ export default async function handler(
       success: true,
     });
     
-    // build public url - always uses app domain, never storage url
-    const publicUrl = `${appOrigin}/${slug}`;
+    // canonical url is always /{slug} - the app serves it, not R2 directly
+    // the client should redirect to this path, which the app will serve
+    const url = `/${slug}`;
     
     // include warnings in response if any
     const response: Record<string, unknown> = {
       success: true,
       slug,
-      publicUrl,
-      storageKey, // for debugging only, clients should use publicUrl
+      url,
+      // publicUrl is kept for backwards compatibility but points to canonical path
+      publicUrl: url,
     };
     
     // collect all warnings
@@ -385,6 +387,12 @@ export default async function handler(
     
     if (allWarnings.length > 0) {
       response.warnings = allWarnings;
+    }
+    
+    // storageKey is only included if we actually uploaded to storage
+    // this is for debugging purposes only
+    if (storageKey && process.env.NODE_ENV !== 'production') {
+      response._debug = { storageKey };
     }
     
     return res.status(200).json(response);

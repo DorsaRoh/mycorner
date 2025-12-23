@@ -315,7 +315,7 @@ export async function purgeUrls(urls: string[]): Promise<PurgeResult> {
  * Purge a published page from CDN cache.
  * 
  * Purges:
- * - ${origin}/u/${slug} for each origin in APP_ORIGINS
+ * - ${origin}/${slug} for each origin in APP_ORIGINS (canonical public url)
  * - ${S3_PUBLIC_BASE_URL}/pages/${slug}/index.html - The storage artifact
  * 
  * @param slug - Page slug
@@ -328,15 +328,16 @@ export async function purgePage(slug: string): Promise<PurgeResult> {
   
   const urls: string[] = [];
   
-  // add storage url (artifact)
+  // add storage url (artifact in R2)
   if (publicBaseUrl) {
     urls.push(`${publicBaseUrl}/pages/${slug}/index.html`);
   }
   
-  // add app urls for all origins (user entrypoints)
+  // add canonical app urls for all origins
   if (appOrigins.length > 0) {
     for (const origin of appOrigins) {
-      urls.push(`${origin}/u/${slug}`);
+      // canonical url is /{slug} (no /u/ prefix)
+      urls.push(`${origin}/${slug}`);
     }
   } else if (isPurgeConfigured() && process.env.NODE_ENV === 'production') {
     // purge is configured but no origins set - this is a misconfig

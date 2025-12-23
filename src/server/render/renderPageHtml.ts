@@ -13,6 +13,7 @@
 
 import type { PageDoc, Block, TextBlock, LinkBlock, ImageBlock, BlockStyle } from '../../lib/schema/page';
 import { getTheme, type Theme } from '../../lib/themes';
+import { REFERENCE_WIDTH, REFERENCE_HEIGHT } from '../../lib/canvas/coordinates';
 
 // =============================================================================
 // Configuration
@@ -262,6 +263,27 @@ function renderBlock(block: Block, appOrigin: string): string {
   }
 }
 
+/**
+ * calculate the required canvas height based on block positions.
+ * ensures all blocks are visible by finding the bottom-most block edge.
+ */
+function calculateCanvasHeight(blocks: Block[]): number {
+  if (blocks.length === 0) {
+    return REFERENCE_HEIGHT;
+  }
+  
+  let maxBottom = REFERENCE_HEIGHT;
+  for (const block of blocks) {
+    const bottom = block.y + block.height;
+    if (bottom > maxBottom) {
+      maxBottom = bottom;
+    }
+  }
+  
+  // add some padding at the bottom
+  return maxBottom + 48;
+}
+
 // =============================================================================
 // Theme CSS Generation
 // =============================================================================
@@ -274,6 +296,12 @@ function generateThemeCSS(theme: Theme): string {
   return `
   :root {
     ${vars}
+    --reference-width: ${REFERENCE_WIDTH}px;
+    --reference-height: ${REFERENCE_HEIGHT}px;
+  }
+  
+  * {
+    box-sizing: border-box;
   }
   
   body {
@@ -286,16 +314,25 @@ function generateThemeCSS(theme: Theme): string {
       ? `background: ${theme.variables['--bg-gradient']};`
       : `background-color: var(--bg-primary);`
     }
+    overflow-x: auto;
   }
   
-  .canvas {
-    position: relative;
+  /* viewport wrapper - centers canvas and handles overflow on small screens */
+  .viewport {
     width: 100%;
     min-height: 100vh;
-    max-width: 800px;
-    margin: 0 auto;
-    padding: 24px;
-    box-sizing: border-box;
+    overflow-x: auto;
+    display: flex;
+    justify-content: center;
+    padding: 24px 0;
+  }
+  
+  /* canvas matches editor reference dimensions exactly */
+  .canvas {
+    position: relative;
+    width: ${REFERENCE_WIDTH}px;
+    min-height: ${REFERENCE_HEIGHT}px;
+    flex-shrink: 0;
   }
   
   .block {
@@ -361,10 +398,13 @@ function generateThemeCSS(theme: Theme): string {
     justify-content: center;
   }
   
-  /* Header */
+  /* header is positioned within the canvas coordinate space */
   .page-header {
-    text-align: center;
-    margin-bottom: 32px;
+    position: absolute;
+    top: 24px;
+    left: 24px;
+    right: 24px;
+    text-align: left;
   }
   
   .page-title {
@@ -399,9 +439,10 @@ function generateThemeCSS(theme: Theme): string {
     border-radius: 6px;
   }
   
-  /* Responsive */
-  @media (max-width: 640px) {
-    .canvas {
+  /* responsive scaling for mobile - scale down the entire canvas */
+  @media (max-width: ${REFERENCE_WIDTH}px) {
+    .viewport {
+      justify-content: flex-start;
       padding: 16px;
     }
     
@@ -476,6 +517,9 @@ export function renderPageHtml(doc: PageDoc, options: RenderOptions = {}): strin
   // Generate CSS
   const themeCSS = generateThemeCSS(theme);
   
+  // calculate canvas height based on block positions
+  const canvasHeight = calculateCanvasHeight(doc.blocks);
+  
   // Build the full HTML
   return `<!DOCTYPE html>
 <html lang="en">
@@ -506,15 +550,10 @@ export function renderPageHtml(doc: PageDoc, options: RenderOptions = {}): strin
   </div>
   ` : ''}
   
-  <div class="canvas">
-    ${doc.title || doc.bio ? `
-    <header class="page-header">
-      ${doc.title ? `<h1 class="page-title">${escapeHtml(doc.title)}</h1>` : ''}
-      ${doc.bio ? `<p class="page-bio">${escapeHtml(doc.bio)}</p>` : ''}
-    </header>
-    ` : ''}
-    
-    ${blocksHtml}
+  <div class="viewport">
+    <div class="canvas" style="height: ${canvasHeight}px;">
+      ${blocksHtml}
+    </div>
   </div>
 </body>
 </html>`;

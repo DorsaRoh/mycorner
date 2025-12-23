@@ -143,10 +143,10 @@ export function usePublish({
       setIsPublished(true);
       setPublishedRevision(Date.now()); // use timestamp as revision marker
       
-      // use publicUrl from response (points to app domain, not storage url)
-      // fallback to /{slug} if publicUrl not provided (legacy)
-      const publicUrl = result.publicUrl || `/${result.slug}`;
-      setPublishedUrl(publicUrl);
+      // url from response is the canonical path (e.g., "/hii")
+      // fall back to /{slug} if url not provided (legacy response format)
+      const canonicalPath = result.url || `/${result.slug}`;
+      setPublishedUrl(canonicalPath);
       
       // clear draft
       clearDraft();
@@ -156,18 +156,8 @@ export function usePublish({
         sessionStorage.removeItem('publishIntent');
       }
       
-      // redirect to the public page
-      // extract path from publicUrl if it's a full url
-      let redirectPath: string;
-      try {
-        const url = new URL(publicUrl);
-        redirectPath = url.pathname;
-      } catch {
-        // publicUrl is already a path
-        redirectPath = publicUrl;
-      }
-      
-      const redirectUrl = options?.redirectTo || redirectPath;
+      // redirect to the canonical public page path
+      const redirectUrl = options?.redirectTo || canonicalPath;
       console.log('[Publish] redirecting to:', redirectUrl);
       router.replace(redirectUrl);
       
