@@ -84,6 +84,7 @@ function convertToLegacyBlocks(pageDocBlocks: PageDocBlock[]): LegacyBlock[] {
 
 /**
  * Convert PageDoc style to legacy BlockStyle format.
+ * CRITICAL: Preserves ALL text styling properties for deterministic rendering.
  */
 function convertStyle(style: NonNullable<PageDocBlock['style']>): LegacyBlock['style'] {
   // Map radius enum to number (0-1)
@@ -103,14 +104,47 @@ function convertStyle(style: NonNullable<PageDocBlock['style']>): LegacyBlock['s
     lg: 0.6,
   };
 
-  return {
-    borderRadius: radiusMap[style.radius || 'none'] || 0,
-    shadowStrength: shadowMap[style.shadow || 'none'] || 0,
-    shadowSoftness: 0.5,
-    shadowOffsetX: 0,
-    shadowOffsetY: 0.2,
+  const result: LegacyBlock['style'] = {
+    // Use exact value if available, otherwise map from enum
+    borderRadius: typeof style.borderRadiusValue === 'number' 
+      ? style.borderRadiusValue 
+      : (radiusMap[style.radius || 'none'] || 0),
+    shadowStrength: typeof style.shadowStrengthValue === 'number'
+      ? style.shadowStrengthValue
+      : (shadowMap[style.shadow || 'none'] || 0),
+    shadowSoftness: typeof style.shadowSoftness === 'number' ? style.shadowSoftness : 0.5,
+    shadowOffsetX: typeof style.shadowOffsetX === 'number' ? style.shadowOffsetX : 0,
+    shadowOffsetY: typeof style.shadowOffsetY === 'number' ? style.shadowOffsetY : 0.2,
     textAlign: style.align || 'left',
   };
+
+  // === RESTORE TEXT STYLING (critical for production) ===
+  if (style.fontFamily) {
+    result.fontFamily = style.fontFamily;
+  }
+  if (typeof style.fontSize === 'number') {
+    result.fontSize = style.fontSize;
+  }
+  if (typeof style.fontWeight === 'number') {
+    result.fontWeight = style.fontWeight;
+  }
+  if (style.fontStyle) {
+    result.fontStyle = style.fontStyle;
+  }
+  if (style.color) {
+    result.color = style.color;
+  }
+  if (typeof style.textOpacity === 'number') {
+    result.textOpacity = style.textOpacity;
+  }
+  if (typeof style.lineHeight === 'number') {
+    result.lineHeight = style.lineHeight;
+  }
+  if (style.textDecoration) {
+    result.textDecoration = style.textDecoration;
+  }
+
+  return result;
 }
 
 // =============================================================================

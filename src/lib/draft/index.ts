@@ -67,7 +67,9 @@ export function legacyBlockToPageDoc(block: LegacyBlock): PageDocBlock | null {
 }
 
 /**
- * Convert legacy style object to new constrained style.
+ * Convert legacy style object to new PageDoc style.
+ * CRITICAL: Preserves ALL text styling properties to ensure deterministic
+ * rendering in production builds (no dynamic Tailwind classes).
  */
 function convertLegacyStyle(legacy?: LegacyBlock['style']): PageDocBlock['style'] | undefined {
   if (!legacy) return undefined;
@@ -79,9 +81,10 @@ function convertLegacyStyle(legacy?: LegacyBlock['style']): PageDocBlock['style'
     style.align = legacy.textAlign;
   }
   
-  // Map borderRadius to radius enum
+  // Map borderRadius to radius enum AND preserve exact value
   if (typeof legacy.borderRadius === 'number') {
     const r = legacy.borderRadius;
+    style.borderRadiusValue = r; // Preserve exact value
     if (r <= 0) style.radius = 'none';
     else if (r < 0.25) style.radius = 'sm';
     else if (r < 0.5) style.radius = 'md';
@@ -89,13 +92,51 @@ function convertLegacyStyle(legacy?: LegacyBlock['style']): PageDocBlock['style'
     else style.radius = 'full';
   }
   
-  // Map shadowStrength to shadow enum
+  // Map shadowStrength to shadow enum AND preserve exact value
   if (typeof legacy.shadowStrength === 'number') {
     const s = legacy.shadowStrength;
+    style.shadowStrengthValue = s; // Preserve exact value
     if (s <= 0) style.shadow = 'none';
     else if (s < 0.33) style.shadow = 'sm';
     else if (s < 0.66) style.shadow = 'md';
     else style.shadow = 'lg';
+  }
+  
+  // Preserve shadow details
+  if (typeof legacy.shadowSoftness === 'number') {
+    style.shadowSoftness = legacy.shadowSoftness;
+  }
+  if (typeof legacy.shadowOffsetX === 'number') {
+    style.shadowOffsetX = legacy.shadowOffsetX;
+  }
+  if (typeof legacy.shadowOffsetY === 'number') {
+    style.shadowOffsetY = legacy.shadowOffsetY;
+  }
+  
+  // === PRESERVE TEXT STYLING (critical for production rendering) ===
+  if (legacy.fontFamily) {
+    style.fontFamily = legacy.fontFamily;
+  }
+  if (typeof legacy.fontSize === 'number') {
+    style.fontSize = legacy.fontSize;
+  }
+  if (typeof legacy.fontWeight === 'number') {
+    style.fontWeight = legacy.fontWeight;
+  }
+  if (legacy.fontStyle) {
+    style.fontStyle = legacy.fontStyle;
+  }
+  if (legacy.color) {
+    style.color = legacy.color;
+  }
+  if (typeof legacy.textOpacity === 'number') {
+    style.textOpacity = legacy.textOpacity;
+  }
+  if (typeof legacy.lineHeight === 'number') {
+    style.lineHeight = legacy.lineHeight;
+  }
+  if (legacy.textDecoration) {
+    style.textDecoration = legacy.textDecoration;
   }
   
   return Object.keys(style).length > 0 ? style : undefined;
@@ -130,6 +171,7 @@ export function pageDocBlockToLegacy(block: PageDocBlock): LegacyBlock {
 
 /**
  * Convert PageDoc style to legacy style format.
+ * CRITICAL: Restores ALL text styling properties for deterministic rendering.
  */
 function pageDocStyleToLegacy(style?: PageDocBlock['style']): LegacyBlock['style'] | undefined {
   if (!style) return undefined;
@@ -146,7 +188,10 @@ function pageDocStyleToLegacy(style?: PageDocBlock['style']): LegacyBlock['style
     result.textAlign = style.align;
   }
   
-  if (style.radius) {
+  // Use exact value if available, otherwise map from enum
+  if (typeof style.borderRadiusValue === 'number') {
+    result.borderRadius = style.borderRadiusValue;
+  } else if (style.radius) {
     const radiusMap: Record<string, number> = {
       none: 0,
       sm: 0.15,
@@ -157,7 +202,10 @@ function pageDocStyleToLegacy(style?: PageDocBlock['style']): LegacyBlock['style
     result.borderRadius = radiusMap[style.radius] ?? 0;
   }
   
-  if (style.shadow) {
+  // Use exact value if available, otherwise map from enum
+  if (typeof style.shadowStrengthValue === 'number') {
+    result.shadowStrength = style.shadowStrengthValue;
+  } else if (style.shadow) {
     const shadowMap: Record<string, number> = {
       none: 0,
       sm: 0.2,
@@ -165,6 +213,43 @@ function pageDocStyleToLegacy(style?: PageDocBlock['style']): LegacyBlock['style
       lg: 0.8,
     };
     result.shadowStrength = shadowMap[style.shadow] ?? 0;
+  }
+  
+  // Restore shadow details
+  if (typeof style.shadowSoftness === 'number') {
+    result.shadowSoftness = style.shadowSoftness;
+  }
+  if (typeof style.shadowOffsetX === 'number') {
+    result.shadowOffsetX = style.shadowOffsetX;
+  }
+  if (typeof style.shadowOffsetY === 'number') {
+    result.shadowOffsetY = style.shadowOffsetY;
+  }
+  
+  // === RESTORE TEXT STYLING ===
+  if (style.fontFamily) {
+    result.fontFamily = style.fontFamily;
+  }
+  if (typeof style.fontSize === 'number') {
+    result.fontSize = style.fontSize;
+  }
+  if (typeof style.fontWeight === 'number') {
+    result.fontWeight = style.fontWeight;
+  }
+  if (style.fontStyle) {
+    result.fontStyle = style.fontStyle;
+  }
+  if (style.color) {
+    result.color = style.color;
+  }
+  if (typeof style.textOpacity === 'number') {
+    result.textOpacity = style.textOpacity;
+  }
+  if (typeof style.lineHeight === 'number') {
+    result.lineHeight = style.lineHeight;
+  }
+  if (style.textDecoration) {
+    result.textDecoration = style.textDecoration;
   }
   
   return result;

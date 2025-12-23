@@ -12,7 +12,9 @@ import { z } from 'zod';
 // =============================================================================
 
 /**
- * Safe style options - maps to predefined CSS classes, not raw CSS values.
+ * Block style options - includes both preset enums and user-customizable values.
+ * Text styling uses concrete values (not dynamic Tailwind classes) to ensure
+ * deterministic rendering in production builds.
  */
 export const BlockStyleSchema = z.object({
   // Alignment
@@ -26,6 +28,26 @@ export const BlockStyleSchema = z.object({
   
   // Shadow (maps to CSS class)
   shadow: z.enum(['none', 'sm', 'md', 'lg']).default('none'),
+  
+  // === TEXT STYLING (concrete values for deterministic rendering) ===
+  // These are stored as actual values, not dynamic class names
+  fontFamily: z.string().optional(),
+  fontSize: z.number().optional(),
+  fontWeight: z.number().optional(),
+  fontStyle: z.enum(['normal', 'italic']).optional(),
+  color: z.string().optional(),
+  textOpacity: z.number().optional(),
+  lineHeight: z.number().optional(),
+  textDecoration: z.enum(['none', 'underline', 'line-through']).optional(),
+  
+  // === SHADOW DETAILS (for fine-grained control) ===
+  shadowSoftness: z.number().optional(),
+  shadowOffsetX: z.number().optional(),
+  shadowOffsetY: z.number().optional(),
+  
+  // === BORDER RADIUS (numeric for fine-grained control) ===
+  borderRadiusValue: z.number().optional(),
+  shadowStrengthValue: z.number().optional(),
 }).partial();
 
 export type BlockStyle = z.infer<typeof BlockStyleSchema>;
@@ -246,7 +268,8 @@ export function convertLegacyBlock(legacy: {
 }
 
 /**
- * Convert legacy style object to new constrained style.
+ * Convert legacy style object to new PageDoc style.
+ * CRITICAL: Preserves ALL text styling properties for deterministic rendering.
  */
 function convertLegacyStyle(legacy?: Record<string, unknown>): BlockStyle | undefined {
   if (!legacy) return undefined;
@@ -261,9 +284,10 @@ function convertLegacyStyle(legacy?: Record<string, unknown>): BlockStyle | unde
     }
   }
   
-  // Map borderRadius to radius enum
+  // Map borderRadius to radius enum AND preserve exact value
   if (typeof legacy.borderRadius === 'number') {
     const r = legacy.borderRadius;
+    style.borderRadiusValue = r;
     if (r <= 0) style.radius = 'none';
     else if (r < 0.25) style.radius = 'sm';
     else if (r < 0.5) style.radius = 'md';
@@ -271,13 +295,51 @@ function convertLegacyStyle(legacy?: Record<string, unknown>): BlockStyle | unde
     else style.radius = 'full';
   }
   
-  // Map shadowStrength to shadow enum
+  // Map shadowStrength to shadow enum AND preserve exact value
   if (typeof legacy.shadowStrength === 'number') {
     const s = legacy.shadowStrength;
+    style.shadowStrengthValue = s;
     if (s <= 0) style.shadow = 'none';
     else if (s < 0.33) style.shadow = 'sm';
     else if (s < 0.66) style.shadow = 'md';
     else style.shadow = 'lg';
+  }
+  
+  // Preserve shadow details
+  if (typeof legacy.shadowSoftness === 'number') {
+    style.shadowSoftness = legacy.shadowSoftness;
+  }
+  if (typeof legacy.shadowOffsetX === 'number') {
+    style.shadowOffsetX = legacy.shadowOffsetX;
+  }
+  if (typeof legacy.shadowOffsetY === 'number') {
+    style.shadowOffsetY = legacy.shadowOffsetY;
+  }
+  
+  // === PRESERVE TEXT STYLING (critical for production rendering) ===
+  if (legacy.fontFamily && typeof legacy.fontFamily === 'string') {
+    style.fontFamily = legacy.fontFamily;
+  }
+  if (typeof legacy.fontSize === 'number') {
+    style.fontSize = legacy.fontSize;
+  }
+  if (typeof legacy.fontWeight === 'number') {
+    style.fontWeight = legacy.fontWeight;
+  }
+  if (legacy.fontStyle === 'normal' || legacy.fontStyle === 'italic') {
+    style.fontStyle = legacy.fontStyle;
+  }
+  if (legacy.color && typeof legacy.color === 'string') {
+    style.color = legacy.color;
+  }
+  if (typeof legacy.textOpacity === 'number') {
+    style.textOpacity = legacy.textOpacity;
+  }
+  if (typeof legacy.lineHeight === 'number') {
+    style.lineHeight = legacy.lineHeight;
+  }
+  if (legacy.textDecoration === 'none' || legacy.textDecoration === 'underline' || legacy.textDecoration === 'line-through') {
+    style.textDecoration = legacy.textDecoration;
   }
   
   return Object.keys(style).length > 0 ? style : undefined;
