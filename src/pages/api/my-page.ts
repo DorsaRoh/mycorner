@@ -104,10 +104,21 @@ export default async function handler(
       });
     }
 
-    // Parse blocks
+    // parse blocks - handle both legacy array format and new PageDoc format
     let blocks: Block[] = [];
     try {
-      blocks = JSON.parse(page.content || '[]');
+      const content = JSON.parse(page.content || '[]');
+      // check if content is PageDoc format (has version and blocks) or legacy array
+      if (Array.isArray(content)) {
+        // legacy format: content is directly the blocks array
+        blocks = content;
+      } else if (content && typeof content === 'object' && Array.isArray(content.blocks)) {
+        // PageDoc format: content is { version, blocks, title, ... }
+        blocks = content.blocks;
+      } else {
+        console.warn('[api/my-page] unexpected content format:', typeof content);
+        blocks = [];
+      }
     } catch (e) {
       console.error('Failed to parse page content:', e);
     }
