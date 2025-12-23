@@ -26,7 +26,7 @@ export const AUTH_ROUTES = {
 export const API_ROUTES = {
   ME: '/api/me',
   PUBLISH: '/api/publish',
-  UPLOAD: '/api/assets/upload',
+  UPLOAD: '/api/upload',
   HEALTH: '/api/healthz',
 } as const;
 

@@ -154,8 +154,8 @@ test('api.publish() returns /api/publish', () => {
   assertEquals(api.publish(), '/api/publish');
 });
 
-test('api.upload() returns /api/assets/upload', () => {
-  assertEquals(api.upload(), '/api/assets/upload');
+test('api.upload() returns /api/upload', () => {
+  assertEquals(api.upload(), '/api/upload');
 });
 
 test('api.health() returns /api/healthz', () => {

@@ -61,34 +61,11 @@ async function uploadViaNextApi(file: File): Promise<UploadOutcome> {
 
 /**
  * Upload a file to the server.
- * First tries the Express multipart route, then falls back to Next.js API route.
+ * Uses the Next.js API route with base64 JSON, which works reliably
+ * in all environments (dev, production, containerized).
  */
 export async function uploadAsset(file: File): Promise<UploadOutcome> {
-  const formData = new FormData();
-  formData.append('file', file);
-
-  try {
-    const response = await fetch('/api/assets/upload', { method: 'POST', body: formData });
-
-    // If route not found (404), fall back to Next.js API route
-    if (response.status === 404) {
-      return uploadViaNextApi(file);
-    }
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: 'Upload failed', code: 'UNKNOWN_ERROR' }));
-      return { success: false, error: errorData.error, code: errorData.code };
-    }
-
-    const data: UploadResult = await response.json();
-    return { success: true, data };
-  } catch (err) {
-    // Network error might mean Express server isn't running, try Next.js API
-    if (err instanceof TypeError && err.message.includes('fetch')) {
-      return uploadViaNextApi(file);
-    }
-    return { success: false, error: err instanceof Error ? err.message : 'Network error', code: 'NETWORK_ERROR' };
-  }
+  return uploadViaNextApi(file);
 }
 
 export function isAcceptedImageType(mimeType: string): boolean {

@@ -41,9 +41,9 @@ async function main() {
     credentials: true,
   }));
   
-  // JSON body limit: 1MB is plenty for page metadata + block data (no base64 blobs)
-  // Large files should use the /api/assets/upload endpoint instead
-  server.use(express.json({ limit: '1mb' }));
+  // JSON body limit: 12MB to allow base64 image uploads via /api/upload
+  // (base64 encoding adds ~33% overhead, so 12MB supports ~9MB files)
+  server.use(express.json({ limit: '12mb' }));
   server.use(express.urlencoded({ limit: '1mb', extended: true }));
 
   // Session configuration
