@@ -15,7 +15,6 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { verifyOAuthState, setSessionCookie } from '@/server/auth/session';
-import { upsertUserByGoogleSub } from '@/server/db';
 
 // =============================================================================
 // Configuration
@@ -193,7 +192,14 @@ export default async function handler(
     // Upsert user in database
     console.log('[auth/callback] Upserting user:', userInfo.email);
     
-    const user = await upsertUserByGoogleSub({
+    // Import database functions dynamically to avoid module loading issues in serverless
+    // In production (Vercel), use PostgreSQL directly
+    const isProduction = process.env.NODE_ENV === 'production';
+    const dbModule = isProduction 
+      ? await import('@/server/db/postgres')
+      : await import('@/server/db/sqlite');
+    
+    const user = await dbModule.upsertUserByGoogleSub({
       googleSub: userInfo.sub,
       email: userInfo.email,
       name: userInfo.name,
