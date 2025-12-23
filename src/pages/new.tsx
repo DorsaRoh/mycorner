@@ -13,7 +13,6 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/router';
-import { useQuery, gql } from '@apollo/client';
 import Head from 'next/head';
 import { Editor } from '@/components/editor/Editor';
 import { AuthGate } from '@/components/editor/AuthGate';
@@ -21,13 +20,18 @@ import { clearDraft, migrateLegacyDraft, loadEditorDraft, getDraftAsPageDoc } fr
 import { createStarterBlocks, DEFAULT_STARTER_BACKGROUND } from '@/lib/starter';
 import styles from '@/styles/EditPage.module.css';
 
-const ME_QUERY = gql`
-  query Me {
-    me {
-      id
-    }
-  }
-`;
+// =============================================================================
+// Types
+// =============================================================================
+
+interface MeResponse {
+  user: {
+    id: string;
+    email?: string;
+    name?: string;
+    username?: string;
+  } | null;
+}
 
 // =============================================================================
 // Page Component
@@ -44,12 +48,28 @@ export default function NewPage() {
   const [initialBackground, setInitialBackground] = useState(DEFAULT_STARTER_BACKGROUND);
   const [initialized, setInitialized] = useState(false);
   
-  // Check auth status
-  const { data: meData, loading: meLoading, refetch: refetchMe } = useQuery(ME_QUERY, {
-    fetchPolicy: 'network-only',
-  });
+  // Auth state
+  const [meLoading, setMeLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   
-  const isAuthenticated = !!meData?.me;
+  // Fetch auth status
+  const fetchMe = useCallback(async (): Promise<MeResponse> => {
+    try {
+      const response = await fetch('/api/me');
+      const data = await response.json();
+      return data;
+    } catch {
+      return { user: null };
+    }
+  }, []);
+  
+  // Initial auth check
+  useEffect(() => {
+    fetchMe().then((data) => {
+      setIsAuthenticated(!!data.user);
+      setMeLoading(false);
+    });
+  }, [fetchMe]);
   
   // Migrate legacy drafts on first load
   const migrationDone = useRef(false);
@@ -89,8 +109,8 @@ export default function NewPage() {
     
     try {
       // Re-check auth
-      const { data: freshMe } = await refetchMe();
-      const authed = !!freshMe?.me;
+      const freshMe = await fetchMe();
+      const authed = !!freshMe.user;
       
       if (!authed) {
         // Need auth first
@@ -133,7 +153,7 @@ export default function NewPage() {
       setPublishError('Network error. Please try again.');
       setPublishing(false);
     }
-  }, [refetchMe, router]);
+  }, [fetchMe, router]);
   
   // Check for ?publish=1 query param (after auth redirect)
   useEffect(() => {
@@ -148,9 +168,9 @@ export default function NewPage() {
     }
   }, [router.isReady, router.query.publish, isAuthenticated, meLoading, router, handlePublishFlow]);
   
-  // Handle auth gate redirect
+  // Handle auth gate redirect - use API route
   const handleAuthStart = useCallback(() => {
-    window.location.href = `/auth/google?returnTo=/new?publish=1`;
+    window.location.href = `/api/auth/google?returnTo=/new?publish=1`;
   }, []);
   
   // Loading state

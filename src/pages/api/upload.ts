@@ -209,8 +209,9 @@ export default async function handler(
     return; // response already sent
   }
   
-  // check authentication
-  const user = (req as unknown as Record<string, unknown>).user as { id?: string } | undefined;
+  // check authentication via session cookie
+  const { getUserFromRequest } = await import('@/server/auth/session');
+  const user = await getUserFromRequest(req);
   if (!user?.id) {
     return res.status(401).json({ 
       success: false, 

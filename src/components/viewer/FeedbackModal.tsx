@@ -1,6 +1,4 @@
 import { useState, useCallback, useEffect } from 'react';
-import { useMutation } from '@apollo/client';
-import { SEND_FEEDBACK } from '@/lib/graphql/mutations';
 import styles from './FeedbackModal.module.css';
 
 interface FeedbackModalProps {
@@ -14,8 +12,6 @@ export function FeedbackModal({ pageId, isOpen, onClose }: FeedbackModalProps) {
   const [email, setEmail] = useState('');
   const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
 
-  const [sendFeedback] = useMutation(SEND_FEEDBACK);
-
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -23,15 +19,19 @@ export function FeedbackModal({ pageId, isOpen, onClose }: FeedbackModalProps) {
 
     setStatus('sending');
     try {
-      const { data } = await sendFeedback({
-        variables: {
+      const response = await fetch('/api/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           pageId,
           message: message.trim(),
           email: email.trim() || null,
-        },
+        }),
       });
 
-      if (data?.sendFeedback?.success) {
+      const data = await response.json();
+
+      if (data?.success) {
         setStatus('sent');
       } else {
         setStatus('error');
@@ -39,7 +39,7 @@ export function FeedbackModal({ pageId, isOpen, onClose }: FeedbackModalProps) {
     } catch {
       setStatus('error');
     }
-  }, [pageId, message, email, sendFeedback]);
+  }, [pageId, message, email]);
 
   const handleClose = useCallback(() => {
     // Reset form when closing
@@ -127,4 +127,3 @@ export function FeedbackModal({ pageId, isOpen, onClose }: FeedbackModalProps) {
     </div>
   );
 }
-

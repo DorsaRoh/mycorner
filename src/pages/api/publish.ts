@@ -134,8 +134,9 @@ export default async function handler(
     return; // response already sent
   }
   
-  // Get user from session (set by Express middleware)
-  const user = (req as any).user;
+  // Get user from session cookie
+  const { getUserFromRequest } = await import('@/server/auth/session');
+  const user = await getUserFromRequest(req);
   if (!user?.id) {
     return res.status(401).json({ 
       success: false, 

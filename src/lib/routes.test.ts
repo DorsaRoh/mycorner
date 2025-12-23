@@ -76,12 +76,12 @@ test('ROUTES.EDIT is /edit', () => {
   assertEquals(ROUTES.EDIT, '/edit');
 });
 
-test('API_ROUTES.GRAPHQL is /graphql', () => {
-  assertEquals(API_ROUTES.GRAPHQL, '/graphql');
+test('API_ROUTES.ME is /api/me', () => {
+  assertEquals(API_ROUTES.ME, '/api/me');
 });
 
-test('AUTH_ROUTES.GOOGLE is /auth/google', () => {
-  assertEquals(AUTH_ROUTES.GOOGLE, '/auth/google');
+test('AUTH_ROUTES.GOOGLE is /api/auth/google', () => {
+  assertEquals(AUTH_ROUTES.GOOGLE, '/api/auth/google');
 });
 
 // =============================================================================
@@ -125,19 +125,19 @@ test('routes.profile() is alias for routes.user()', () => {
 console.log('\n🔐 Auth Routes');
 
 test('auth.google() without returnTo', () => {
-  assertEquals(auth.google(), '/auth/google');
+  assertEquals(auth.google(), '/api/auth/google');
 });
 
 test('auth.google() with returnTo', () => {
-  assertEquals(auth.google('/edit'), '/auth/google?returnTo=%2Fedit');
+  assertEquals(auth.google('/edit'), '/api/auth/google?returnTo=%2Fedit');
 });
 
-test('auth.logout() returns /auth/logout', () => {
-  assertEquals(auth.logout(), '/auth/logout');
+test('auth.logout() returns /api/auth/logout', () => {
+  assertEquals(auth.logout(), '/api/auth/logout');
 });
 
-test('auth.status() returns /auth/status', () => {
-  assertEquals(auth.status(), '/auth/status');
+test('auth.status() returns /api/me', () => {
+  assertEquals(auth.status(), '/api/me');
 });
 
 // =============================================================================
@@ -158,12 +158,8 @@ test('api.upload() returns /api/assets/upload', () => {
   assertEquals(api.upload(), '/api/assets/upload');
 });
 
-test('api.graphql() returns /graphql', () => {
-  assertEquals(api.graphql(), '/graphql');
-});
-
-test('api.health() returns /health', () => {
-  assertEquals(api.health(), '/health');
+test('api.health() returns /api/healthz', () => {
+  assertEquals(api.health(), '/api/healthz');
 });
 
 // =============================================================================

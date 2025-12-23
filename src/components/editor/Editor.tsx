@@ -1,8 +1,6 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { useRouter } from 'next/router';
-import { useQuery, gql, useMutation } from '@apollo/client';
 import type { Block as BlockType, BackgroundConfig } from '@/shared/types';
-import { UPDATE_PAGE, PUBLISH_PAGE } from '@/lib/graphql/mutations';
 import { useSaveController } from '@/lib/hooks/useSaveController';
 import { uploadAsset, isAcceptedImageType } from '@/lib/upload';
 import {
@@ -35,17 +33,56 @@ import { useHistory } from './useHistory';
 import { usePublish } from './usePublish';
 import { useKeyboardShortcuts } from './useKeyboardShortcuts';
 
-const ME_QUERY = gql`
-  query Me {
-    me {
-      id
-      email
-      name
-      username
-      avatarUrl
+// =============================================================================
+// Auth Hook (replaces Apollo useQuery)
+// =============================================================================
+
+interface MeData {
+  me: {
+    id: string;
+    email?: string;
+    name?: string;
+    username?: string;
+    avatarUrl?: string;
+  } | null;
+}
+
+function useMe() {
+  const [data, setData] = useState<MeData | undefined>(undefined);
+  const [loading, setLoading] = useState(true);
+
+  const fetchMe = useCallback(async () => {
+    try {
+      const response = await fetch('/api/me');
+      const result = await response.json();
+      setData({
+        me: result.user ? {
+          id: result.user.id,
+          email: result.user.email,
+          name: result.user.name,
+          username: result.user.username,
+          avatarUrl: result.user.avatarUrl,
+        } : null,
+      });
+    } catch {
+      setData({ me: null });
+    } finally {
+      setLoading(false);
     }
-  }
-`;
+  }, []);
+
+  useEffect(() => {
+    fetchMe();
+  }, [fetchMe]);
+
+  const refetch = useCallback(async () => {
+    setLoading(true);
+    await fetchMe();
+    return { data };
+  }, [fetchMe, data]);
+
+  return { data, loading, refetch };
+}
 
 interface EditorProps {
   pageId: string;
@@ -70,8 +107,8 @@ export function Editor({
 }: EditorProps) {
   const router = useRouter();
 
-  // Queries
-  const { data: meData, loading: meLoading, refetch: refetchMe } = useQuery(ME_QUERY);
+  // Auth state (replaces Apollo useQuery)
+  const { data: meData, loading: meLoading, refetch: refetchMe } = useMe();
   
   // Track authentication status for persistence gating
   const isAuthenticated = !!meData?.me;
@@ -156,27 +193,28 @@ export function Editor({
     onDuplicateBlocks: actions.handleDuplicateBlocks,
   });
 
-  // Initialize save controller for server mode
+  // Initialize save controller for server mode (uses REST instead of GraphQL)
   const handleServerSave = useCallback(async (localRevision: number, baseServerRevision: number) => {
     try {
-      const result = await updatePage({
-        variables: {
-          id: pageId,
-          input: {
-            title: state.title || null,
-            blocks: state.blocks.map(({ id, type, x, y, width, height, content, style, effects, rotation }) => ({
-              id, type, x, y, width, height, content, style, effects, rotation,
-            })),
-            background: state.background,
-            localRevision,
-            baseServerRevision,
-          },
-        },
+      const response = await fetch('/api/save-page', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pageId,
+          title: state.title || null,
+          blocks: state.blocks.map(({ id, type, x, y, width, height, content, style, effects, rotation }) => ({
+            id, type, x, y, width, height, content, style, effects, rotation,
+          })),
+          background: state.background,
+          localRevision,
+          baseServerRevision,
+        }),
       });
 
-      const data = result.data?.updatePage;
-      if (!data) {
-        return { success: false, error: { code: 'UNKNOWN' as const, message: 'No response from server' } };
+      const data = await response.json();
+      
+      if (!response.ok) {
+        return { success: false, error: { code: 'UNKNOWN' as const, message: data.error || 'Save failed' } };
       }
 
       if (data.conflict) {
@@ -189,7 +227,7 @@ export function Editor({
       return {
         success: true,
         serverRevision: data.currentServerRevision,
-        updatedAt: data.page?.updatedAt,
+        updatedAt: data.updatedAt,
         acceptedLocalRevision: data.acceptedLocalRevision,
       };
     } catch (error) {
@@ -204,9 +242,6 @@ export function Editor({
       return { success: false, error: { code: 'UNKNOWN' as const, message } };
     }
   }, [pageId, state.title, state.blocks, state.background]);
-
-  const [updatePage] = useMutation(UPDATE_PAGE, { errorPolicy: 'all' });
-  const [publishPage] = useMutation(PUBLISH_PAGE, { errorPolicy: 'all' });
 
   const { markDirty } = useSaveController({
     debounceMs: 1000,

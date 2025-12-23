@@ -7,66 +7,69 @@
  * - If authenticated with page → load from server and show editor
  */
 
-import { useEffect, useState } from 'react';
-import { useQuery, gql } from '@apollo/client';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/router';
-import { GET_MY_PAGE } from '@/lib/graphql/mutations';
 import { Editor } from '@/components/editor/Editor';
 import Head from 'next/head';
 import styles from '@/styles/EditPage.module.css';
 
-const ME_QUERY = gql`
-  query Me {
-    me {
-      id
-      email
-      name
-      username
-      avatarUrl
-    }
-  }
-`;
+interface PageData {
+  id: string;
+  title: string | null;
+  isPublished: boolean;
+  blocks: any[];
+  background: any;
+  serverRevision: number;
+  publishedRevision: number | null;
+}
+
+interface MyPageResponse {
+  page: PageData | null;
+  user: { id: string; username?: string } | null;
+}
 
 export default function EditPage() {
   const router = useRouter();
   const [isReady, setIsReady] = useState(false);
-  
-  // Check authentication status
-  const { data: meData, loading: meLoading } = useQuery(ME_QUERY, {
-    fetchPolicy: 'network-only',
-  });
-  const isAuthenticated = !!meData?.me;
-  
-  // Check if user has an existing server page
-  const { data: pageData, loading: pageLoading } = useQuery(GET_MY_PAGE, {
-    fetchPolicy: 'network-only',
-    skip: !isAuthenticated,
-  });
+  const [page, setPage] = useState<PageData | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  // Handle redirects
+  // Fetch user's page data
+  const fetchMyPage = useCallback(async (): Promise<MyPageResponse> => {
+    try {
+      const response = await fetch('/api/my-page');
+      const data = await response.json();
+      return data;
+    } catch {
+      return { page: null, user: null };
+    }
+  }, []);
+
+  // Load page data
   useEffect(() => {
-    if (meLoading) return;
-    
-    // Not authenticated - go to /new
-    if (!isAuthenticated) {
-      router.replace('/new');
-      return;
-    }
-    
-    if (pageLoading) return;
-    
-    // Authenticated but no page - go to /new
-    if (!pageData?.myPage) {
-      router.replace('/new');
-      return;
-    }
-    
-    // Has page, ready to edit
-    setIsReady(true);
-  }, [meLoading, pageLoading, isAuthenticated, pageData, router]);
+    fetchMyPage().then((data) => {
+      setLoading(false);
+      
+      // Not authenticated - go to /new
+      if (!data.user) {
+        router.replace('/new');
+        return;
+      }
+      
+      // Authenticated but no page - go to /new
+      if (!data.page) {
+        router.replace('/new');
+        return;
+      }
+      
+      // Has page, ready to edit
+      setPage(data.page);
+      setIsReady(true);
+    });
+  }, [fetchMyPage, router]);
 
   // Loading state
-  if (!isReady) {
+  if (loading || !isReady) {
     return (
       <>
         <Head>
@@ -79,7 +82,6 @@ export default function EditPage() {
     );
   }
 
-  const page = pageData?.myPage;
   if (!page) {
     return (
       <>
@@ -102,7 +104,7 @@ export default function EditPage() {
         pageId={page.id}
         mode="server"
         initialBlocks={page.blocks}
-        initialTitle={page.title}
+        initialTitle={page.title || ''}
         initialBackground={page.background}
         initialPublished={page.isPublished}
         initialServerRevision={page.serverRevision ?? 1}

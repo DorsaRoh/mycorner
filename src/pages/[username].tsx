@@ -10,17 +10,6 @@
  */
 
 import type { GetServerSideProps } from 'next';
-import { gql } from '@apollo/client';
-import { initializeApollo } from '@/lib/apollo/client';
-
-const CHECK_PAGE_EXISTS = gql`
-  query CheckPageExists($username: String!) {
-    pageByUsername(username: $username) {
-      slug
-      isPublished
-    }
-  }
-`;
 
 // Reserved paths that should NOT be treated as usernames
 const RESERVED_PATHS = new Set([
@@ -44,23 +33,26 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
   if (RESERVED_PATHS.has(username.toLowerCase())) {
     return { notFound: true };
   }
-  
-  const apolloClient = initializeApollo();
 
   try {
-    const { data } = await apolloClient.query({
-      query: CHECK_PAGE_EXISTS,
-      variables: { username: username.toLowerCase() },
-      fetchPolicy: 'network-only',
-    });
+    // Import database directly (no GraphQL)
+    const db = await import('@/server/db');
+    
+    // Get user by username
+    const user = await db.getUserByUsername(username.toLowerCase());
+    if (!user) {
+      return { notFound: true };
+    }
 
-    const page = data.pageByUsername;
+    // Get user's pages
+    const pages = await db.getPagesByUserId(user.id);
+    const publishedPage = pages.find(p => p.is_published);
     
     // If page exists and is published, redirect to canonical /u/[slug]
-    if (page?.isPublished && page?.slug) {
+    if (publishedPage?.slug) {
       return {
         redirect: {
-          destination: `/u/${page.slug}`,
+          destination: `/u/${publishedPage.slug}`,
           permanent: true, // 308 redirect
         },
       };

@@ -1,6 +1,4 @@
 import { useState, useCallback, useEffect } from 'react';
-import { useMutation } from '@apollo/client';
-import { SEND_PRODUCT_FEEDBACK } from '@/lib/graphql/mutations';
 import styles from './FeedbackModal.module.css';
 
 interface ProductFeedbackModalProps {
@@ -13,8 +11,6 @@ export function ProductFeedbackModal({ isOpen, onClose }: ProductFeedbackModalPr
   const [email, setEmail] = useState('');
   const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
 
-  const [sendProductFeedback] = useMutation(SEND_PRODUCT_FEEDBACK);
-
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -22,14 +18,18 @@ export function ProductFeedbackModal({ isOpen, onClose }: ProductFeedbackModalPr
 
     setStatus('sending');
     try {
-      const { data } = await sendProductFeedback({
-        variables: {
+      const response = await fetch('/api/product-feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           message: message.trim(),
           email: email.trim() || null,
-        },
+        }),
       });
 
-      if (data?.sendProductFeedback?.success) {
+      const data = await response.json();
+
+      if (data?.success) {
         setStatus('sent');
       } else {
         setStatus('error');
@@ -37,7 +37,7 @@ export function ProductFeedbackModal({ isOpen, onClose }: ProductFeedbackModalPr
     } catch {
       setStatus('error');
     }
-  }, [message, email, sendProductFeedback]);
+  }, [message, email]);
 
   const handleClose = useCallback(() => {
     // Reset form when closing

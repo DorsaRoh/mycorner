@@ -17,18 +17,17 @@ export const ROUTES = {
 } as const;
 
 export const AUTH_ROUTES = {
-  GOOGLE: '/auth/google',
-  GOOGLE_CALLBACK: '/auth/google/callback',
-  LOGOUT: '/auth/logout',
-  STATUS: '/auth/status',
+  GOOGLE: '/api/auth/google',
+  GOOGLE_CALLBACK: '/api/auth/google/callback',
+  LOGOUT: '/api/auth/logout',
+  STATUS: '/api/me',
 } as const;
 
 export const API_ROUTES = {
-  GRAPHQL: '/graphql',
   ME: '/api/me',
   PUBLISH: '/api/publish',
   UPLOAD: '/api/assets/upload',
-  HEALTH: '/health',
+  HEALTH: '/api/healthz',
 } as const;
 
 // Reserved paths that should NOT be treated as usernames
@@ -139,7 +138,6 @@ export const api = {
   me: () => API_ROUTES.ME,
   publish: () => API_ROUTES.PUBLISH,
   upload: () => API_ROUTES.UPLOAD,
-  graphql: () => API_ROUTES.GRAPHQL,
   health: () => API_ROUTES.HEALTH,
   assetsHealth: () => '/api/assets/health',
 } as const;

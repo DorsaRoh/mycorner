@@ -20,6 +20,10 @@ import { legacyBlocksToPageDoc, clearDraft } from '@/lib/draft';
 // Types
 // =============================================================================
 
+interface MeData {
+  me?: { id: string; username?: string } | null;
+}
+
 interface PublishHookProps {
   pageId: string;
   mode: 'draft' | 'server';
@@ -27,8 +31,8 @@ interface PublishHookProps {
   title: string;
   background: BackgroundConfig | undefined;
   initialServerRevision: number;
-  meData: { me?: { id: string; username?: string } } | undefined;
-  refetchMe: () => Promise<{ data?: { me?: { id: string; username?: string } } }>;
+  meData: MeData | undefined;
+  refetchMe: () => Promise<{ data?: MeData }>;
   setPublishing: (publishing: boolean) => void;
   setPublishError: (error: string | null) => void;
   setIsPublished: (published: boolean) => void;

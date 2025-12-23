@@ -1,0 +1,317 @@
+/**
+ * Session management for Vercel/Next.js API routes.
+ * 
+ * This module provides cookie-based session handling that works in serverless
+ * environments without relying on Express session middleware.
+ * 
+ * Session cookie format: JWT containing { userId, exp }
+ * OAuth state cookie format: JSON containing { state, returnTo }
+ */
+
+import type { NextApiRequest, NextApiResponse } from 'next';
+import * as crypto from 'crypto';
+import type { DbUser } from '../db/types';
+
+// =============================================================================
+// Configuration
+// =============================================================================
+
+const SESSION_COOKIE_NAME = 'yourcorner_session';
+const OAUTH_STATE_COOKIE_NAME = 'yourcorner_oauth_state';
+const SESSION_MAX_AGE_SECONDS = 30 * 24 * 60 * 60; // 30 days
+
+// Get secret from environment
+function getSessionSecret(): string {
+  const secret = process.env.SESSION_SECRET;
+  if (!secret) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('SESSION_SECRET environment variable is required in production');
+    }
+    // Use a default for development
+    return 'dev-session-secret-not-for-production';
+  }
+  return secret;
+}
+
+// =============================================================================
+// Simple JWT-like token (HMAC-SHA256 signed)
+// =============================================================================
+
+interface SessionPayload {
+  userId: string;
+  exp: number; // Unix timestamp
+}
+
+function createSessionToken(payload: SessionPayload): string {
+  const secret = getSessionSecret();
+  const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
+  const body = Buffer.from(JSON.stringify(payload)).toString('base64url');
+  const signature = crypto
+    .createHmac('sha256', secret)
+    .update(`${header}.${body}`)
+    .digest('base64url');
+  return `${header}.${body}.${signature}`;
+}
+
+function verifySessionToken(token: string): SessionPayload | null {
+  try {
+    const secret = getSessionSecret();
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    
+    const [header, body, signature] = parts;
+    const expectedSignature = crypto
+      .createHmac('sha256', secret)
+      .update(`${header}.${body}`)
+      .digest('base64url');
+    
+    // Constant-time comparison to prevent timing attacks
+    if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSignature))) {
+      return null;
+    }
+    
+    const payload = JSON.parse(Buffer.from(body, 'base64url').toString()) as SessionPayload;
+    
+    // Check expiration
+    if (payload.exp < Date.now() / 1000) {
+      return null;
+    }
+    
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
+// =============================================================================
+// Cookie Helpers
+// =============================================================================
+
+function parseCookies(cookieHeader: string | undefined): Record<string, string> {
+  const cookies: Record<string, string> = {};
+  if (!cookieHeader) return cookies;
+  
+  cookieHeader.split(';').forEach(cookie => {
+    const [name, ...rest] = cookie.trim().split('=');
+    if (name) {
+      cookies[name] = decodeURIComponent(rest.join('='));
+    }
+  });
+  
+  return cookies;
+}
+
+function serializeCookie(
+  name: string, 
+  value: string, 
+  options: {
+    maxAge?: number;
+    httpOnly?: boolean;
+    secure?: boolean;
+    sameSite?: 'lax' | 'strict' | 'none';
+    path?: string;
+  } = {}
+): string {
+  const parts = [`${name}=${encodeURIComponent(value)}`];
+  
+  if (options.maxAge !== undefined) {
+    parts.push(`Max-Age=${options.maxAge}`);
+  }
+  if (options.httpOnly) {
+    parts.push('HttpOnly');
+  }
+  if (options.secure) {
+    parts.push('Secure');
+  }
+  if (options.sameSite) {
+    parts.push(`SameSite=${options.sameSite.charAt(0).toUpperCase() + options.sameSite.slice(1)}`);
+  }
+  if (options.path) {
+    parts.push(`Path=${options.path}`);
+  }
+  
+  return parts.join('; ');
+}
+
+// =============================================================================
+// Session API
+// =============================================================================
+
+/**
+ * Get user from request by reading the session cookie.
+ * Returns the user object or null if not authenticated.
+ */
+export async function getUserFromRequest(req: NextApiRequest): Promise<DbUser | null> {
+  const cookies = parseCookies(req.headers.cookie);
+  const sessionToken = cookies[SESSION_COOKIE_NAME];
+  
+  if (!sessionToken) {
+    return null;
+  }
+  
+  const payload = verifySessionToken(sessionToken);
+  if (!payload) {
+    return null;
+  }
+  
+  // Fetch user from database
+  const db = await import('../db');
+  const user = await db.getUserById(payload.userId);
+  
+  return user || null;
+}
+
+/**
+ * Set session cookie for a user.
+ * Call this after successful authentication.
+ */
+export function setSessionCookie(res: NextApiResponse, userId: string): void {
+  const exp = Math.floor(Date.now() / 1000) + SESSION_MAX_AGE_SECONDS;
+  const token = createSessionToken({ userId, exp });
+  
+  const isProduction = process.env.NODE_ENV === 'production';
+  
+  const cookie = serializeCookie(SESSION_COOKIE_NAME, token, {
+    maxAge: SESSION_MAX_AGE_SECONDS,
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: 'lax',
+    path: '/',
+  });
+  
+  // Append to existing cookies if any
+  const existingCookies = res.getHeader('Set-Cookie');
+  if (existingCookies) {
+    const cookiesArray = Array.isArray(existingCookies) ? existingCookies : [existingCookies as string];
+    res.setHeader('Set-Cookie', [...cookiesArray, cookie]);
+  } else {
+    res.setHeader('Set-Cookie', cookie);
+  }
+}
+
+/**
+ * Clear session cookie (logout).
+ */
+export function clearSessionCookie(res: NextApiResponse): void {
+  const cookie = serializeCookie(SESSION_COOKIE_NAME, '', {
+    maxAge: 0,
+    httpOnly: true,
+    path: '/',
+  });
+  
+  res.setHeader('Set-Cookie', cookie);
+}
+
+// =============================================================================
+// OAuth State Cookie (for CSRF protection)
+// =============================================================================
+
+interface OAuthState {
+  state: string;
+  returnTo: string;
+}
+
+/**
+ * Generate and store OAuth state for CSRF protection.
+ */
+export function setOAuthStateCookie(res: NextApiResponse, returnTo: string): string {
+  const state = crypto.randomBytes(32).toString('hex');
+  
+  const payload: OAuthState = { state, returnTo };
+  const value = Buffer.from(JSON.stringify(payload)).toString('base64');
+  
+  const isProduction = process.env.NODE_ENV === 'production';
+  
+  const cookie = serializeCookie(OAUTH_STATE_COOKIE_NAME, value, {
+    maxAge: 600, // 10 minutes
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: 'lax',
+    path: '/',
+  });
+  
+  // Append to existing cookies if any
+  const existingCookies = res.getHeader('Set-Cookie');
+  if (existingCookies) {
+    const cookiesArray = Array.isArray(existingCookies) ? existingCookies : [existingCookies as string];
+    res.setHeader('Set-Cookie', [...cookiesArray, cookie]);
+  } else {
+    res.setHeader('Set-Cookie', cookie);
+  }
+  
+  return state;
+}
+
+/**
+ * Verify OAuth state and return the stored returnTo URL.
+ * Clears the state cookie after verification.
+ */
+export function verifyOAuthState(
+  req: NextApiRequest, 
+  res: NextApiResponse, 
+  state: string
+): { valid: boolean; returnTo: string } {
+  const cookies = parseCookies(req.headers.cookie);
+  const stateValue = cookies[OAUTH_STATE_COOKIE_NAME];
+  
+  // Always clear the state cookie
+  const clearCookie = serializeCookie(OAUTH_STATE_COOKIE_NAME, '', {
+    maxAge: 0,
+    httpOnly: true,
+    path: '/',
+  });
+  
+  const existingCookies = res.getHeader('Set-Cookie');
+  if (existingCookies) {
+    const cookiesArray = Array.isArray(existingCookies) ? existingCookies : [existingCookies as string];
+    res.setHeader('Set-Cookie', [...cookiesArray, clearCookie]);
+  } else {
+    res.setHeader('Set-Cookie', clearCookie);
+  }
+  
+  if (!stateValue) {
+    return { valid: false, returnTo: '/new' };
+  }
+  
+  try {
+    const payload = JSON.parse(Buffer.from(stateValue, 'base64').toString()) as OAuthState;
+    
+    // Constant-time comparison
+    if (!crypto.timingSafeEqual(Buffer.from(state), Buffer.from(payload.state))) {
+      return { valid: false, returnTo: '/new' };
+    }
+    
+    return { valid: true, returnTo: payload.returnTo || '/new' };
+  } catch {
+    return { valid: false, returnTo: '/new' };
+  }
+}
+
+/**
+ * Validate that returnTo is a safe relative path.
+ * Prevents open redirect vulnerabilities.
+ */
+export function validateReturnTo(returnTo: string | undefined): string {
+  // Default to /new if no returnTo
+  if (!returnTo) {
+    return '/new';
+  }
+  
+  // Must start with /
+  if (!returnTo.startsWith('/')) {
+    return '/new';
+  }
+  
+  // Must NOT contain :// (prevents http://, https://, javascript://, etc.)
+  if (returnTo.includes('://')) {
+    return '/new';
+  }
+  
+  // Must NOT start with // (protocol-relative URLs)
+  if (returnTo.startsWith('//')) {
+    return '/new';
+  }
+  
+  return returnTo;
+}
+
