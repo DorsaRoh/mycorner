@@ -191,9 +191,9 @@ export default async function handler(
     
     // Upsert user in database
     console.log('[auth/callback] Upserting user:', userInfo.email);
-    const db = await import('@/server/db');
+    const { upsertUserByGoogleSub } = await import('@/server/db');
     
-    const user = await db.upsertUserByGoogleSub({
+    const user = await upsertUserByGoogleSub({
       googleSub: userInfo.sub,
       email: userInfo.email,
       name: userInfo.name,
