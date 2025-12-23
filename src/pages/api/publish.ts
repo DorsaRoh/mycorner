@@ -366,17 +366,21 @@ export default async function handler(
       success: true,
     });
     
-    // canonical url is always /{slug} - the app serves it, not R2 directly
-    // the client should redirect to this path, which the app will serve
+    // Canonical URL is always /{slug} - the app serves it, not R2 directly.
+    // The client should redirect to this path, which the Next.js app will serve via SSR.
+    // We return both a relative path (for client-side redirect) and full public URL (for sharing).
     const url = `/${slug}`;
+    const fullPublicUrl = `${appOrigin}/${slug}`;
     
-    // include warnings in response if any
+    // Include warnings in response if any
     const response: Record<string, unknown> = {
       success: true,
       slug,
+      // url: relative path for client-side navigation (Next.js router.push)
       url,
-      // publicUrl is kept for backwards compatibility but points to canonical path
-      publicUrl: url,
+      // publicUrl: full canonical URL for sharing (https://www.itsmycorner.com/{slug})
+      // This should be displayed to users and used in share dialogs
+      publicUrl: fullPublicUrl,
     };
     
     // collect all warnings

@@ -143,10 +143,12 @@ export function usePublish({
       setIsPublished(true);
       setPublishedRevision(Date.now()); // use timestamp as revision marker
       
-      // url from response is the canonical path (e.g., "/hii")
-      // fall back to /{slug} if url not provided (legacy response format)
+      // publicUrl from response is the full canonical URL (e.g., "https://www.itsmycorner.com/hii")
+      // This is used for the copy-to-clipboard feature in the publish toast
+      // url is the relative path for client-side navigation
       const canonicalPath = result.url || `/${result.slug}`;
-      setPublishedUrl(canonicalPath);
+      const fullPublicUrl = result.publicUrl || `${window.location.origin}${canonicalPath}`;
+      setPublishedUrl(fullPublicUrl);
       
       // clear draft
       clearDraft();
