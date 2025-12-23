@@ -12,6 +12,29 @@ import {
 import { EffectsRenderer } from '@/components/effects/EffectsRenderer';
 import styles from './ViewerBlock.module.css';
 
+/**
+ * Normalize asset URLs for public page rendering.
+ * - Absolute URLs (http://, https://) and data: URIs are unchanged
+ * - Relative URLs starting with / are prefixed with the app origin
+ */
+function normalizeAssetUrl(url: string): string {
+  // Return as-is for absolute URLs and data URIs
+  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) {
+    return url;
+  }
+  
+  // For relative URLs starting with /, prefix with app origin
+  if (url.startsWith('/')) {
+    const origin = typeof window !== 'undefined' 
+      ? (process.env.NEXT_PUBLIC_APP_ORIGIN || window.location.origin)
+      : (process.env.NEXT_PUBLIC_APP_ORIGIN || '');
+    return `${origin}${url}`;
+  }
+  
+  // Return as-is for other cases (e.g., blob: URLs)
+  return url;
+}
+
 interface ViewerBlockProps {
   block: BlockType;
   canvasDimensions?: CanvasDimensions;
@@ -124,16 +147,24 @@ const BlockContent = memo(function BlockContent({ type, content, style, effects,
         </div>
       );
 
-    case 'IMAGE':
+    case 'IMAGE': {
       if (!content) return null;
+
+      const src = normalizeAssetUrl(content);
+      
+      // DEBUG: Log image URL normalization in development
+      if (process.env.NODE_ENV !== 'production' && typeof window !== 'undefined') {
+        console.log('[ViewerBlock] IMAGE URL:', { original: content, normalized: src });
+      }
 
       return (
         <EffectsRenderer effects={effects}>
           <div className={styles.imageWrapper}>
-            <img src={content} alt="" className={styles.imageContent} draggable={false} />
+            <img src={src} alt="" className={styles.imageContent} draggable={false} />
           </div>
         </EffectsRenderer>
       );
+    }
 
     case 'LINK': {
       if (!content) return null;

@@ -92,6 +92,24 @@ export type ImageBlock = z.infer<typeof ImageBlockSchema>;
 // PageDoc Schema (the entire page as one document)
 // =============================================================================
 
+// Background configuration schema (matches BackgroundConfig in shared/types)
+export const BackgroundConfigSchema = z.object({
+  mode: z.enum(['solid', 'gradient', 'image']),
+  solid: z.object({ color: z.string() }).optional(),
+  gradient: z.object({
+    type: z.enum(['linear', 'radial']),
+    colorA: z.string(),
+    colorB: z.string(),
+    angle: z.number(),
+  }).optional(),
+  image: z.object({
+    url: z.string(),
+    fit: z.enum(['cover', 'contain', 'fill', 'tile']),
+    position: z.enum(['center', 'top', 'bottom', 'left', 'right']),
+    opacity: z.number(),
+  }).optional(),
+});
+
 export const PageDocSchema = z.object({
   /** Schema version for forward compatibility */
   version: z.literal(1),
@@ -107,6 +125,9 @@ export const PageDocSchema = z.object({
   
   /** Theme overrides (keep minimal for MVP) */
   themeOverrides: z.record(z.string(), z.unknown()).optional(),
+  
+  /** Background configuration */
+  background: BackgroundConfigSchema.optional(),
   
   /** All blocks on the page */
   blocks: z.array(BlockSchema).default([]),
@@ -282,6 +303,7 @@ export function convertLegacyPage(legacy: {
     mode: string;
     solid?: { color: string };
     gradient?: { type: string; colorA: string; colorB: string; angle: number };
+    image?: { url: string; fit: string; position: string; opacity: number };
   };
 }): PageDoc {
   const blocks = legacy.blocks
@@ -297,11 +319,34 @@ export function convertLegacyPage(legacy: {
     themeId = 'solid';
   }
   
+  // Convert legacy background to BackgroundConfig if present
+  let background: PageDoc['background'] | undefined;
+  if (legacy.background) {
+    const mode = legacy.background.mode as 'solid' | 'gradient' | 'image';
+    background = {
+      mode,
+      solid: legacy.background.solid,
+      gradient: legacy.background.gradient ? {
+        type: legacy.background.gradient.type as 'linear' | 'radial',
+        colorA: legacy.background.gradient.colorA,
+        colorB: legacy.background.gradient.colorB,
+        angle: legacy.background.gradient.angle,
+      } : undefined,
+      image: legacy.background.image ? {
+        url: legacy.background.image.url,
+        fit: legacy.background.image.fit as 'cover' | 'contain' | 'fill' | 'tile',
+        position: legacy.background.image.position as 'center' | 'top' | 'bottom' | 'left' | 'right',
+        opacity: legacy.background.image.opacity,
+      } : undefined,
+    };
+  }
+  
   return {
     version: 1,
     title: legacy.title,
     bio: undefined,
     themeId,
+    background,
     blocks,
   };
 }

@@ -1,15 +1,23 @@
 /**
  * Hook for tracking canvas container dimensions with ResizeObserver.
  * Provides efficient resize detection for responsive canvas rendering.
+ * 
+ * Uses useLayoutEffect for synchronous measurement before paint to prevent
+ * layout flicker during route transitions and hydration.
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
 import { 
   CanvasDimensions, 
   getCanvasDimensions, 
   REFERENCE_WIDTH, 
   REFERENCE_HEIGHT 
 } from './coordinates';
+
+// Minimum valid container size - smaller than this means container isn't ready
+const MIN_VALID_SIZE = 50;
+// Maximum retry attempts for initial measurement
+const MAX_MEASURE_RETRIES = 10;
 
 export interface UseCanvasSizeOptions {
   /**
@@ -39,8 +47,26 @@ export interface UseCanvasSizeResult {
 }
 
 /**
+ * Sanitize dimensions to ensure all values are finite and valid.
+ * This prevents NaN/Infinity from propagating to layout calculations.
+ */
+function sanitizeDimensions(dims: CanvasDimensions): CanvasDimensions {
+  return {
+    width: Number.isFinite(dims.width) && dims.width > 0 ? dims.width : REFERENCE_WIDTH,
+    height: Number.isFinite(dims.height) && dims.height > 0 ? dims.height : REFERENCE_HEIGHT,
+    scale: Number.isFinite(dims.scale) && dims.scale > 0 ? Math.max(0.1, dims.scale) : 1,
+    scaleX: Number.isFinite(dims.scaleX) && dims.scaleX > 0 ? dims.scaleX : 1,
+    scaleY: Number.isFinite(dims.scaleY) && dims.scaleY > 0 ? dims.scaleY : 1,
+    offsetX: Number.isFinite(dims.offsetX) ? dims.offsetX : 0,
+    offsetY: Number.isFinite(dims.offsetY) ? dims.offsetY : 0,
+  };
+}
+
+/**
  * Hook for responsive canvas sizing using ResizeObserver.
  * Returns current dimensions and scale factors for coordinate conversion.
+ * 
+ * Uses useLayoutEffect for initial measurement to prevent layout flicker.
  */
 export function useCanvasSize(options: UseCanvasSizeOptions = {}): UseCanvasSizeResult {
   const { debounceMs = 16, onResizeStart } = options;
@@ -48,11 +74,13 @@ export function useCanvasSize(options: UseCanvasSizeOptions = {}): UseCanvasSize
   const containerRef = useRef<HTMLDivElement>(null!);
   // Track if we've done initial measurement (for SSR → client hydration)
   const hasMeasured = useRef(false);
+  // Track retry attempts for initial measurement
+  const retryCountRef = useRef(0);
   
   // Initialize with reference size (scale=1, no offset)
   // This ensures blocks are visible even before first measurement
   const [dimensions, setDimensions] = useState<CanvasDimensions>(() => 
-    getCanvasDimensions(REFERENCE_WIDTH, REFERENCE_HEIGHT)
+    sanitizeDimensions(getCanvasDimensions(REFERENCE_WIDTH, REFERENCE_HEIGHT))
   );
   const [isResizing, setIsResizing] = useState(false);
   
@@ -60,18 +88,26 @@ export function useCanvasSize(options: UseCanvasSizeOptions = {}): UseCanvasSize
   const rafRef = useRef<number | null>(null);
   const lastDimensionsRef = useRef<{ width: number; height: number } | null>(null);
   
-  const recalculate = useCallback(() => {
-    if (!containerRef.current) return;
+  /**
+   * Core measurement function that reads container bounds and updates state.
+   * Returns true if measurement was successful (valid dimensions obtained).
+   */
+  const measure = useCallback((): boolean => {
+    if (!containerRef.current) return false;
     
     const rect = containerRef.current.getBoundingClientRect();
     
-    // Skip if container has no dimensions yet (will be called again via ResizeObserver)
-    if (rect.width === 0 && rect.height === 0 && !hasMeasured.current) {
-      return;
+    // Check if container has valid dimensions
+    const isValid = rect.width >= MIN_VALID_SIZE && rect.height >= MIN_VALID_SIZE;
+    
+    if (!isValid && !hasMeasured.current) {
+      // Container not ready yet - will retry
+      return false;
     }
     
     hasMeasured.current = true;
-    const newDims = getCanvasDimensions(rect.width, rect.height);
+    const rawDims = getCanvasDimensions(rect.width, rect.height);
+    const newDims = sanitizeDimensions(rawDims);
     
     // Only update if dimensions actually changed
     const last = lastDimensionsRef.current;
@@ -79,30 +115,67 @@ export function useCanvasSize(options: UseCanvasSizeOptions = {}): UseCanvasSize
       lastDimensionsRef.current = { width: rect.width, height: rect.height };
       setDimensions(newDims);
     }
+    
+    return true;
   }, []);
   
+  /**
+   * Measurement with retry logic for handling hydration/route transitions.
+   * Uses requestAnimationFrame to retry until valid dimensions are obtained.
+   */
+  const measureWithRetry = useCallback(() => {
+    const attemptMeasure = () => {
+      const success = measure();
+      
+      if (!success && retryCountRef.current < MAX_MEASURE_RETRIES) {
+        retryCountRef.current++;
+        rafRef.current = requestAnimationFrame(attemptMeasure);
+      }
+    };
+    
+    // Reset retry counter for new measurement cycle
+    retryCountRef.current = 0;
+    attemptMeasure();
+  }, [measure]);
+  
+  // Use useLayoutEffect for synchronous initial measurement before paint
+  // This prevents the "flash of wrong layout" on route transitions
+  useLayoutEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    // Attempt immediate synchronous measurement
+    const success = measure();
+    
+    // If not successful, schedule retries with RAF
+    if (!success) {
+      measureWithRetry();
+    }
+    
+    return () => {
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current);
+      }
+    };
+  }, [measure, measureWithRetry]);
+  
+  // Set up ResizeObserver and window resize listener
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
     
-    // Initial measurement - use RAF to ensure DOM is ready
-    // This is critical for client-side navigation where the container may not
-    // have dimensions immediately after mount
-    const initialMeasure = () => {
-      recalculate();
-      
-      // If still no dimensions, retry after a short delay
-      // This handles the case where Next.js is hydrating and the container
-      // doesn't have layout dimensions yet
-      if (!hasMeasured.current) {
-        setTimeout(recalculate, 50);
-      }
-    };
-    
-    requestAnimationFrame(initialMeasure);
+    // Track if this is the first ResizeObserver callback
+    let isFirstCallback = true;
     
     const handleResize = (entries: ResizeObserverEntry[]) => {
       if (entries.length === 0) return;
+      
+      // First callback should be immediate (no debounce) to ensure
+      // we get valid dimensions as soon as the container is laid out
+      if (isFirstCallback) {
+        isFirstCallback = false;
+        measure();
+        return;
+      }
       
       // Signal resize start
       if (!isResizing) {
@@ -118,13 +191,16 @@ export function useCanvasSize(options: UseCanvasSizeOptions = {}): UseCanvasSize
         cancelAnimationFrame(rafRef.current);
       }
       
-      // Debounce the dimension update
+      // Debounce the dimension update for continuous resize
       if (debounceMs === 0) {
-        rafRef.current = requestAnimationFrame(recalculate);
+        rafRef.current = requestAnimationFrame(() => {
+          measure();
+          setIsResizing(false);
+        });
       } else {
         resizeTimeoutRef.current = window.setTimeout(() => {
           rafRef.current = requestAnimationFrame(() => {
-            recalculate();
+            measure();
             setIsResizing(false);
           });
         }, debounceMs);
@@ -140,7 +216,7 @@ export function useCanvasSize(options: UseCanvasSizeOptions = {}): UseCanvasSize
         window.clearTimeout(resizeTimeoutRef.current);
       }
       resizeTimeoutRef.current = window.setTimeout(() => {
-        recalculate();
+        measure();
         setIsResizing(false);
       }, debounceMs || 16);
     };
@@ -157,13 +233,13 @@ export function useCanvasSize(options: UseCanvasSizeOptions = {}): UseCanvasSize
         cancelAnimationFrame(rafRef.current);
       }
     };
-  }, [debounceMs, onResizeStart, recalculate, isResizing]);
+  }, [debounceMs, onResizeStart, measure, isResizing]);
   
   return {
     dimensions,
     containerRef,
     isResizing,
-    recalculate,
+    recalculate: measure,
   };
 }
 

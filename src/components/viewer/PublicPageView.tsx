@@ -181,6 +181,7 @@ export function PublicPageView({ doc, slug }: PublicPageViewProps) {
       >
         <ViewerCanvas 
           blocks={legacyBlocks}
+          background={doc.background as import('@/shared/types').BackgroundConfig | undefined}
         />
         
         {/* CTA button - "Make your own" */}

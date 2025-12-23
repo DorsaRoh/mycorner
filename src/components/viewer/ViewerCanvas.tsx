@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useEffect } from 'react';
 import type { Block as BlockType, BackgroundConfig } from '@/shared/types';
 import { ViewerBlock } from './ViewerBlock';
 import { getBackgroundStyles } from '@/shared/utils/blockStyles';
@@ -14,25 +14,36 @@ export function ViewerCanvas({ blocks, background }: ViewerCanvasProps) {
   // Use responsive canvas sizing
   const { dimensions, containerRef } = useCanvasSize({ debounceMs: 16 });
   
-  // DEBUG: Log canvas dimensions in development
-  if (process.env.NODE_ENV !== 'production' && typeof window !== 'undefined') {
-    console.log('[ViewerCanvas] Dimensions:', {
-      width: dimensions.width,
-      height: dimensions.height,
-      scale: dimensions.scale,
-      offsetX: dimensions.offsetX,
-      blocksCount: blocks.length,
-    });
-  }
+  // DEBUG: Log canvas dimensions in development (moved out of render)
+  useEffect(() => {
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[ViewerCanvas] Dimensions:', {
+        width: dimensions.width,
+        height: dimensions.height,
+        scale: dimensions.scale,
+        offsetX: dimensions.offsetX,
+        blocksCount: blocks.length,
+      });
+    }
+  }, [dimensions, blocks.length]);
   
   const { canvasStyle, bgImageStyle } = useMemo(() => getBackgroundStyles(background), [background]);
 
   // Calculate content bounds to ensure canvas can scroll to show all blocks
+  // Guard against invalid scale/offset values during initial render
   const contentBounds = useMemo(() => {
+    // Ensure scale and offset are valid finite numbers
+    const safeScale = Number.isFinite(dimensions.scale) && dimensions.scale > 0 
+      ? dimensions.scale 
+      : 1;
+    const safeOffsetX = Number.isFinite(dimensions.offsetX) 
+      ? dimensions.offsetX 
+      : 0;
+    
     if (blocks.length === 0) {
       return { 
-        width: REFERENCE_WIDTH * dimensions.scale,
-        height: REFERENCE_HEIGHT * dimensions.scale 
+        width: REFERENCE_WIDTH * safeScale,
+        height: REFERENCE_HEIGHT * safeScale 
       };
     }
     
@@ -49,8 +60,8 @@ export function ViewerCanvas({ blocks, background }: ViewerCanvasProps) {
     
     // Convert to pixels and add some padding
     return {
-      width: maxRefX * dimensions.scale + dimensions.offsetX + 40,
-      height: maxRefY * dimensions.scale + 40,
+      width: maxRefX * safeScale + safeOffsetX + 40,
+      height: maxRefY * safeScale + 40,
     };
   }, [blocks, dimensions]);
 
