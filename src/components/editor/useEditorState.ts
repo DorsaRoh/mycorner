@@ -1,6 +1,9 @@
 import { useState, useCallback } from 'react';
 import type { Block, BackgroundConfig } from '@/shared/types';
 
+/** Auth intent determines where to redirect after authentication */
+export type AuthIntent = 'signin' | 'publish';
+
 export interface EditorState {
   blocks: Block[];
   selectedId: string | null;
@@ -22,6 +25,8 @@ export interface EditorState {
   showOnboarding: boolean;
   pendingPublishAfterOnboarding: boolean;
   showFeedbackModal: boolean;
+  /** Auth intent: 'signin' goes to /edit, 'publish' returns to current page with publish=1 */
+  authIntent: AuthIntent;
 }
 
 export interface EditorStateActions {
@@ -45,6 +50,7 @@ export interface EditorStateActions {
   setShowOnboarding: React.Dispatch<React.SetStateAction<boolean>>;
   setPendingPublishAfterOnboarding: React.Dispatch<React.SetStateAction<boolean>>;
   setShowFeedbackModal: React.Dispatch<React.SetStateAction<boolean>>;
+  setAuthIntent: React.Dispatch<React.SetStateAction<AuthIntent>>;
 }
 
 export function useEditorState(
@@ -75,6 +81,7 @@ export function useEditorState(
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [pendingPublishAfterOnboarding, setPendingPublishAfterOnboarding] = useState(false);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [authIntent, setAuthIntent] = useState<AuthIntent>('publish');
 
   const handleSelectBlock = useCallback((id: string | null) => {
     setSelectedId(id);
@@ -112,6 +119,7 @@ export function useEditorState(
     showOnboarding,
     pendingPublishAfterOnboarding,
     showFeedbackModal,
+    authIntent,
     setBlocks,
     setSelectedId: handleSelectBlock,
     setSelectedIds: handleSelectMultiple,
@@ -132,5 +140,6 @@ export function useEditorState(
     setShowOnboarding,
     setPendingPublishAfterOnboarding,
     setShowFeedbackModal,
+    setAuthIntent,
   };
 }

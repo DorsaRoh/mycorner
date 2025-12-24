@@ -40,6 +40,7 @@ interface PublishHookProps {
   setPublishedUrl: (url: string | null) => void;
   setShowPublishToast: (show: boolean) => void;
   setShowAuthGate: (show: boolean) => void;
+  setAuthIntent: (intent: 'signin' | 'publish') => void;
 }
 
 interface PublishOptions {
@@ -66,6 +67,7 @@ export function usePublish({
   setPublishedUrl,
   setShowPublishToast,
   setShowAuthGate,
+  setAuthIntent,
 }: PublishHookProps) {
   const router = useRouter();
 
@@ -93,6 +95,8 @@ export function usePublish({
           timestamp: Date.now(),
         }));
       }
+      // Set auth intent to 'publish' so we return to current page with publish=1
+      setAuthIntent('publish');
       setShowAuthGate(true);
       return;
     }

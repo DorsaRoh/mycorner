@@ -222,6 +222,7 @@ export function Editor({
     setPublishedUrl: state.setPublishedUrl,
     setShowPublishToast: state.setShowPublishToast,
     setShowAuthGate: state.setShowAuthGate,
+    setAuthIntent: state.setAuthIntent,
   });
 
   // Handle first interaction - removes the hint block from canvas
@@ -706,8 +707,12 @@ export function Editor({
         ) : !meLoading ? (
           <button
             className={styles.signInBtn}
-            onClick={() => state.setShowAuthGate(true)}
-            data-testid="sign-in-btn"
+            onClick={() => {
+              // Set auth intent to 'signin' so we go to /edit (user's primary page) after auth
+              state.setAuthIntent('signin');
+              state.setShowAuthGate(true);
+            }}
+            data-testid="sign-in-button"
           >
             Sign in
           </button>
@@ -789,7 +794,14 @@ export function Editor({
         onClose={() => state.setShowAuthGate(false)}
         draftId={pageId}
         onAuthStart={() => {}}
-        returnTo={`/edit/${pageId}?publish=1`}
+        // Different returnTo based on auth intent:
+        // - 'signin': Go to /edit (user's primary page via resolver)
+        // - 'publish': Return to current page with publish=1 flag
+        returnTo={state.authIntent === 'signin' ? '/edit' : `/edit/${pageId}?publish=1`}
+        title={state.authIntent === 'signin' ? 'Sign in to your corner' : 'Sign in to publish'}
+        subtitle={state.authIntent === 'signin' 
+          ? 'Access your saved pages and publish updates.'
+          : 'Your page will be saved to your account and shareable with anyone.'}
       />
 
       <PublishToast
