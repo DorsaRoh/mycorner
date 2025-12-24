@@ -301,7 +301,9 @@ export default function EditPageById({
                     document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`;
                   }
                 });
-              } catch {}
+              } catch {
+                // Ignore storage/cookie errors - best effort cleanup
+              }
               window.location.href = '/new?fresh=1';
             }}
             style={{
