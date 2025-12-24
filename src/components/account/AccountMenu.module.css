@@ -1,0 +1,200 @@
+/* Account menu container */
+.container {
+  position: relative;
+}
+
+/* Avatar trigger button */
+.trigger {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ui-bg);
+  backdrop-filter: blur(12px) saturate(1.2);
+  -webkit-backdrop-filter: blur(12px) saturate(1.2);
+  border: 1px solid var(--ui-border);
+  overflow: hidden;
+  transition: 
+    transform 180ms cubic-bezier(0.23, 1, 0.32, 1),
+    box-shadow 180ms ease-out;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+}
+
+.trigger:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+
+.trigger:active {
+  transform: scale(0.95);
+}
+
+.trigger:focus-visible {
+  outline: 2px solid var(--color-accent, #0066cc);
+  outline-offset: 2px;
+}
+
+/* Avatar image */
+.avatar {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+/* Avatar fallback with initial */
+.avatarFallback {
+  font-size: 0.875rem;
+  font-weight: 600;
+  font-family: var(--font-sans);
+  color: var(--ui-text);
+  text-transform: uppercase;
+  user-select: none;
+}
+
+/* Dropdown menu */
+.dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 220px;
+  background: var(--ui-bg);
+  backdrop-filter: blur(16px) saturate(1.3);
+  -webkit-backdrop-filter: blur(16px) saturate(1.3);
+  border: 1px solid var(--ui-border);
+  border-radius: 12px;
+  box-shadow: 
+    0 4px 24px rgba(0, 0, 0, 0.12),
+    0 2px 8px rgba(0, 0, 0, 0.08);
+  z-index: 200;
+  animation: dropdownSlideIn 150ms ease-out;
+}
+
+@keyframes dropdownSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Dropdown header section */
+.header {
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.label {
+  font-size: 0.6875rem;
+  font-family: var(--font-sans);
+  color: var(--ui-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.email {
+  font-size: 0.8125rem;
+  font-family: var(--font-sans);
+  color: var(--ui-text);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Divider */
+.divider {
+  height: 1px;
+  background: var(--ui-border);
+  margin: 0;
+}
+
+/* Logout button */
+.logoutBtn {
+  width: 100%;
+  padding: 12px 16px;
+  font-size: 0.8125rem;
+  font-family: var(--font-sans);
+  font-weight: 500;
+  color: var(--ui-text);
+  background: transparent;
+  border: none;
+  border-radius: 0 0 12px 12px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 150ms ease;
+}
+
+.logoutBtn:hover:not(:disabled) {
+  background: var(--ui-bg-hover);
+}
+
+.logoutBtn:focus-visible {
+  outline: 2px solid var(--color-accent, #0066cc);
+  outline-offset: -2px;
+}
+
+.logoutBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Responsive adjustments */
+@media (max-width: 640px) {
+  .trigger {
+    width: 32px;
+    height: 32px;
+  }
+
+  .avatarFallback {
+    font-size: 0.75rem;
+  }
+
+  .dropdown {
+    min-width: 200px;
+    right: 0;
+  }
+
+  .header {
+    padding: 12px 14px;
+  }
+
+  .label {
+    font-size: 0.625rem;
+  }
+
+  .email {
+    font-size: 0.75rem;
+  }
+
+  .logoutBtn {
+    padding: 10px 14px;
+    font-size: 0.75rem;
+  }
+}
+
+@media (max-width: 375px) {
+  .trigger {
+    width: 30px;
+    height: 30px;
+  }
+
+  .avatarFallback {
+    font-size: 0.6875rem;
+  }
+
+  .dropdown {
+    min-width: 180px;
+  }
+}
+

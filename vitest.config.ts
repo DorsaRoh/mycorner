@@ -5,11 +5,21 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
-    include: ['src/**/*.test.ts', 'tests/**/*.test.ts'],
-    exclude: ['**/node_modules/**', '**/dist/**'],
+    include: ['**/*.test.ts'],
+    exclude: ['**/node_modules/**', '**/dist/**', '**/e2e/**'],
     setupFiles: ['./tests/setup.ts'],
     testTimeout: 10000,
     hookTimeout: 10000,
+    // Run tests sequentially to avoid SQLite locking issues
+    pool: 'forks',
+    poolOptions: {
+      forks: {
+        singleFork: true,
+      },
+    },
+    sequence: {
+      shuffle: false,
+    },
     // Coverage configuration
     coverage: {
       provider: 'v8',

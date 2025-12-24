@@ -25,6 +25,7 @@ import { AuthGate } from './AuthGate';
 import { PublishToast } from './PublishToast';
 import { OnboardingModal } from './OnboardingModal';
 import { ProductFeedbackModal } from '../viewer/ProductFeedbackModal';
+import { AccountMenu } from '../account';
 import styles from './Editor.module.css';
 
 import { isImageUrl } from '@/shared/utils/blockStyles';
@@ -682,6 +683,23 @@ export function Editor({
 
           return <button className={styles.inviteBtn} onClick={() => handlePublish()}>Publish</button>;
         })()}
+
+        {/* Account menu / Sign in button */}
+        {meData?.me ? (
+          <AccountMenu
+            email={meData.me.email || ''}
+            avatarUrl={meData.me.avatarUrl}
+            name={meData.me.name}
+          />
+        ) : !meLoading ? (
+          <button
+            className={styles.signInBtn}
+            onClick={() => state.setShowAuthGate(true)}
+            data-testid="sign-in-btn"
+          >
+            Sign in
+          </button>
+        ) : null}
       </div>
 
       {/* Published URL indicator */}

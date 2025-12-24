@@ -80,17 +80,10 @@
   color: var(--ui-text-muted);
 }
 
-/* Unpublished changes - gentle prompt to update */
-.unpublishedChanges {
-  background: rgba(0, 0, 0, 0.7);
-  border-color: transparent;
-  color: rgba(255, 255, 255, 0.95);
-  text-shadow: none;
-}
-
-.unpublishedChanges:hover:not(:disabled) {
-  background: rgba(0, 0, 0, 0.85);
-  color: white;
+/* Unpublished changes - uses base inviteBtn styling */
+.inviteBtn.unpublishedChanges {
+  /* No visual override - semantic class for potential future styling */
+  display: inline-flex;
 }
 
 /* Publish error state */
@@ -103,6 +96,44 @@
 
 .inviteBtn.publishError:hover {
   background: rgba(200, 80, 80, 0.3);
+}
+
+/* Sign in button - matches inviteBtn style */
+.signInBtn {
+  padding: 9px 18px;
+  font-size: 0.8125rem;
+  font-family: var(--font-sans);
+  font-weight: 500;
+  background: transparent;
+  backdrop-filter: blur(12px) saturate(1.2);
+  -webkit-backdrop-filter: blur(12px) saturate(1.2);
+  color: var(--ui-text-muted);
+  text-shadow: var(--ui-text-shadow);
+  border: 1px solid var(--ui-border);
+  border-radius: 20px;
+  cursor: pointer;
+  transition: 
+    transform 180ms cubic-bezier(0.23, 1, 0.32, 1),
+    background 150ms ease-out,
+    color 150ms ease-out,
+    box-shadow 180ms ease-out;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+}
+
+.signInBtn:hover {
+  background: var(--ui-bg);
+  color: var(--ui-text);
+  transform: scale(1.02);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+
+.signInBtn:active {
+  transform: scale(0.98);
+}
+
+.signInBtn:focus-visible {
+  outline: 2px solid var(--color-accent, #0066cc);
+  outline-offset: 2px;
 }
 
 /* Background button wrapper for positioning panel */
@@ -644,6 +675,12 @@
     min-height: 36px; /* Ensure touch target */
   }
 
+  .signInBtn {
+    padding: 8px 14px;
+    font-size: 0.75rem;
+    min-height: 36px;
+  }
+
   .publishedUrl {
     top: 58px;
     right: 12px;
@@ -681,6 +718,13 @@
     padding: 7px 14px;
     font-size: 0.6875rem;
     min-height: 34px; /* Ensure touch target */
+    border-radius: 17px;
+  }
+
+  .signInBtn {
+    padding: 7px 12px;
+    font-size: 0.6875rem;
+    min-height: 34px;
     border-radius: 17px;
   }
 
@@ -743,6 +787,11 @@
 
   .inviteBtn {
     padding: 6px 12px;
+    font-size: 0.625rem;
+  }
+
+  .signInBtn {
+    padding: 6px 10px;
     font-size: 0.625rem;
   }
 

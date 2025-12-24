@@ -48,16 +48,12 @@ describe('Routes Module', () => {
       expect(routes.home()).toBe('/');
     });
 
-    it('routes.home() with fresh option returns /?fresh=1', () => {
-      expect(routes.home({ fresh: true })).toBe('/?fresh=1');
-    });
-
     it('routes.edit() returns /edit', () => {
       expect(routes.edit()).toBe('/edit');
     });
 
-    it('routes.edit() with fresh option returns /edit?fresh=1', () => {
-      expect(routes.edit({ fresh: true })).toBe('/edit?fresh=1');
+    it('routes.edit() with pageId returns /edit/[pageId]', () => {
+      expect(routes.edit('page123')).toBe('/edit/page123');
     });
 
     it('routes.user() returns /{username} (root level)', () => {

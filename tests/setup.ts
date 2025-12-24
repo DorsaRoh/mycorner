@@ -2,19 +2,20 @@
  * Vitest global setup file.
  * 
  * This file runs before all tests and sets up the test environment.
+ * IMPORTANT: Environment variables MUST be set before any imports.
  */
 
-import { beforeAll, afterAll, afterEach } from 'vitest';
 import path from 'path';
 import fs from 'fs';
 
-// Set test environment
+// Set test environment BEFORE any imports
+const TEST_DB_PATH = path.join(process.cwd(), 'data', 'test-corner.db');
 process.env.NODE_ENV = 'test';
 process.env.SESSION_SECRET = 'test-session-secret-for-testing-only';
-
-// Use a separate test database
-const TEST_DB_PATH = path.join(process.cwd(), 'data', 'test-corner.db');
 process.env.DATABASE_PATH = TEST_DB_PATH;
+
+// Now import test utilities
+import { beforeAll, afterAll, afterEach, vi } from 'vitest';
 
 /**
  * Clean up test database before tests run.
@@ -28,8 +29,12 @@ beforeAll(() => {
   ];
   
   for (const file of dbFiles) {
-    if (fs.existsSync(file)) {
-      fs.unlinkSync(file);
+    try {
+      if (fs.existsSync(file)) {
+        fs.unlinkSync(file);
+      }
+    } catch (e) {
+      // Ignore errors - file may be locked
     }
   }
   
@@ -44,14 +49,14 @@ beforeAll(() => {
  * Clean up after all tests complete.
  */
 afterAll(() => {
-  // Optional: Remove test database after tests
-  // Keeping it for debugging purposes; CI will clean up anyway
+  // Reset module cache to ensure clean database on next run
+  vi.resetModules();
 });
 
 /**
  * Reset any mocks after each test.
  */
 afterEach(() => {
-  // Reset any module-level state if needed
+  vi.clearAllMocks();
 });
 
