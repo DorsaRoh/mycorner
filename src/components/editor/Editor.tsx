@@ -137,9 +137,13 @@ export function Editor({
   const [justPublished, setJustPublished] = useState(false);
 
   // Compute initial published URL from slug if page is already published
+  // Use relative URL during SSR to avoid hydration mismatch, then update on client
   const computedInitialPublishedUrl = initialPublished && initialSlug
-    ? (typeof window !== 'undefined' ? `${window.location.origin}/${initialSlug}` : `/${initialSlug}`)
+    ? `/${initialSlug}`
     : null;
+
+  // Track if we've updated the URL to full version on client
+  const urlUpdated = useRef(false);
 
   // Initialize state with hooks
   const state = useEditorState(
@@ -150,6 +154,14 @@ export function Editor({
     initialPublishedRevision,
     computedInitialPublishedUrl
   );
+
+  // Update published URL with full origin on client after mount
+  useEffect(() => {
+    if (!urlUpdated.current && initialPublished && initialSlug && typeof window !== 'undefined') {
+      urlUpdated.current = true;
+      state.setPublishedUrl(`${window.location.origin}/${initialSlug}`);
+    }
+  }, [initialPublished, initialSlug, state]);
 
   // Trigger confetti and "Published!" state when any publish succeeds (including updates)
   useEffect(() => {

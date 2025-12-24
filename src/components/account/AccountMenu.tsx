@@ -1,5 +1,4 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { useRouter } from 'next/router';
 import styles from './AccountMenu.module.css';
 
 interface AccountMenuProps {
@@ -9,7 +8,6 @@ interface AccountMenuProps {
 }
 
 export function AccountMenu({ email, avatarUrl, name }: AccountMenuProps) {
-  const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -67,8 +65,8 @@ export function AccountMenu({ email, avatarUrl, name }: AccountMenuProps) {
     try {
       const response = await fetch('/api/auth/logout', { method: 'POST' });
       if (response.ok) {
-        // Redirect to /new after successful logout
-        router.push('/new');
+        // Use hard navigation to ensure fresh server state after logout
+        window.location.href = '/new';
       } else {
         console.error('[AccountMenu] Logout failed');
         setIsLoggingOut(false);
@@ -77,7 +75,7 @@ export function AccountMenu({ email, avatarUrl, name }: AccountMenuProps) {
       console.error('[AccountMenu] Logout error:', error);
       setIsLoggingOut(false);
     }
-  }, [router, isLoggingOut]);
+  }, [isLoggingOut]);
 
   // Handle keyboard navigation in menu
   const handleKeyDown = useCallback(
