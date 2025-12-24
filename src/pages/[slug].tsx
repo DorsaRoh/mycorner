@@ -17,8 +17,8 @@
  * 
  * 4. ANONYMOUS ACCESS: No authentication required. Anyone can view.
  * 
- * 5. NO CACHE BUSTERS: No ?_t= hacks. No replaceState cleanup.
- *    The ISR system handles freshness automatically.
+ * 5. CLEAN URLs: Canonical URLs only - no query params.
+ *    Legacy ?_cb= URLs are 301 redirected by middleware.
  * 
  * CACHING STRATEGY:
  * - revalidate: 60 seconds (background revalidation for stale content)
