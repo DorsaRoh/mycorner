@@ -5,7 +5,8 @@
  * - Loads a specific page by ID for editing
  * - Validates ownership (user_id or anon token)
  * - Renders the Editor component with page data
- * - If page not found or not authorized → redirect to /new?fresh=1
+ * - If page not found or not authorized → CLIENT-SIDE redirect to /new?fresh=1
+ *   (NOT server-side to avoid redirect loops with cookie issues)
  * 
  * Access control:
  * - Authenticated user: must own the page (user_id matches)
@@ -14,6 +15,7 @@
  * Never shows a blank page - always redirects or renders content.
  */
 
+import { useEffect } from 'react';
 import type { GetServerSideProps } from 'next';
 import Head from 'next/head';
 import { Editor } from '@/components/editor/Editor';
@@ -33,6 +35,7 @@ interface EditorPageProps {
   publishedRevision: number | null;
   slug: string | null;
   isAuthenticated: boolean;
+  notFound?: boolean;
 }
 
 export const getServerSideProps: GetServerSideProps<EditorPageProps> = async (context) => {
@@ -62,12 +65,21 @@ export const getServerSideProps: GetServerSideProps<EditorPageProps> = async (co
     });
     
     if (!result) {
-      // Page not found or not authorized - redirect to fresh start
-      console.log('[/edit/[pageId]] Page not found or not authorized, redirecting to /new?fresh=1:', pageId);
+      // Page not found or not authorized - return props with notFound flag
+      // We do CLIENT-SIDE redirect to avoid redirect loops with cookie issues
+      console.log('[/edit/[pageId]] Page not found or not authorized:', pageId);
       return {
-        redirect: {
-          destination: '/new?fresh=1',
-          permanent: false,
+        props: {
+          pageId,
+          title: null,
+          blocks: [],
+          background: null,
+          isPublished: false,
+          serverRevision: 1,
+          publishedRevision: null,
+          slug: null,
+          isAuthenticated: !!userId,
+          notFound: true,
         },
       };
     }
@@ -88,11 +100,19 @@ export const getServerSideProps: GetServerSideProps<EditorPageProps> = async (co
   } catch (error) {
     console.error('[/edit/[pageId]] Error fetching page:', error);
     
-    // On error, redirect to fresh start
+    // On error, return props with notFound flag for client-side redirect
     return {
-      redirect: {
-        destination: '/new?fresh=1',
-        permanent: false,
+      props: {
+        pageId,
+        title: null,
+        blocks: [],
+        background: null,
+        isPublished: false,
+        serverRevision: 1,
+        publishedRevision: null,
+        slug: null,
+        isAuthenticated: !!userId,
+        notFound: true,
       },
     };
   }
@@ -107,8 +127,32 @@ export default function EditPageById({
   serverRevision,
   publishedRevision,
   slug,
+  notFound,
 }: EditorPageProps) {
-  // Render the editor (errors redirect via SSR, so we always have valid data here)
+  // Handle notFound with CLIENT-SIDE redirect to avoid redirect loops
+  useEffect(() => {
+    if (notFound) {
+      // Use window.location for hard redirect - ensures fresh state
+      window.location.href = '/new?fresh=1';
+    }
+  }, [notFound]);
+  
+  // Show loading while redirecting
+  if (notFound) {
+    return (
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: '100vh',
+        fontFamily: 'system-ui, sans-serif',
+      }}>
+        <p>Loading...</p>
+      </div>
+    );
+  }
+  
+  // Render the editor
   return (
     <>
       <Head>
