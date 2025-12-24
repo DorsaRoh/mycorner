@@ -49,14 +49,15 @@ export const getServerSideProps: GetServerSideProps<EditorPageProps> = async (co
   const userId = await getUserIdFromCookies(cookieHeader);
   let draftToken = getDraftOwnerTokenFromCookies(cookieHeader);
   
-  // Fallback: check for draft token in URL query parameter
-  // This handles the case where /new redirects here before the cookie is processed
+  // PRIORITY: If dt query param exists, ALWAYS use it (not as fallback)
+  // This ensures we use the exact token that was set during page creation in /new
+  // This is critical because the cookie from /new's redirect may not be processed yet
   const queryDraftToken = context.query.dt as string | undefined;
-  if (!draftToken && queryDraftToken) {
+  if (queryDraftToken) {
     draftToken = queryDraftToken;
-    console.log('[/edit/[pageId]] Using draft token from URL query');
+    console.log('[/edit/[pageId]] Using draft token from URL query (priority)');
     
-    // Set the cookie now so subsequent requests don't need the query param
+    // Also set/refresh the cookie for subsequent requests
     const { buildDraftOwnerTokenCookie } = await import('@/server/auth/session');
     context.res.setHeader('Set-Cookie', buildDraftOwnerTokenCookie(draftToken));
   }
@@ -66,7 +67,7 @@ export const getServerSideProps: GetServerSideProps<EditorPageProps> = async (co
     hasUserId: !!userId,
     hasDraftToken: !!draftToken,
     draftTokenPrefix: draftToken?.slice(0, 20),
-    usedQueryToken: !!queryDraftToken && !getDraftOwnerTokenFromCookies(cookieHeader),
+    usedQueryToken: !!queryDraftToken,
   });
   
   try {
@@ -142,15 +143,10 @@ export default function EditPageById({
   slug,
   notFound,
 }: EditorPageProps) {
-  // Handle notFound with CLIENT-SIDE redirect to avoid redirect loops
-  useEffect(() => {
-    if (notFound) {
-      // Use window.location for hard redirect - ensures fresh state
-      window.location.href = '/new?fresh=1';
-    }
-  }, [notFound]);
+  // Handle notFound - show error instead of redirecting to prevent infinite loops
+  // The redirect loop was: /new -> /edit/xxx (fails) -> /new -> /edit/yyy (fails) -> ...
   
-  // Clean up URL if we used the dt query param
+  // Clean up URL if we used the dt query param (do this first, before any redirects)
   useEffect(() => {
     if (typeof window !== 'undefined' && window.location.search.includes('dt=')) {
       const url = new URL(window.location.href);
@@ -159,17 +155,37 @@ export default function EditPageById({
     }
   }, []);
   
-  // Show loading while redirecting
+  // Show error state with manual retry option instead of auto-redirect
   if (notFound) {
     return (
       <div style={{
         display: 'flex',
+        flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
         height: '100vh',
         fontFamily: 'system-ui, sans-serif',
+        textAlign: 'center',
+        padding: '20px',
       }}>
-        <p>Loading...</p>
+        <h1 style={{ fontSize: '24px', marginBottom: '16px' }}>Page not found</h1>
+        <p style={{ color: '#666', marginBottom: '24px' }}>
+          This page doesn&apos;t exist or you don&apos;t have access to it.
+        </p>
+        <button 
+          onClick={() => window.location.href = '/new'}
+          style={{
+            padding: '12px 24px',
+            backgroundColor: '#000',
+            color: '#fff',
+            border: 'none',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            fontSize: '16px',
+          }}
+        >
+          Create a new page
+        </button>
       </div>
     );
   }
