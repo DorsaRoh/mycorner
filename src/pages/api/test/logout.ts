@@ -1,7 +1,7 @@
 /**
  * POST /api/test/logout
  * 
- * TEST-ONLY: Clears the test session.
+ * TEST-ONLY: Clears the test session and all auth cookies.
  * This route is ONLY available when NODE_ENV === 'test'.
  */
 
@@ -21,8 +21,8 @@ export default async function handler(
   }
   
   try {
-    const { clearSessionCookie } = await import('@/server/auth/session');
-    clearSessionCookie(res);
+    const { clearAllAuthCookies } = await import('@/server/auth/session');
+    clearAllAuthCookies(res);
     
     return res.status(200).json({ success: true });
   } catch (error) {

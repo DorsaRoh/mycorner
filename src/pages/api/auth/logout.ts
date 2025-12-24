@@ -2,11 +2,16 @@
  * POST /api/auth/logout
  * GET /api/auth/logout
  * 
- * Logs out the current user by clearing the session cookie.
+ * Logs out the current user by clearing all auth-related cookies.
+ * This includes:
+ * - Session cookie (auth state)
+ * - Draft owner token (anonymous draft ownership)
+ * - Anonymous session cookie
+ * - OAuth state cookie
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { clearSessionCookie } from '@/server/auth/session';
+import { clearAllAuthCookies } from '@/server/auth/session';
 
 export default async function handler(
   req: NextApiRequest,
@@ -17,15 +22,19 @@ export default async function handler(
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  // Clear the session cookie
-  clearSessionCookie(res);
+  // Clear all auth-related cookies (session, draft owner, anon, oauth state)
+  clearAllAuthCookies(res);
+
+  if (process.env.NODE_ENV === 'development') {
+    console.log('[logout] Cleared all auth cookies');
+  }
 
   // For POST requests, return JSON
   if (req.method === 'POST') {
-    return res.status(200).json({ success: true });
+    return res.status(200).json({ ok: true, success: true });
   }
 
-  // For GET requests, redirect to home
-  return res.redirect('/');
+  // For GET requests, redirect to /new for a fresh start
+  return res.redirect('/new');
 }
 

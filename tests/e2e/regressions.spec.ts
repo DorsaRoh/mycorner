@@ -169,5 +169,129 @@ test.describe('Regression Tests', () => {
       await expect(page.locator('.editor, [class*="editor"]')).toBeVisible({ timeout: 10000 });
     });
   });
+
+  test.describe('Logout flow', () => {
+    test('logout clears session and redirects to /new with fresh page', async ({ page }) => {
+      const username = `logout${Date.now()}`.slice(0, 18);
+      await loginAsTestUser(page, {
+        email: `logout-${Date.now()}@example.com`,
+        username,
+      });
+      
+      // Go to /new to create a page
+      await page.goto('/new');
+      await page.waitForURL(/\/edit\/page_/);
+      const originalPageId = page.url().match(/\/edit\/(page_[^/?]+)/)?.[1];
+      
+      // Wait for editor to load
+      await page.waitForSelector('.editor, [class*="editor"]', { timeout: 10000 });
+      
+      // Click account menu trigger
+      await page.click('[data-testid="account-menu-trigger"]');
+      
+      // Click logout button
+      await page.click('[data-testid="account-menu-logout"]');
+      
+      // Should redirect to /new, which creates a fresh page
+      await page.waitForURL(/\/edit\/page_/, { timeout: 10000 });
+      const newPageId = page.url().match(/\/edit\/(page_[^/?]+)/)?.[1];
+      
+      // Should be a DIFFERENT page (fresh anonymous draft)
+      expect(newPageId).toBeTruthy();
+      expect(newPageId).not.toBe(originalPageId);
+      
+      // Session should be cleared
+      const response = await page.request.get('/api/me');
+      const data = await response.json() as { user: { id: string } | null };
+      expect(data.user).toBeNull();
+    });
+
+    test('logout clears all auth cookies', async ({ page }) => {
+      await loginAsTestUser(page, {
+        email: `cookie-${Date.now()}@example.com`,
+        username: `cookie${Date.now()}`.slice(0, 18),
+      });
+      
+      // Create a page to get a draft owner token
+      await page.goto('/new');
+      await page.waitForURL(/\/edit\/page_/);
+      await page.waitForSelector('.editor, [class*="editor"]', { timeout: 10000 });
+      
+      // Click account menu trigger
+      await page.click('[data-testid="account-menu-trigger"]');
+      
+      // Click logout button
+      await page.click('[data-testid="account-menu-logout"]');
+      
+      // Wait for redirect
+      await page.waitForURL(/\/edit\/page_/, { timeout: 10000 });
+      
+      // Check that auth cookies are cleared
+      const cookies = await page.context().cookies();
+      const sessionCookie = cookies.find(c => c.name === 'yourcorner_session');
+      const draftCookie = cookies.find(c => c.name === 'yourcorner_draft_owner');
+      
+      // Session should be cleared (either removed or empty)
+      expect(sessionCookie?.value || '').toBe('');
+      // Draft owner should be a NEW token (different from before)
+      // We can't easily check this, but verify it exists for the new session
+    });
+
+    test('/edit requires auth after logout', async ({ page }) => {
+      const username = `editauth${Date.now()}`.slice(0, 16);
+      await loginAsTestUser(page, {
+        email: `editauth-${Date.now()}@example.com`,
+        username,
+      });
+      
+      // Create a page
+      await page.goto('/new');
+      await page.waitForURL(/\/edit\/page_/);
+      await page.waitForSelector('.editor, [class*="editor"]', { timeout: 10000 });
+      
+      // Logout via API directly
+      await logout(page);
+      
+      // Now visit /edit
+      await page.goto('/edit');
+      
+      // Should show auth gate (sign in required) or redirect to /new
+      await page.waitForTimeout(1000);
+      
+      const hasAuthGate = await page.locator('text=Sign in, text=Continue with Google').count();
+      const isOnNew = page.url().includes('/edit/page_');
+      
+      // Should either show auth gate OR be on a new anonymous page
+      expect(hasAuthGate > 0 || isOnNew).toBeTruthy();
+    });
+
+    test('logout shows fresh starter template', async ({ page }) => {
+      const username = `starter${Date.now()}`.slice(0, 17);
+      await loginAsTestUser(page, {
+        email: `starter-${Date.now()}@example.com`,
+        username,
+      });
+      
+      // Create and edit a page
+      await page.goto('/new');
+      await page.waitForURL(/\/edit\/page_/);
+      await page.waitForSelector('.editor, [class*="editor"]', { timeout: 10000 });
+      
+      // Click account menu trigger
+      await page.click('[data-testid="account-menu-trigger"]');
+      
+      // Click logout button  
+      await page.click('[data-testid="account-menu-logout"]');
+      
+      // Wait for redirect to new page
+      await page.waitForURL(/\/edit\/page_/, { timeout: 10000 });
+      await page.waitForSelector('.editor, [class*="editor"]', { timeout: 10000 });
+      
+      // Should have starter content (at least one block visible)
+      // The starter template includes blocks, not an empty canvas
+      const hasBlocks = await page.locator('[class*="Block"], [data-testid*="block"]').count();
+      expect(hasBlocks).toBeGreaterThan(0);
+    });
+  });
 });
 

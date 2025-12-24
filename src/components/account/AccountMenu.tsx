@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { clearDraft } from '@/lib/draft/storage';
 import styles from './AccountMenu.module.css';
 
 interface AccountMenuProps {
@@ -63,17 +64,34 @@ export function AccountMenu({ email, avatarUrl, name }: AccountMenuProps) {
     setIsLoggingOut(true);
 
     try {
+      // Call server logout endpoint to clear all auth cookies
       const response = await fetch('/api/auth/logout', { method: 'POST' });
-      if (response.ok) {
-        // Use hard navigation to ensure fresh server state after logout
-        window.location.href = '/new';
-      } else {
-        console.error('[AccountMenu] Logout failed');
-        setIsLoggingOut(false);
+      
+      if (!response.ok) {
+        throw new Error(`Logout request failed with status ${response.status}`);
       }
+      
+      // Clear client-side draft storage to ensure fresh start
+      clearDraft();
+      
+      // Clear any sessionStorage items that might hold state
+      if (typeof sessionStorage !== 'undefined') {
+        sessionStorage.removeItem('publishIntent');
+      }
+      
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[AccountMenu] Logout successful, redirecting to /new');
+      }
+      
+      // Hard navigation to /new to ensure fresh server state
+      // Using window.location.assign for a clean navigation
+      window.location.assign('/new');
     } catch (error) {
       console.error('[AccountMenu] Logout error:', error);
       setIsLoggingOut(false);
+      
+      // Show user-facing error
+      alert('Failed to log out. Please try again.');
     }
   }, [isLoggingOut]);
 

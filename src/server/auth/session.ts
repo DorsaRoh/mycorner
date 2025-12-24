@@ -18,6 +18,8 @@ import type { DbUser } from '../db/types';
 
 const SESSION_COOKIE_NAME = 'yourcorner_session';
 const OAUTH_STATE_COOKIE_NAME = 'yourcorner_oauth_state';
+const ANONYMOUS_COOKIE_NAME = 'yourcorner_anon';
+const DRAFT_OWNER_COOKIE_NAME = 'yourcorner_draft_owner';
 const SESSION_MAX_AGE_SECONDS = 30 * 24 * 60 * 60; // 30 days
 
 /**
@@ -225,6 +227,32 @@ export function clearSessionCookie(res: NextApiResponse): void {
   res.setHeader('Set-Cookie', cookie);
 }
 
+/**
+ * Clear all auth-related cookies (for full logout).
+ * This clears: session, draft owner token, and anonymous session.
+ */
+export function clearAllAuthCookies(res: NextApiResponse): void {
+  const cookieDomain = getCookieDomain();
+  
+  const cookiesToClear = [
+    SESSION_COOKIE_NAME,
+    DRAFT_OWNER_COOKIE_NAME,
+    ANONYMOUS_COOKIE_NAME,
+    OAUTH_STATE_COOKIE_NAME,
+  ];
+  
+  const cookies = cookiesToClear.map(name => 
+    serializeCookie(name, '', {
+      maxAge: 0,
+      httpOnly: true,
+      path: '/',
+      domain: cookieDomain,
+    })
+  );
+  
+  res.setHeader('Set-Cookie', cookies);
+}
+
 // =============================================================================
 // OAuth State Cookie (for CSRF protection)
 // =============================================================================
@@ -346,9 +374,7 @@ export function validateReturnTo(returnTo: string | undefined): string {
 // Anonymous Session Cookie (for draft mode uploads)
 // =============================================================================
 
-const ANONYMOUS_COOKIE_NAME = 'yourcorner_anon';
 const ANONYMOUS_MAX_AGE_SECONDS = 7 * 24 * 60 * 60; // 7 days
-const DRAFT_OWNER_COOKIE_NAME = 'yourcorner_draft_owner';
 const DRAFT_OWNER_MAX_AGE_SECONDS = 30 * 24 * 60 * 60; // 30 days
 
 /**
