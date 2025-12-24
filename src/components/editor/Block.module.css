@@ -2,7 +2,7 @@
   position: absolute;
   border: none;
   border-radius: var(--radius);
-  cursor: grab;
+  /* Cursor is controlled via inline style from JavaScript for dynamic resize cursors */
   /* Only transition box-shadow for selection states, NOT transform
      Transform transitions cause "bounce" on resize/drag release */
   transition: box-shadow 180ms cubic-bezier(0.23, 1, 0.32, 1);
@@ -12,6 +12,12 @@
 /* Selected block - thin black dashed border with white backing for visibility */
 .block.selected {
   z-index: 100;
+}
+
+/* When selected but not editing, inherit cursor from parent for resize detection */
+.block.selected:not(.editing) .textDisplay,
+.block.selected:not(.editing) .linkDisplayInline {
+  cursor: inherit;
 }
 
 /* Selection border - white backing */
