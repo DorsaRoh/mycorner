@@ -223,6 +223,14 @@ async function sha256(message: string): Promise<ArrayBuffer> {
   return crypto.subtle.digest('SHA-256', data);
 }
 
+async function sha256Binary(data: Buffer | Uint8Array): Promise<ArrayBuffer> {
+  // Convert Buffer to ArrayBuffer for Web Crypto API compatibility
+  const arrayBuffer = Buffer.isBuffer(data) 
+    ? data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer
+    : data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer;
+  return crypto.subtle.digest('SHA-256', arrayBuffer);
+}
+
 function toHex(buffer: ArrayBuffer): string {
   return Array.from(new Uint8Array(buffer))
     .map(b => b.toString(16).padStart(2, '0'))
@@ -289,9 +297,10 @@ async function signS3Request(
   const encodedKey = key.split('/').map(encodeURIComponent).join('/');
   const canonicalUri = `/${config.bucket}/${encodedKey}`;
   
-  // Hash payload
-  const bodyString = typeof body === 'string' ? body : body.toString('utf-8');
-  const payloadHash = toHex(await sha256(bodyString));
+  // Hash payload - use binary hash for Buffer to avoid corrupting binary data
+  const payloadHash = typeof body === 'string' 
+    ? toHex(await sha256(body))
+    : toHex(await sha256Binary(body));
   
   // Build headers
   const headers: Record<string, string> = {
