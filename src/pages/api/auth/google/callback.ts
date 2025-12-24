@@ -249,6 +249,19 @@ export default async function handler(
       }
     }
     
+    // Reset draft content to match published content for all user's published pages.
+    // This ensures when a user signs back in after logging out, their edit page
+    // shows their current published page, not stale unpublished edits.
+    try {
+      const resetCount = await db.resetDraftToPublished(user.id);
+      if (resetCount > 0) {
+        console.log(`[auth/callback] Reset ${resetCount} page(s) draft to published state`);
+      }
+    } catch (resetError) {
+      // Non-fatal - log and continue
+      console.warn('[auth/callback] Failed to reset drafts to published:', resetError);
+    }
+    
     console.log(`[auth/callback] success! user authenticated: ${user.id}, redirecting to ${returnTo}`);
     
     // Redirect to returnTo URL

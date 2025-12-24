@@ -476,6 +476,26 @@ export function claimAnonymousPages(anonymousId: string, userId: string): void {
   `).run(userId, userId, anonymousId);
 }
 
+/**
+ * Reset draft content to match published content for all of a user's published pages.
+ * Called after login to ensure the edit page shows the published state, not stale drafts.
+ * This ensures users see their published page when signing back in after logout.
+ */
+export function resetDraftToPublished(userId: string): number {
+  const result = db.prepare(`
+    UPDATE pages 
+    SET 
+      content = published_content,
+      background = published_background,
+      updated_at = datetime('now')
+    WHERE user_id = ? 
+      AND is_published = 1 
+      AND published_content IS NOT NULL
+  `).run(userId);
+  
+  return result.changes;
+}
+
 export function createDefaultPage(userId: string, title: string): DbPage {
   const id = `page_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   

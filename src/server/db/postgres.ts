@@ -487,6 +487,30 @@ export async function claimAnonymousPages(anonymousId: string, userId: string): 
     ));
 }
 
+/**
+ * Reset draft content to match published content for all of a user's published pages.
+ * Called after login to ensure the edit page shows the published state, not stale drafts.
+ * This ensures users see their published page when signing back in after logout.
+ */
+export async function resetDraftToPublished(userId: string): Promise<number> {
+  const d = await getDbLazy();
+  
+  // Drizzle doesn't support SET column = other_column directly,
+  // so we use raw SQL for this update
+  const result = await pool!.query(`
+    UPDATE pages 
+    SET 
+      content = published_content,
+      background = published_background,
+      updated_at = NOW()
+    WHERE user_id = $1 
+      AND is_published = true 
+      AND published_content IS NOT NULL
+  `, [userId]);
+  
+  return result.rowCount || 0;
+}
+
 export async function createDefaultPage(userId: string, title: string): Promise<DbPage> {
   return createPage(userId, title, userId);
 }

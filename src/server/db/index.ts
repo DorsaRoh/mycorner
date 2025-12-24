@@ -147,6 +147,15 @@ export async function claimAnonymousPages(anonymousId: string, userId: string) {
   return adapter.claimAnonymousPages(anonymousId, userId);
 }
 
+/**
+ * Reset draft content to match published content for all of a user's published pages.
+ * Called after login to ensure the edit page shows the published state, not stale drafts.
+ */
+export async function resetDraftToPublished(userId: string) {
+  const adapter = await getAdapter();
+  return adapter.resetDraftToPublished(userId);
+}
+
 export async function createDefaultPage(userId: string, title: string) {
   const adapter = await getAdapter();
   return adapter.createDefaultPage(userId, title);
