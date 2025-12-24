@@ -4,14 +4,14 @@
  * This provides a user-friendly message instead of a blank page.
  * Includes a CTA to create their own corner.
  * 
- * IMPORTANT: The "Create your own corner" CTA goes through /api/auth/logout
- * to ensure a completely fresh start - no auto-login to previous accounts.
- * We use a button with window.location.href for the API route because
- * Next.js Link does client-side navigation which doesn't work for API routes.
+ * IMPORTANT: The "Create your own corner" CTA goes directly to /new?fresh=1
+ * which creates a fresh anonymous page. We use ?fresh=1 to ensure:
+ * - Existing session cookies are ignored
+ * - A brand new draft token is generated
+ * - User gets a clean starter layout
  */
 
 import Head from 'next/head';
-import Link from 'next/link';
 
 interface NotFoundPageProps {
   slug: string;
@@ -19,9 +19,15 @@ interface NotFoundPageProps {
 }
 
 export function NotFoundPage({ slug, message }: NotFoundPageProps) {
-  // Navigate to logout API (needs full page navigation, not client-side routing)
+  // Navigate directly to /new?fresh=1 for a completely fresh start
+  // This ensures we ignore any existing session and create a new anonymous page
   const handleCreateCorner = () => {
-    window.location.href = '/api/auth/logout';
+    window.location.href = '/new?fresh=1';
+  };
+  
+  // Navigate to /new?fresh=1 instead of homepage to avoid returning to old session
+  const handleGoHome = () => {
+    window.location.href = '/new?fresh=1';
   };
 
   return (
@@ -98,19 +104,21 @@ export function NotFoundPage({ slug, message }: NotFoundPageProps) {
           Create your own corner
         </button>
         
-        {/* Secondary link */}
-        <Link 
-          href="/"
+        {/* Secondary link - also goes to fresh start to avoid stale session */}
+        <button 
+          onClick={handleGoHome}
           style={{
             marginTop: '16px',
             fontSize: '14px',
             color: '#666',
             textDecoration: 'none',
             cursor: 'pointer',
+            background: 'none',
+            border: 'none',
           }}
         >
-          ← Go to homepage
-        </Link>
+          ← Start fresh
+        </button>
         
         {/* Dev debug info */}
         {process.env.NODE_ENV !== 'production' && (

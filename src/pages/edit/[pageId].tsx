@@ -41,9 +41,19 @@ export const getServerSideProps: GetServerSideProps<EditorPageProps> = async (co
   const { pageId } = context.params as { pageId: string };
   const cookieHeader = context.req.headers.cookie;
   
+  // Prevent caching
+  context.res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+  
   // Get auth info
   const userId = await getUserIdFromCookies(cookieHeader);
   const draftToken = getDraftOwnerTokenFromCookies(cookieHeader);
+  
+  console.log('[/edit/[pageId]] Loading page:', {
+    pageId,
+    hasUserId: !!userId,
+    hasDraftToken: !!draftToken,
+    draftTokenPrefix: draftToken?.slice(0, 20),
+  });
   
   try {
     // Fetch the page with ownership check
@@ -55,6 +65,7 @@ export const getServerSideProps: GetServerSideProps<EditorPageProps> = async (co
     
     if (!result) {
       // Page not found or not authorized
+      console.log('[/edit/[pageId]] Page not found or not authorized:', pageId);
       return {
         props: {
           pageId,

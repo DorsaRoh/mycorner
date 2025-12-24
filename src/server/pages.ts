@@ -234,6 +234,7 @@ export async function getPageForEdit(params: GetPageForEditParams): Promise<Page
   
   const page = await db.getPageById(pageId);
   if (!page) {
+    console.log('[getPageForEdit] Page not found:', pageId);
     return null;
   }
   
@@ -248,7 +249,17 @@ export async function getPageForEdit(params: GetPageForEditParams): Promise<Page
     isOwner = page.owner_id === anonToken && !page.user_id;
   }
   
+  console.log('[getPageForEdit] Ownership check:', {
+    pageId,
+    pageOwnerId: page.owner_id?.slice(0, 20),
+    pageUserId: page.user_id,
+    requestUserId: userId,
+    requestAnonToken: anonToken?.slice(0, 20),
+    isOwner,
+  });
+  
   if (!isOwner) {
+    console.log('[getPageForEdit] Ownership check failed');
     return null;
   }
   

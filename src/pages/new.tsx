@@ -34,34 +34,42 @@ import { createFreshDraftPage } from '@/server/pages';
 export const getServerSideProps: GetServerSideProps = async (context) => {
   const cookieHeader = context.req.headers.cookie;
   
+  // Prevent caching of this page - always needs fresh execution
+  context.res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  context.res.setHeader('Pragma', 'no-cache');
+  context.res.setHeader('Expires', '0');
+  
   // Check for fresh=1 flag - if present, ignore any existing session
   // This ensures a completely fresh start without auto-login
   const isFreshStart = context.query.fresh === '1';
   
-  if (process.env.NODE_ENV === 'development') {
-    console.log('[/new] Creating fresh page with starter content');
-    if (isFreshStart) {
-      console.log('[/new] Fresh start mode - ignoring existing session');
-    }
-  }
+  console.log('[/new] Creating fresh page with starter content', { isFreshStart });
   
   // Check if user is authenticated (unless fresh start mode)
   // In fresh start mode, always create anonymous page
   const userId = isFreshStart ? null : await getUserIdFromCookies(cookieHeader);
   
   // Get or create draft owner token for anonymous users
-  // In fresh start mode, always generate a new token
-  let draftToken = isFreshStart ? null : getDraftOwnerTokenFromCookies(cookieHeader);
+  // In fresh start mode, ALWAYS generate a new token (ignore existing)
+  let draftToken: string | null = null;
   
-  // For anonymous users (or fresh start), generate a new draft token if none exists
+  if (!isFreshStart) {
+    draftToken = getDraftOwnerTokenFromCookies(cookieHeader);
+  }
+  
+  // For anonymous users, generate a new draft token if none exists
+  // In fresh start mode, we always generate a new one
   if (!userId && !draftToken) {
     draftToken = generateDraftOwnerToken();
-    // Set cookie on response
-    context.res.setHeader('Set-Cookie', buildDraftOwnerTokenCookie(draftToken));
-    
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[/new] Generated new draft token:', draftToken.slice(0, 20) + '...');
-    }
+    console.log('[/new] Generated new draft token:', draftToken.slice(0, 20) + '...');
+  }
+  
+  // ALWAYS set the cookie for anonymous users to ensure it's present after redirect
+  // This is critical - the cookie must be in the response for the redirect to work
+  if (!userId && draftToken) {
+    const cookie = buildDraftOwnerTokenCookie(draftToken);
+    context.res.setHeader('Set-Cookie', cookie);
+    console.log('[/new] Set draft token cookie');
   }
   
   try {
@@ -71,9 +79,7 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
       anonToken: !userId ? draftToken : null,
     });
     
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[/new] Created fresh page:', result.pageId);
-    }
+    console.log('[/new] Created fresh page:', result.pageId, 'with owner:', userId || draftToken?.slice(0, 20));
     
     // Redirect to editor with the page ID
     return {
