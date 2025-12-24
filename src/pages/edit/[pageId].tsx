@@ -47,13 +47,26 @@ export const getServerSideProps: GetServerSideProps<EditorPageProps> = async (co
   
   // Get auth info
   const userId = await getUserIdFromCookies(cookieHeader);
-  const draftToken = getDraftOwnerTokenFromCookies(cookieHeader);
+  let draftToken = getDraftOwnerTokenFromCookies(cookieHeader);
+  
+  // Fallback: check for draft token in URL query parameter
+  // This handles the case where /new redirects here before the cookie is processed
+  const queryDraftToken = context.query.dt as string | undefined;
+  if (!draftToken && queryDraftToken) {
+    draftToken = queryDraftToken;
+    console.log('[/edit/[pageId]] Using draft token from URL query');
+    
+    // Set the cookie now so subsequent requests don't need the query param
+    const { buildDraftOwnerTokenCookie } = await import('@/server/auth/session');
+    context.res.setHeader('Set-Cookie', buildDraftOwnerTokenCookie(draftToken));
+  }
   
   console.log('[/edit/[pageId]] Loading page:', {
     pageId,
     hasUserId: !!userId,
     hasDraftToken: !!draftToken,
     draftTokenPrefix: draftToken?.slice(0, 20),
+    usedQueryToken: !!queryDraftToken && !getDraftOwnerTokenFromCookies(cookieHeader),
   });
   
   try {
@@ -136,6 +149,15 @@ export default function EditPageById({
       window.location.href = '/new?fresh=1';
     }
   }, [notFound]);
+  
+  // Clean up URL if we used the dt query param
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.location.search.includes('dt=')) {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('dt');
+      window.history.replaceState({}, '', url.pathname);
+    }
+  }, []);
   
   // Show loading while redirecting
   if (notFound) {

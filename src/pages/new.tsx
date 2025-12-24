@@ -69,9 +69,11 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
     console.log('[/new] Created fresh page:', result.pageId, 'with token:', draftToken.slice(0, 20));
     
     // Redirect to editor with the page ID
+    // Include the draft token in the URL as a fallback in case the cookie
+    // isn't processed by the browser before following the redirect
     return {
       redirect: {
-        destination: `/edit/${result.pageId}`,
+        destination: `/edit/${result.pageId}?dt=${encodeURIComponent(draftToken)}`,
         permanent: false,
       },
     };
