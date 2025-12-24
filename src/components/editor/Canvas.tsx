@@ -426,6 +426,7 @@ export function Canvas({
         onDragOver={handleDragOver}
         className={styles.canvas}
         showDebug={false}
+        data-testid="editor-canvas"
       >
         {/* Left margin overlay - blocks cannot be placed here */}
         <div 

@@ -89,7 +89,7 @@ export default function EditPage({ isAuthenticated }: EditPageProps) {
   return (
     <>
       <Head>
-        <title>Sign in – my corner</title>
+        <title>My Corner</title>
       </Head>
       <div className={styles.loading}>
         <span>Sign in to edit your corner</span>

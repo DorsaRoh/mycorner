@@ -174,6 +174,7 @@ export function CreationPalette({ x, y, onSelect, onClose }: CreationPaletteProp
       }}
       onMouseLeave={handleMouseLeave}
       onMouseEnter={handleMouseEnter}
+      data-testid="creation-palette"
     >
       {/* Hidden file input for images */}
       <input
@@ -200,6 +201,7 @@ export function CreationPalette({ x, y, onSelect, onClose }: CreationPaletteProp
               '--delay': `${index * 25}ms`,
             } as React.CSSProperties}
             onClick={() => handleOptionClick(option.type)}
+            data-testid={`add-${option.type.toLowerCase()}-block`}
           >
             <span className={styles.optionIcon}>{option.icon}</span>
             <span className={styles.optionLabel}>{option.label}</span>

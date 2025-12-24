@@ -139,7 +139,7 @@ export function createStarterBlocks(isMobile: boolean): BlockType[] {
         y: 620 + imageHeight + 180, // More space from caption (irregular)
         width: 600,
         height: 140, // Still large for tap target (44px+ when scaled)
-        content: serializeLinkContent('this changed how i think →', 'https://'),
+        content: serializeLinkContent('this changed how i think →', ''),
         rotation: 0,
         style: { 
           ...TEXT_STYLE, 
@@ -198,7 +198,7 @@ export function createStarterBlocks(isMobile: boolean): BlockType[] {
       y: 580,
       width: 280,
       height: 40,
-      content: serializeLinkContent('→ this changed how i think', 'https://'),
+      content: serializeLinkContent('→ this changed how i think', ''),
       rotation: 0,
       style: { ...TEXT_STYLE, fontSize: 18, fontWeight: 600, color: 'rgba(103, 37, 153, 0.67)' },
       isStarter: true,

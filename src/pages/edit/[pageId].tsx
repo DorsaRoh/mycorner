@@ -32,6 +32,7 @@ interface EditorPageProps {
   isPublished: boolean;
   serverRevision: number;
   publishedRevision: number | null;
+  slug: string | null;
   isAuthenticated: boolean;
   error?: 'not_found' | 'not_authorized';
 }
@@ -63,6 +64,7 @@ export const getServerSideProps: GetServerSideProps<EditorPageProps> = async (co
           isPublished: false,
           serverRevision: 1,
           publishedRevision: null,
+          slug: null,
           isAuthenticated: !!userId,
           error: 'not_found',
         },
@@ -78,6 +80,7 @@ export const getServerSideProps: GetServerSideProps<EditorPageProps> = async (co
         isPublished: !!result.page.is_published,
         serverRevision: result.page.server_revision,
         publishedRevision: result.page.published_revision ?? null,
+        slug: result.page.slug ?? null,
         isAuthenticated: !!userId,
       },
     };
@@ -93,6 +96,7 @@ export const getServerSideProps: GetServerSideProps<EditorPageProps> = async (co
         isPublished: false,
         serverRevision: 1,
         publishedRevision: null,
+        slug: null,
         isAuthenticated: !!userId,
         error: 'not_found',
       },
@@ -108,6 +112,7 @@ export default function EditPageById({
   isPublished,
   serverRevision,
   publishedRevision,
+  slug,
   error,
 }: EditorPageProps) {
   // Error state - page not found or not authorized
@@ -132,7 +137,7 @@ export default function EditPageById({
   return (
     <>
       <Head>
-        <title>{title || 'Untitled'} – my corner</title>
+        <title>My Corner</title>
       </Head>
       <Editor
         pageId={pageId}
@@ -143,6 +148,7 @@ export default function EditPageById({
         initialPublished={isPublished}
         initialServerRevision={serverRevision}
         initialPublishedRevision={publishedRevision}
+        initialSlug={slug}
       />
     </>
   );

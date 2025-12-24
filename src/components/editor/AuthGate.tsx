@@ -74,7 +74,7 @@ export function AuthGate({
   if (!isOpen) return null;
 
   return (
-    <div className={styles.overlay} onClick={loading ? undefined : onClose}>
+    <div className={styles.overlay} onClick={loading ? undefined : onClose} data-testid="auth-gate">
       <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
         <div className={styles.header}>
           <h2 className={styles.title}>{title}</h2>

@@ -95,6 +95,7 @@ interface EditorProps {
   initialPublished?: boolean;
   initialServerRevision?: number;
   initialPublishedRevision?: number | null;
+  initialSlug?: string | null;
 }
 
 export function Editor({
@@ -106,6 +107,7 @@ export function Editor({
   initialPublished = false,
   initialServerRevision = 1,
   initialPublishedRevision = null,
+  initialSlug = null,
 }: EditorProps) {
   const router = useRouter();
 
@@ -128,10 +130,15 @@ export function Editor({
 
   // Mini confetti animation state
   const [showConfetti, setShowConfetti] = useState(false);
-  const prevIsPublished = useRef<boolean>(initialPublished);
+  const prevPublishedRevision = useRef<number | null>(initialPublishedRevision);
   
   // Track "just published" state for button text (shows "Published!" for 5s, then "Update")
   const [justPublished, setJustPublished] = useState(false);
+
+  // Compute initial published URL from slug if page is already published
+  const computedInitialPublishedUrl = initialPublished && initialSlug
+    ? (typeof window !== 'undefined' ? `${window.location.origin}/${initialSlug}` : `/${initialSlug}`)
+    : null;
 
   // Initialize state with hooks
   const state = useEditorState(
@@ -139,24 +146,26 @@ export function Editor({
     initialTitle,
     initialBackground ?? DEFAULT_STARTER_BACKGROUND,
     initialPublished,
-    initialPublishedRevision
+    initialPublishedRevision,
+    computedInitialPublishedUrl
   );
 
-  // Trigger confetti and "Published!" state when publish succeeds
+  // Trigger confetti and "Published!" state when any publish succeeds (including updates)
   useEffect(() => {
-    if (state.isPublished && !prevIsPublished.current) {
+    // Trigger confetti when publishedRevision changes to a new value
+    if (state.publishedRevision !== null && state.publishedRevision !== prevPublishedRevision.current) {
       console.log('[Editor] 🎉 Publish succeeded! Triggering confetti...');
       setShowConfetti(true);
       setJustPublished(true);
       const confettiTimer = setTimeout(() => setShowConfetti(false), 1500);
       const publishedTimer = setTimeout(() => setJustPublished(false), 5000);
+      prevPublishedRevision.current = state.publishedRevision;
       return () => {
         clearTimeout(confettiTimer);
         clearTimeout(publishedTimer);
       };
     }
-    prevIsPublished.current = state.isPublished;
-  }, [state.isPublished]);
+  }, [state.publishedRevision]);
 
   // Initialize actions
   const actions = useEditorActions(

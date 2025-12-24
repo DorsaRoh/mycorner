@@ -170,8 +170,8 @@ function convertStyle(style: NonNullable<PageDocBlock['style']>): LegacyBlock['s
 
 export function PublicPageView({ doc, slug }: PublicPageViewProps) {
   const theme = getTheme(doc.themeId);
-  const title = doc.title || 'My Corner';
-  const description = doc.bio || `${title} - A corner of the web`;
+  const pageTitle = `@${slug}'s corner`;
+  const description = doc.bio || `${pageTitle} - A corner of the web`;
   
   // Convert PageDoc blocks to legacy format for ViewerCanvas
   const legacyBlocks = convertToLegacyBlocks(doc.blocks);
@@ -214,18 +214,18 @@ export function PublicPageView({ doc, slug }: PublicPageViewProps) {
   return (
     <>
       <Head>
-        <title>{title}</title>
+        <title>{pageTitle}</title>
         <meta name="description" content={description} />
         
         {/* Open Graph */}
-        <meta property="og:title" content={title} />
+        <meta property="og:title" content={pageTitle} />
         <meta property="og:description" content={description} />
         <meta property="og:type" content="website" />
         <meta property="og:url" content={`https://www.itsmycorner.com/${slug}`} />
         
         {/* Twitter Card */}
         <meta name="twitter:card" content="summary" />
-        <meta name="twitter:title" content={title} />
+        <meta name="twitter:title" content={pageTitle} />
         <meta name="twitter:description" content={description} />
       </Head>
       

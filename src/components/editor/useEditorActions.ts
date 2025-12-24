@@ -91,9 +91,14 @@ export function useEditorActions(
 
   const handleUpdateBlock = useCallback((id: string, updates: Partial<Block>) => {
     actions.setBlocks((prev) =>
-      prev.map((block) =>
-        block.id === id ? { ...block, ...updates } : block
-      )
+      prev.map((block) => {
+        if (block.id === id) {
+          // Clear isStarter flag when block is modified - makes it behave like a regular block
+          const { isStarter, ...rest } = block;
+          return { ...rest, ...updates };
+        }
+        return block;
+      })
     );
   }, [actions]);
 

@@ -162,7 +162,7 @@
   background: rgba(255, 255, 255, 0.95);
 }
 
-/* Published URL indicator - subtle, below publish button, adaptive */
+/* Published URL indicator - subtle, below publish button, adaptive with button-like background */
 .publishedUrl {
   position: fixed;
   top: 64px;
@@ -171,6 +171,14 @@
   font-family: var(--font-mono);
   z-index: 99;
   animation: publishedUrlSlideIn 400ms cubic-bezier(0.23, 1, 0.32, 1);
+  /* Button-like background for visibility on any background */
+  background: var(--ui-bg);
+  backdrop-filter: blur(12px) saturate(1.2);
+  -webkit-backdrop-filter: blur(12px) saturate(1.2);
+  border: 1px solid var(--ui-border);
+  border-radius: 16px;
+  padding: 6px 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
 @keyframes publishedUrlSlideIn {
@@ -234,14 +242,11 @@
   color: var(--ui-text-muted);
   text-shadow: var(--ui-text-shadow);
   text-decoration: none;
-  padding: 4px 8px;
-  border-radius: 6px;
-  transition: color 150ms ease, background 150ms ease;
+  transition: color 150ms ease;
 }
 
 .publishedUrl a:hover {
   color: var(--ui-text);
-  background: var(--ui-bg);
 }
 
 /* Floating save indicator - bottom left, adaptive to background */
@@ -643,6 +648,8 @@
     top: 58px;
     right: 12px;
     font-size: 0.625rem;
+    padding: 5px 10px;
+    border-radius: 14px;
   }
 }
 
@@ -685,6 +692,8 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    padding: 4px 8px;
+    border-radius: 12px;
   }
 
   .saveIndicator {

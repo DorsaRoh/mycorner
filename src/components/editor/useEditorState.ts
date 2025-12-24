@@ -52,7 +52,8 @@ export function useEditorState(
   initialTitle: string,
   initialBackground: BackgroundConfig | undefined,
   initialPublished: boolean,
-  initialPublishedRevision: number | null
+  initialPublishedRevision: number | null,
+  initialPublishedUrl: string | null = null
 ): EditorState & EditorStateActions {
   const [blocks, setBlocks] = useState<Block[]>(initialBlocks);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -69,7 +70,7 @@ export function useEditorState(
   const [showConflictModal, setShowConflictModal] = useState(false);
   const [newBlockIds, setNewBlockIds] = useState<Set<string>>(new Set());
   const [starterMode, setStarterMode] = useState(false);
-  const [publishedUrl, setPublishedUrl] = useState<string | null>(null);
+  const [publishedUrl, setPublishedUrl] = useState<string | null>(initialPublishedUrl);
   const [showPublishToast, setShowPublishToast] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [pendingPublishAfterOnboarding, setPendingPublishAfterOnboarding] = useState(false);
