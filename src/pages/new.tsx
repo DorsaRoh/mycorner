@@ -1,30 +1,24 @@
 /**
  * /new - Fresh starter page creator + redirector
  * 
- * ROUTING MODEL:
- * - ALWAYS creates a NEW draft page with fresh starter content
+
+* ROUTING MODEL:
+ * - ALWAYS creates a NEW anonymous draft page with fresh starter content
  * - Redirects to /edit/[pageId]
  * - /new is NOT the long-term editor surface
+ * - Session state is IGNORED - user can sign in from the edit page
  * 
- * For authenticated users:
- *   - Create a new page with starter content (owned by user)
+ * DESIGN DECISION:
+ * We ALWAYS create anonymous pages on /new to ensure:
+ * 1. Reliability - no FK constraint issues with stale session cookies
+ * 2. Fresh start - users get a clean slate every time
+ * 3. Sign-in flow - users can sign in from edit page and page gets claimed
  * 
- * For anonymous users:
- *   - Create a page with owner_id = draft_token (from cookie)
- *   - On publish, force auth, then "claim" the draft
- * 
- * FRESH START MODE (?fresh=1):
- *   - When fresh=1 query param is present, ignore any existing session
- *   - Always create an anonymous page (as if not logged in)
- *   - This ensures users can start fresh without auto-login to previous accounts
- * 
- * NOTE: /new ALWAYS creates a fresh page. To resume editing an existing page,
- * go directly to /edit/[pageId].
+ * To resume editing an existing page, go directly to /edit/[pageId].
  */
 
 import type { GetServerSideProps } from 'next';
 import { 
-  getUserIdFromCookies, 
   getDraftOwnerTokenFromCookies,
   buildDraftOwnerTokenCookie,
   generateDraftOwnerToken,
@@ -39,58 +33,40 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
   context.res.setHeader('Pragma', 'no-cache');
   context.res.setHeader('Expires', '0');
   
-  // Check for fresh=1 flag - if present, ignore any existing session
-  // This ensures a completely fresh start without auto-login
-  const isFreshStart = context.query.fresh === '1';
+  console.log('[/new] Creating fresh anonymous page with starter content');
   
-  console.log('[/new] Creating fresh page with starter content', { isFreshStart });
+  // ALWAYS create anonymous page - session state is ignored
+  // This ensures /new works reliably regardless of cookie state
+  // Users can sign in from the edit page and claim the page
   
-  // Check if user is authenticated (unless fresh start mode)
-  // In fresh start mode, always create anonymous page
-  let userId = isFreshStart ? null : await getUserIdFromCookies(cookieHeader);
+  // Get existing draft token or generate a new one
+  let draftToken = getDraftOwnerTokenFromCookies(cookieHeader);
   
-  // IMPORTANT: Verify the user actually exists in the database
-  // Session cookies can outlive deleted users, causing FK constraint violations
-  if (userId) {
-    const { getUserById } = await import('@/server/db');
-    const user = await getUserById(userId);
-    if (!user) {
-      console.log('[/new] User from session does not exist, treating as anonymous:', userId);
-      userId = null;
-    }
-  }
-  
-  // Get or create draft owner token for anonymous users
-  // In fresh start mode, ALWAYS generate a new token (ignore existing)
-  let draftToken: string | null = null;
-  
-  if (!isFreshStart) {
-    draftToken = getDraftOwnerTokenFromCookies(cookieHeader);
-  }
-  
-  // For anonymous users, generate a new draft token if none exists
-  // In fresh start mode, we always generate a new one
-  if (!userId && !draftToken) {
+  // If no draft token exists, generate a fresh one
+  // This ensures every /new request has a valid owner token
+  if (!draftToken) {
     draftToken = generateDraftOwnerToken();
     console.log('[/new] Generated new draft token:', draftToken.slice(0, 20) + '...');
+  } else {
+    // Even if token exists, generate a NEW one to prevent reusing old drafts
+    // This ensures each /new creates a truly fresh page
+    draftToken = generateDraftOwnerToken();
+    console.log('[/new] Generated fresh draft token (replacing old):', draftToken.slice(0, 20) + '...');
   }
   
-  // ALWAYS set the cookie for anonymous users to ensure it's present after redirect
-  // This is critical - the cookie must be in the response for the redirect to work
-  if (!userId && draftToken) {
-    const cookie = buildDraftOwnerTokenCookie(draftToken);
-    context.res.setHeader('Set-Cookie', cookie);
-    console.log('[/new] Set draft token cookie');
-  }
+  // Set the cookie for the new draft token
+  const cookie = buildDraftOwnerTokenCookie(draftToken);
+  context.res.setHeader('Set-Cookie', cookie);
+  console.log('[/new] Set draft token cookie');
   
   try {
-    // Always create a fresh page with starter content
+    // Create an anonymous page - no userId, just anonToken
     const result = await createFreshDraftPage({
-      userId: userId || null,
-      anonToken: !userId ? draftToken : null,
+      userId: null,
+      anonToken: draftToken,
     });
     
-    console.log('[/new] Created fresh page:', result.pageId, 'with owner:', userId || draftToken?.slice(0, 20));
+    console.log('[/new] Created fresh page:', result.pageId, 'with token:', draftToken.slice(0, 20));
     
     // Redirect to editor with the page ID
     return {
