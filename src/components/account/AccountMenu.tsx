@@ -1,6 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { clearDraft } from '@/lib/draft/storage';
-import { routes } from '@/lib/routes';
+import { performFullLogout } from '@/lib/logout';
 import styles from './AccountMenu.module.css';
 
 interface AccountMenuProps {
@@ -59,73 +58,15 @@ export function AccountMenu({ email, avatarUrl, name }: AccountMenuProps) {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isOpen]);
 
-  // Handle logout
+  // Handle logout using centralized utility
   const handleLogout = useCallback(async () => {
     if (isLoggingOut) return;
     setIsLoggingOut(true);
 
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[AccountMenu] Starting logout...');
-    }
-
     try {
-      // Call server logout endpoint to clear all auth cookies
-      const response = await fetch('/api/auth/logout', { 
-        method: 'POST',
-        credentials: 'include', // Ensure cookies are sent/received
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Logout request failed with status ${response.status}`);
-      }
-      
-      const data = await response.json();
-      
-      if (process.env.NODE_ENV === 'development') {
-        console.log('[AccountMenu] Server logout response:', data);
-      }
-      
-      // Clear client-side draft storage to ensure fresh start
-      clearDraft();
-      
-      // Clear any localStorage items that might cache user data
-      if (typeof localStorage !== 'undefined') {
-        // Clear any legacy draft keys and user-related data
-        const keysToRemove: string[] = [];
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i);
-          if (key && (
-            key.startsWith('yourcorner:') || 
-            key.startsWith('mycorner:') ||
-            key.includes('draft') ||
-            key.includes('user') ||
-            key.includes('session') ||
-            key.includes('auth')
-          )) {
-            keysToRemove.push(key);
-          }
-        }
-        keysToRemove.forEach(key => localStorage.removeItem(key));
-        
-        if (process.env.NODE_ENV === 'development') {
-          console.log('[AccountMenu] Cleared localStorage keys:', keysToRemove);
-        }
-      }
-      
-      // Clear ALL sessionStorage to ensure completely fresh state
-      if (typeof sessionStorage !== 'undefined') {
-        sessionStorage.clear();
-      }
-      
-      const redirectUrl = routes.new({ fresh: true });
-      
-      if (process.env.NODE_ENV === 'development') {
-        console.log('[AccountMenu] Logout successful, redirecting to', redirectUrl);
-      }
-      
-      // Hard navigation to /new?fresh=1 to ensure completely fresh server state
-      // Using window.location.replace to not keep logout in history
-      window.location.replace(redirectUrl);
+      // Use centralized logout that clears all state and redirects
+      await performFullLogout();
+      // Note: performFullLogout redirects, so we won't reach here
     } catch (error) {
       console.error('[AccountMenu] Logout error:', error);
       setIsLoggingOut(false);
