@@ -112,13 +112,25 @@ export default async function handler(
   }
   
   // get user from session cookie
-  const { getUserFromRequest } = await import('@/server/auth/session');
+  const { getUserFromRequest, getDraftOwnerToken } = await import('@/server/auth/session');
   const sessionUser = await getUserFromRequest(req);
   if (!sessionUser?.id) {
     return res.status(401).json({ 
       success: false, 
       error: 'Authentication required' 
     });
+  }
+  
+  // Claim any anonymous drafts from draft_owner_token cookie
+  const draftOwnerToken = await getDraftOwnerToken(req);
+  if (draftOwnerToken) {
+    try {
+      const { claimAnonymousPages } = await import('@/server/pages');
+      await claimAnonymousPages(draftOwnerToken, sessionUser.id);
+    } catch (claimError) {
+      // Non-fatal - log and continue
+      console.warn('[Publish] Failed to claim anonymous drafts:', claimError);
+    }
   }
   
   // import database

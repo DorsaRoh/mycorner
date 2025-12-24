@@ -6,26 +6,23 @@ interface AuthGateProps {
   isOpen: boolean;
   onClose: () => void;
   onAuthStart?: () => void;
-  /** The draft ID being edited (no longer used - URL is always /edit) */
+  /** The draft ID being edited */
   draftId?: string;
+  /** URL to return to after auth (defaults to /edit) */
+  returnTo?: string;
   /** Custom title for the modal (defaults to "Sign in to publish") */
   title?: string;
   /** Custom subtitle for the modal */
   subtitle?: string;
-  /** 
-   * URL to return to after auth completes. 
-   * If not provided, defaults to /new?publish=1 for draft mode publish flow.
-   */
-  returnTo?: string;
 }
 
 export function AuthGate({ 
   isOpen, 
   onClose, 
   onAuthStart,
+  returnTo = '/edit',
   title = "Sign in to publish",
-  subtitle = "Your page will be saved to your account and shareable with anyone.",
-  returnTo,
+  subtitle = "Your page will be saved to your account and shareable with anyone."
 }: AuthGateProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -59,9 +56,8 @@ export function AuthGate({
     setError(null);
     onAuthStart?.();
     
-    // Use provided returnTo, or default to /new?publish=1 for publish flow
-    const authReturnTo = returnTo || '/new?publish=1';
-    window.location.href = auth.google(authReturnTo);
+    // Redirect to Google OAuth with the specified returnTo URL
+    window.location.href = auth.google(returnTo);
   }, [onAuthStart, returnTo]);
 
   // Close on Escape

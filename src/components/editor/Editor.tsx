@@ -9,7 +9,7 @@ import {
   saveEditorDraft,
   loadEditorDraft,
 } from '@/lib/draft';
-import { routes, isDraftId } from '@/lib/routes';
+// routes imported for use in EditorActions
 import {
   createStarterBlocks,
   HINT_BLOCK_ID,
@@ -750,7 +750,7 @@ export function Editor({
         onClose={() => state.setShowAuthGate(false)}
         draftId={pageId}
         onAuthStart={() => {}}
-        returnTo={mode === 'draft' ? '/new?publish=1' : '/edit?publish=1'}
+        returnTo={`/edit/${pageId}?publish=1`}
       />
 
       <PublishToast

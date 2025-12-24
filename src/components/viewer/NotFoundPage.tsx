@@ -10,9 +10,10 @@ import Link from 'next/link';
 
 interface NotFoundPageProps {
   slug: string;
+  message?: string;
 }
 
-export function NotFoundPage({ slug }: NotFoundPageProps) {
+export function NotFoundPage({ slug, message }: NotFoundPageProps) {
   return (
     <>
       <Head>
@@ -64,7 +65,7 @@ export function NotFoundPage({ slug }: NotFoundPageProps) {
           textAlign: 'center',
           maxWidth: '400px',
         }}>
-          The page <strong>/{slug}</strong> hasn&apos;t been created or isn&apos;t published yet.
+          {message || <>The page <strong>/{slug}</strong> hasn&apos;t been created or isn&apos;t published yet.</>}
         </p>
         
         {/* CTA */}

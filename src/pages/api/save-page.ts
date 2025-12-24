@@ -8,7 +8,7 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { getUserFromRequest } from '@/server/auth/session';
+import { getUserFromRequest, getDraftOwnerToken } from '@/server/auth/session';
 
 export default async function handler(
   req: NextApiRequest,
@@ -20,9 +20,13 @@ export default async function handler(
   }
 
   try {
+    // Get authenticated user OR anonymous draft token
     const user = await getUserFromRequest(req);
-    if (!user?.id) {
-      return res.status(401).json({ success: false, error: 'Authentication required' });
+    const draftToken = await getDraftOwnerToken(req, res);
+    
+    // Must have either auth or draft token
+    if (!user?.id && !draftToken) {
+      return res.status(401).json({ success: false, error: 'Authentication or draft token required' });
     }
 
     const { pageId, title, blocks, background, localRevision, baseServerRevision } = req.body;
@@ -34,14 +38,21 @@ export default async function handler(
     // Import database
     const db = await import('@/server/db');
 
-    // Check page exists and user owns it
+    // Check page exists
     const page = await db.getPageById(pageId);
     if (!page) {
       return res.status(404).json({ success: false, error: 'Page not found' });
     }
 
-    // Check ownership
-    const isOwner = page.owner_id === user.id || page.user_id === user.id;
+    // Check ownership - either authenticated user owns it, or anonymous draft token matches
+    let isOwner = false;
+    if (user?.id) {
+      isOwner = page.owner_id === user.id || page.user_id === user.id;
+    } else if (draftToken) {
+      // Anonymous user - check owner_id matches and page hasn't been claimed
+      isOwner = page.owner_id === draftToken && !page.user_id;
+    }
+    
     if (!isOwner) {
       return res.status(403).json({ success: false, error: 'Not authorized' });
     }

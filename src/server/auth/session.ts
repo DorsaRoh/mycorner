@@ -297,7 +297,7 @@ export function verifyOAuthState(
   }
   
   if (!stateValue) {
-    return { valid: false, returnTo: '/new' };
+    return { valid: false, returnTo: '/edit' };
   }
   
   try {
@@ -305,12 +305,12 @@ export function verifyOAuthState(
     
     // Constant-time comparison
     if (!crypto.timingSafeEqual(Buffer.from(state), Buffer.from(payload.state))) {
-      return { valid: false, returnTo: '/new' };
+      return { valid: false, returnTo: '/edit' };
     }
     
-    return { valid: true, returnTo: payload.returnTo || '/new' };
+    return { valid: true, returnTo: payload.returnTo || '/edit' };
   } catch {
-    return { valid: false, returnTo: '/new' };
+    return { valid: false, returnTo: '/edit' };
   }
 }
 
@@ -319,24 +319,24 @@ export function verifyOAuthState(
  * Prevents open redirect vulnerabilities.
  */
 export function validateReturnTo(returnTo: string | undefined): string {
-  // Default to /new if no returnTo
+  // Default to /edit if no returnTo
   if (!returnTo) {
-    return '/new';
+    return '/edit';
   }
   
   // Must start with /
   if (!returnTo.startsWith('/')) {
-    return '/new';
+    return '/edit';
   }
   
   // Must NOT contain :// (prevents http://, https://, javascript://, etc.)
   if (returnTo.includes('://')) {
-    return '/new';
+    return '/edit';
   }
   
   // Must NOT start with // (protocol-relative URLs)
   if (returnTo.startsWith('//')) {
-    return '/new';
+    return '/edit';
   }
   
   return returnTo;
@@ -348,6 +348,8 @@ export function validateReturnTo(returnTo: string | undefined): string {
 
 const ANONYMOUS_COOKIE_NAME = 'yourcorner_anon';
 const ANONYMOUS_MAX_AGE_SECONDS = 7 * 24 * 60 * 60; // 7 days
+const DRAFT_OWNER_COOKIE_NAME = 'yourcorner_draft_owner';
+const DRAFT_OWNER_MAX_AGE_SECONDS = 30 * 24 * 60 * 60; // 30 days
 
 /**
  * Get or create an anonymous session ID from the request.
@@ -396,5 +398,101 @@ export async function getAnonymousIdFromRequest(req: NextApiRequest, res?: NextA
   }
   
   return anonId || null;
+}
+
+// =============================================================================
+// Draft Owner Token (for anonymous draft ownership)
+// =============================================================================
+
+/**
+ * Get or create a draft owner token for anonymous users.
+ * This token is used to track ownership of drafts before authentication.
+ */
+export async function getDraftOwnerToken(req: NextApiRequest, res?: NextApiResponse): Promise<string | null> {
+  const cookies = parseCookies(req.headers.cookie);
+  
+  // Check for existing draft owner cookie
+  let draftToken = cookies[DRAFT_OWNER_COOKIE_NAME];
+  
+  // If no token exists and we have a response object, create one
+  if (!draftToken && res) {
+    draftToken = `draft_${Date.now()}_${crypto.randomBytes(16).toString('hex')}`;
+    
+    const isProduction = process.env.NODE_ENV === 'production';
+    const cookieDomain = getCookieDomain();
+    
+    const cookie = serializeCookie(DRAFT_OWNER_COOKIE_NAME, draftToken, {
+      maxAge: DRAFT_OWNER_MAX_AGE_SECONDS,
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: 'lax',
+      path: '/',
+      domain: cookieDomain,
+    });
+    
+    // Append to existing cookies if any
+    const existingCookies = res.getHeader('Set-Cookie');
+    if (existingCookies) {
+      const cookiesArray = Array.isArray(existingCookies) ? existingCookies : [existingCookies as string];
+      res.setHeader('Set-Cookie', [...cookiesArray, cookie]);
+    } else {
+      res.setHeader('Set-Cookie', cookie);
+    }
+  }
+  
+  return draftToken || null;
+}
+
+/**
+ * Get draft owner token from raw cookie header (for getServerSideProps).
+ */
+export function getDraftOwnerTokenFromCookies(cookieHeader: string | undefined): string | null {
+  const cookies = parseCookies(cookieHeader);
+  return cookies[DRAFT_OWNER_COOKIE_NAME] || null;
+}
+
+/**
+ * Get user ID from raw cookie header (for getServerSideProps).
+ * Returns the user ID if session is valid, null otherwise.
+ */
+export async function getUserIdFromCookies(cookieHeader: string | undefined): Promise<string | null> {
+  const cookies = parseCookies(cookieHeader);
+  const sessionToken = cookies[SESSION_COOKIE_NAME];
+  
+  if (!sessionToken) {
+    return null;
+  }
+  
+  const payload = verifySessionToken(sessionToken);
+  if (!payload) {
+    return null;
+  }
+  
+  return payload.userId;
+}
+
+/**
+ * Build Set-Cookie header value for draft owner token.
+ * Use this when setting cookies in getServerSideProps via headers.
+ */
+export function buildDraftOwnerTokenCookie(token: string): string {
+  const isProduction = process.env.NODE_ENV === 'production';
+  const cookieDomain = getCookieDomain();
+  
+  return serializeCookie(DRAFT_OWNER_COOKIE_NAME, token, {
+    maxAge: DRAFT_OWNER_MAX_AGE_SECONDS,
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: 'lax',
+    path: '/',
+    domain: cookieDomain,
+  });
+}
+
+/**
+ * Generate a new draft owner token.
+ */
+export function generateDraftOwnerToken(): string {
+  return `draft_${Date.now()}_${crypto.randomBytes(16).toString('hex')}`;
 }
 

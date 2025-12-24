@@ -13,6 +13,7 @@
 
 export const ROUTES = {
   HOME: '/',
+  NEW: '/new',
   EDIT: '/edit',
 } as const;
 
@@ -78,26 +79,36 @@ export const RESERVED_PATHS = new Set([
  */
 export const routes = {
   /** 
-   * Home page - redirects to edit
-   * @param options.fresh - If true, signals to create a fresh starter page (not load existing)
+   * Home page - smart redirects to /edit (logged in) or /new (logged out)
    */
-  home: (options?: { fresh?: boolean }) => {
-    if (options?.fresh) {
-      return `${ROUTES.HOME}?fresh=1`;
-    }
-    return ROUTES.HOME;
-  },
+  home: () => ROUTES.HOME,
+  
+  /**
+   * New page - creates a draft and redirects to /edit/[pageId]
+   */
+  new: () => ROUTES.NEW,
   
   /** 
-   * Edit page - always /edit, no ID in URL.
-   * The editor resolves which page to load internally.
-   * @param options.fresh - If true, signals to create a fresh starter page (not load existing)
+   * Edit page - resolves user's primary page and redirects to /edit/[pageId]
+   * If pageId is provided, goes directly to /edit/[pageId]
    */
-  edit: (options?: { fresh?: boolean }) => {
-    if (options?.fresh) {
-      return `${ROUTES.EDIT}?fresh=1`;
+  edit: (pageId?: string) => {
+    if (pageId) {
+      return `${ROUTES.EDIT}/${pageId}`;
     }
     return ROUTES.EDIT;
+  },
+  
+  /**
+   * Edit a specific page by ID - /edit/[pageId]
+   * This is the canonical editor URL.
+   */
+  editPage: (pageId: string, options?: { publish?: boolean }) => {
+    const base = `${ROUTES.EDIT}/${pageId}`;
+    if (options?.publish) {
+      return `${base}?publish=1`;
+    }
+    return base;
   },
   
   /**

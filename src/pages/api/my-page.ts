@@ -112,26 +112,32 @@ export default async function handler(
     let blocks: Block[] = [];
     let pageDocBackground: BackgroundConfig | undefined;
     try {
+      console.log('[api/my-page] Raw page.content:', page.content?.substring(0, 500));
       const content = JSON.parse(page.content || '[]');
+      console.log('[api/my-page] Parsed content type:', Array.isArray(content) ? 'array' : typeof content);
+      
       // check if content is PageDoc format (has version and blocks) or legacy array
       if (Array.isArray(content)) {
         // legacy format: content is directly the blocks array
         blocks = content;
+        console.log('[api/my-page] Legacy format blocks:', blocks.length);
       } else if (content && typeof content === 'object' && Array.isArray(content.blocks)) {
         // PageDoc format: content is { version, blocks, title, background, ... }
+        console.log('[api/my-page] PageDoc format - raw blocks:', JSON.stringify(content.blocks).substring(0, 500));
         // Convert to legacy format for Editor compatibility
         blocks = pageDocBlocksToLegacy(content.blocks) as Block[];
+        console.log('[api/my-page] Converted blocks:', JSON.stringify(blocks).substring(0, 500));
         // Also extract background from PageDoc if present
         if (content.background) {
           pageDocBackground = content.background;
         }
         console.log('[api/my-page] Converted PageDoc blocks to legacy format:', blocks.length);
       } else {
-        console.warn('[api/my-page] unexpected content format:', typeof content);
+        console.warn('[api/my-page] unexpected content format:', typeof content, content);
         blocks = [];
       }
     } catch (e) {
-      console.error('Failed to parse page content:', e);
+      console.error('[api/my-page] Failed to parse page content:', e);
     }
 
     // Parse background - prefer PageDoc background, fall back to DB column

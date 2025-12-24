@@ -1,47 +1,43 @@
 /**
- * / route - Landing page
+ * / route - Smart redirect
  * 
- * Simple landing with CTA → /new (anonymous editor)
- * No auth check needed - /new handles auth when publishing.
+ * ROUTING MODEL:
+ * - Logged in → redirect to /edit
+ * - Logged out → redirect to /new
+ * 
+ * This is a server-side redirect to avoid flicker.
+ * No landing page is rendered.
  */
 
-import { useRouter } from 'next/router';
-import Head from 'next/head';
-import styles from '@/styles/Landing.module.css';
+import type { GetServerSideProps } from 'next';
+import { getUserIdFromCookies } from '@/server/auth/session';
 
-export default function Home() {
-  const router = useRouter();
-
-  const handleCTAClick = () => {
-    // Always go to /new - it's an anonymous editor
-    // Auth is only required when publishing
-    router.push('/new');
+export const getServerSideProps: GetServerSideProps = async (context) => {
+  const cookieHeader = context.req.headers.cookie;
+  
+  // Check if user is authenticated
+  const userId = await getUserIdFromCookies(cookieHeader);
+  
+  if (userId) {
+    // Logged in → redirect to /edit
+    return {
+      redirect: {
+        destination: '/edit',
+        permanent: false,
+      },
+    };
+  }
+  
+  // Logged out → redirect to /new
+  return {
+    redirect: {
+      destination: '/new',
+      permanent: false,
+    },
   };
+};
 
-  return (
-    <>
-      <Head>
-        <title>my corner of the internet</title>
-        <meta name="description" content="Create your own corner of the internet. A simple, beautiful space that's entirely yours." />
-      </Head>
-      
-      <main className={styles.main}>
-        <div className={styles.bgGradient} />
-        <div className={styles.content}>
-          <h1 className={styles.title}>your corner of the internet</h1>
-          <p className={styles.subtitle}>
-            A simple, beautiful space that&apos;s entirely yours. Share what matters to you.
-          </p>
-          
-          <button className={styles.cta} onClick={handleCTAClick}>
-            make your own corner
-          </button>
-          
-          <p className={styles.hint}>
-            free • no ads • takes 2 minutes
-          </p>
-        </div>
-      </main>
-    </>
-  );
+// This page should never render - it always redirects
+export default function Home() {
+  return null;
 }

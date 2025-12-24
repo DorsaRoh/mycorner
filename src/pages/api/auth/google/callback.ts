@@ -231,6 +231,24 @@ export default async function handler(
     // set session cookie
     setSessionCookie(res, user.id);
     
+    // Claim any anonymous drafts from draft_owner_token cookie
+    const cookies = req.headers.cookie?.split(';').reduce((acc, cookie) => {
+      const [name, ...rest] = cookie.trim().split('=');
+      if (name) acc[name] = decodeURIComponent(rest.join('='));
+      return acc;
+    }, {} as Record<string, string>) || {};
+    
+    const draftOwnerToken = cookies['yourcorner_draft_owner'];
+    if (draftOwnerToken) {
+      try {
+        console.log('[auth/callback] Claiming anonymous drafts for token:', draftOwnerToken.substring(0, 20) + '...');
+        await db.claimAnonymousPages(draftOwnerToken, user.id);
+      } catch (claimError) {
+        // Non-fatal - log and continue
+        console.warn('[auth/callback] Failed to claim anonymous drafts:', claimError);
+      }
+    }
+    
     console.log(`[auth/callback] success! user authenticated: ${user.id}, redirecting to ${returnTo}`);
     
     // Redirect to returnTo URL
