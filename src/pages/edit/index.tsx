@@ -21,6 +21,7 @@ import styles from '@/styles/EditPage.module.css';
 
 interface EditPageProps {
   isAuthenticated: boolean;
+  error?: string;
 }
 
 export const getServerSideProps: GetServerSideProps<EditPageProps> = async (context) => {
@@ -62,28 +63,67 @@ export const getServerSideProps: GetServerSideProps<EditPageProps> = async (cont
   } catch (error) {
     console.error('[/edit] Error resolving primary page:', error);
     
-    // On error, redirect to /new
+    // On error, render the page with an error state
+    // Do NOT redirect to /new - that causes infinite redirect loops
     return {
-      redirect: {
-        destination: '/new',
-        permanent: false,
+      props: {
+        isAuthenticated: true,
+        error: 'Failed to load your page. Please try again.',
       },
     };
   }
 };
 
-export default function EditPage({ isAuthenticated }: EditPageProps) {
+export default function EditPage({ isAuthenticated, error }: EditPageProps) {
   const router = useRouter();
   const [showAuthGate] = useState(!isAuthenticated);
   
   // After auth, this page will reload via getServerSideProps and redirect
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated && !error) {
       // This shouldn't happen - SSR should have redirected
       // But if it does, refresh to trigger the redirect
       router.replace('/edit');
     }
-  }, [isAuthenticated, router]);
+  }, [isAuthenticated, error, router]);
+  
+  // Show error state if there was a database error
+  if (error) {
+    return (
+      <>
+        <Head>
+          <title>My Corner - Error</title>
+        </Head>
+        <div style={{ 
+          display: 'flex', 
+          flexDirection: 'column',
+          alignItems: 'center', 
+          justifyContent: 'center', 
+          height: '100vh',
+          fontFamily: 'system-ui, sans-serif',
+          textAlign: 'center',
+          padding: '20px',
+        }}>
+          <h1 style={{ fontSize: '24px', marginBottom: '16px' }}>Something went wrong</h1>
+          <p style={{ color: '#666', marginBottom: '24px' }}>{error}</p>
+          <button 
+            onClick={() => window.location.reload()}
+            style={{
+              padding: '12px 24px',
+              backgroundColor: '#000',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              fontSize: '16px',
+            }}
+          >
+            Try Again
+          </button>
+        </div>
+      </>
+    );
+  }
   
   // Not authenticated - show auth gate
   return (
