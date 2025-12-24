@@ -35,26 +35,21 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
   
   console.log('[/new] Creating fresh anonymous page with starter content');
   
-  // ALWAYS create anonymous page - session state is ignored
-  // This ensures /new works reliably regardless of cookie state
-  // Users can sign in from the edit page and claim the page
-  
-  // Get existing draft token or generate a new one
-  let draftToken = getDraftOwnerTokenFromCookies(cookieHeader);
-  
-  // If no draft token exists, generate a fresh one
-  // This ensures every /new request has a valid owner token
-  if (!draftToken) {
-    draftToken = generateDraftOwnerToken();
-    console.log('[/new] Generated new draft token:', draftToken.slice(0, 20) + '...');
-  } else {
-    // Even if token exists, generate a NEW one to prevent reusing old drafts
-    // This ensures each /new creates a truly fresh page
-    draftToken = generateDraftOwnerToken();
-    console.log('[/new] Generated fresh draft token (replacing old):', draftToken.slice(0, 20) + '...');
+  // Log existing token for debugging
+  const existingToken = getDraftOwnerTokenFromCookies(cookieHeader);
+  if (existingToken) {
+    console.log('[/new] Found existing draft token:', existingToken.slice(0, 20) + '... (will replace)');
   }
   
+  // ALWAYS generate a fresh token for /new
+  // This is intentional - /new should create a completely fresh page
+  // The new token will be passed in the redirect URL AND set as a cookie
+  const draftToken = generateDraftOwnerToken();
+  console.log('[/new] Generated fresh draft token:', draftToken.slice(0, 20) + '...');
+  
   // Set the cookie for the new draft token
+  // NOTE: This cookie may not be processed by the browser before following the redirect
+  // That's why we ALSO pass the token in the URL query param (see redirect below)
   const cookie = buildDraftOwnerTokenCookie(draftToken);
   context.res.setHeader('Set-Cookie', cookie);
   console.log('[/new] Set draft token cookie');
@@ -69,8 +64,23 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
     console.log('[/new] Created fresh page:', result.pageId, 'with token:', draftToken.slice(0, 20));
     
     // Redirect to editor with the page ID
-    // Include the draft token in the URL as a fallback in case the cookie
-    // isn't processed by the browser before following the redirect
+    //
+    // CRITICAL: Include the draft token in the URL query param (dt=...)
+    //
+    // Why? When the browser follows a 302 redirect, it may send the OLD cookies
+    // from the original request, not the new Set-Cookie we just added.
+    // The redirect happens BEFORE the browser processes the Set-Cookie header.
+    //
+    // By including the token in the URL, /edit/[pageId] can:
+    // 1. Use the query param as the authoritative token source
+    // 2. Set the cookie from the query param for future requests
+    // 3. Clean up the URL after successful load
+    //
+    // This prevents the infinite redirect loop where:
+    // - /new creates page with NEW token, redirects to /edit
+    // - /edit receives OLD cookie, ownership check fails
+    // - /edit redirects back to /new
+    // - repeat forever
     return {
       redirect: {
         destination: `/edit/${result.pageId}?dt=${encodeURIComponent(draftToken)}`,

@@ -27,8 +27,9 @@
  * History:
  * - 1: Initial version
  * - 2: Fixed routing/auth issues, cleaned up legacy state
+ * - 3: Fixed infinite redirect loop in /edit - stale cookie vs query param issue
  */
-export const STORAGE_VERSION = 2;
+export const STORAGE_VERSION = 3;
 
 const STORAGE_VERSION_KEY = 'yourcorner:storage_version';
 
