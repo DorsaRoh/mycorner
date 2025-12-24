@@ -657,38 +657,39 @@ export function Editor({
         </div>
       )}
 
+      {/* Background button - positioned separately on far right */}
+      <div className={styles.backgroundBtnWrapper}>
+        <button
+          className={`${styles.backgroundBtn} ${state.showBackgroundPanel ? styles.backgroundBtnActive : ''}`}
+          onClick={handleOpenBackgroundPanel}
+          data-background-btn
+          title="Change background"
+        >
+          <svg 
+            width="16" 
+            height="16" 
+            viewBox="0 0 24 24" 
+            fill="none" 
+            stroke="currentColor" 
+            strokeWidth="2" 
+            strokeLinecap="round" 
+            strokeLinejoin="round"
+          >
+            <path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+            <path d="m15 5 4 4" />
+          </svg>
+        </button>
+        {state.showBackgroundPanel && (
+          <BackgroundPanel
+            background={state.background}
+            onChange={handleBackgroundChange}
+            onClose={() => state.setShowBackgroundPanel(false)}
+          />
+        )}
+      </div>
+
       {/* Top right controls */}
       <div className={styles.topRightControls}>
-        <div className={styles.backgroundBtnWrapper}>
-          <button
-            className={`${styles.backgroundBtn} ${state.showBackgroundPanel ? styles.backgroundBtnActive : ''}`}
-            onClick={handleOpenBackgroundPanel}
-            data-background-btn
-            title="Change background"
-          >
-            <svg 
-              width="16" 
-              height="16" 
-              viewBox="0 0 24 24" 
-              fill="none" 
-              stroke="currentColor" 
-              strokeWidth="2" 
-              strokeLinecap="round" 
-              strokeLinejoin="round"
-            >
-              <path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-              <path d="m15 5 4 4" />
-            </svg>
-          </button>
-          {state.showBackgroundPanel && (
-            <BackgroundPanel
-              background={state.background}
-              onChange={handleBackgroundChange}
-              onClose={() => state.setShowBackgroundPanel(false)}
-            />
-          )}
-        </div>
-
         {/* Publish button with proper states */}
         {(() => {
           const hasUnpublishedChanges = state.isPublished &&

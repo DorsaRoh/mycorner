@@ -205,12 +205,13 @@ function convertLegacyBlocks(legacyBlocks: unknown[]): PageDoc['blocks'] {
         });
         break;
       case 'link': {
+        // Use nullish coalescing (??) to preserve empty strings instead of || which treats '' as falsy
         let linkContent: { label: string; url: string };
         try {
           const parsed = JSON.parse(content);
           linkContent = {
-            label: String(parsed.label || parsed.text || 'Link'),
-            url: String(parsed.url || content),
+            label: parsed.label ?? parsed.name ?? parsed.text ?? 'Link',
+            url: parsed.url ?? '',
           };
         } catch {
           linkContent = { label: 'Link', url: content };

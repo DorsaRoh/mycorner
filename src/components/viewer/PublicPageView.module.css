@@ -9,47 +9,197 @@
   /* Tokens are applied via inline style from getUiTokenStyles() */
 }
 
-/* CTA Button - "Make your own" */
-.ctaButton {
+/* ========================================
+   TOP RIGHT ACTION BUTTONS
+   ======================================== */
+
+.topRightActions {
   position: fixed;
   top: 16px;
   right: 16px;
   z-index: 100;
   
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 18px;
+  gap: 10px;
+}
+
+/* ========================================
+   SHARE BUTTON
+   ======================================== */
+
+.shareButton {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
   
-  font-size: 0.8125rem;
-  font-family: var(--font-sans, system-ui, -apple-system, sans-serif);
-  font-weight: 500;
-  text-decoration: none;
-  
-  /* Platform UI tokens for auto-contrast */
   background: var(--platform-surface);
   backdrop-filter: blur(var(--platform-blur, 12px));
   -webkit-backdrop-filter: blur(var(--platform-blur, 12px));
   color: var(--platform-text);
-  text-shadow: var(--platform-text-shadow);
   border: 1px solid var(--platform-border);
-  border-radius: 24px;
+  border-radius: 50%;
   box-shadow: var(--platform-shadow);
   
+  cursor: pointer;
   transition: 
     background 150ms ease,
     transform 150ms ease,
     box-shadow 150ms ease;
 }
 
-.ctaButton:hover {
+.shareButton:hover {
   background: var(--platform-surface-hover);
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+  transform: scale(1.08);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+
+.shareButton:active {
+  transform: scale(0.96);
+}
+
+/* Share tooltip */
+.shareTooltip {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  padding: 6px 12px;
+  
+  font-size: 0.75rem;
+  font-weight: 500;
+  white-space: nowrap;
+  
+  background: var(--platform-surface-elevated, rgba(0, 0, 0, 0.85));
+  color: var(--platform-text);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  
+  animation: tooltipFadeIn 200ms ease forwards;
+}
+
+@keyframes tooltipFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ========================================
+   CTA BUTTON - "Create your own corner"
+   ======================================== */
+
+.ctaButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  
+  font-size: 0.875rem;
+  font-family: var(--font-sans, system-ui, -apple-system, sans-serif);
+  font-weight: 600;
+  text-decoration: none;
+  letter-spacing: -0.01em;
+  
+  /* Gradient background for visual appeal */
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.95) 0%,
+    rgba(255, 255, 255, 0.85) 100%
+  );
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  
+  /* Dark text for contrast on light button */
+  color: #1a1a1a;
+  
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 28px;
+  box-shadow: 
+    0 4px 20px rgba(0, 0, 0, 0.08),
+    0 1px 3px rgba(0, 0, 0, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  
+  transition: 
+    transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 200ms ease,
+    background 150ms ease;
+}
+
+.ctaButton:hover {
+  transform: translateY(-3px) scale(1.02);
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.12),
+    0 2px 6px rgba(0, 0, 0, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 1) 0%,
+    rgba(255, 255, 255, 0.95) 100%
+  );
 }
 
 .ctaButton:active {
-  transform: translateY(0);
+  transform: translateY(-1px) scale(0.99);
+}
+
+/* Sparkle icon with subtle animation */
+.ctaSparkle {
+  width: 14px;
+  height: 14px;
+  color: #f59e0b;
+  animation: sparkleGlow 2s ease-in-out infinite;
+}
+
+@keyframes sparkleGlow {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.15) rotate(15deg);
+  }
+}
+
+/* ========================================
+   DARK MODE OVERRIDES
+   Using platform-mode to detect dark backgrounds
+   ======================================== */
+
+/* When on dark backgrounds, use darker button style */
+[data-platform-mode="dark"] .ctaButton,
+.container:has([style*="--platform-mode: dark"]) .ctaButton {
+  background: linear-gradient(
+    135deg,
+    rgba(30, 30, 30, 0.9) 0%,
+    rgba(20, 20, 20, 0.85) 100%
+  );
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.15);
+  box-shadow: 
+    0 4px 20px rgba(0, 0, 0, 0.25),
+    0 1px 3px rgba(0, 0, 0, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+[data-platform-mode="dark"] .ctaButton:hover,
+.container:has([style*="--platform-mode: dark"]) .ctaButton:hover {
+  background: linear-gradient(
+    135deg,
+    rgba(40, 40, 40, 0.95) 0%,
+    rgba(30, 30, 30, 0.9) 100%
+  );
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.35),
+    0 2px 6px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
 
 /* ========================================
@@ -57,22 +207,62 @@
    ======================================== */
 
 @media (max-width: 768px) {
-  .ctaButton {
+  .topRightActions {
     top: 12px;
     right: 12px;
-    padding: 8px 14px;
-    font-size: 0.75rem;
-    border-radius: 20px;
+    gap: 8px;
+  }
+  
+  .shareButton {
+    width: 38px;
+    height: 38px;
+  }
+  
+  .shareButton svg {
+    width: 16px;
+    height: 16px;
+  }
+  
+  .ctaButton {
+    padding: 10px 16px;
+    font-size: 0.8125rem;
+    border-radius: 24px;
+    gap: 6px;
+  }
+  
+  .ctaSparkle {
+    width: 12px;
+    height: 12px;
   }
 }
 
 @media (max-width: 480px) {
-  .ctaButton {
+  .topRightActions {
     top: 10px;
     right: 10px;
+    gap: 6px;
+  }
+  
+  .shareButton {
+    width: 36px;
+    height: 36px;
+  }
+  
+  .ctaButton {
     padding: 10px 14px;
     font-size: 0.75rem;
-    border-radius: 16px;
+    border-radius: 20px;
+  }
+  
+  /* Hide sparkle on very small screens */
+  .ctaSparkle {
+    display: none;
   }
 }
 
+/* Very small screens - stack buttons or simplify */
+@media (max-width: 360px) {
+  .ctaButton span {
+    /* Shorten text on tiny screens */
+  }
+}

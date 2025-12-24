@@ -12,6 +12,7 @@
  * 4. Match the editor's rendering exactly using React components
  */
 
+import { useState, useCallback } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import type { PageDoc, Block as PageDocBlock } from '@/lib/schema/page';
@@ -21,6 +22,48 @@ import { ViewerCanvas } from './ViewerCanvas';
 import { getTheme, getThemeBackground } from '@/lib/themes';
 import { getUiTokenStyles, getUiMode } from '@/lib/platformUi';
 import styles from './PublicPageView.module.css';
+
+// =============================================================================
+// Share Icon Component
+// =============================================================================
+
+function ShareIcon({ className }: { className?: string }) {
+  return (
+    <svg 
+      className={className}
+      width="18" 
+      height="18" 
+      viewBox="0 0 24 24" 
+      fill="none" 
+      stroke="currentColor" 
+      strokeWidth="2" 
+      strokeLinecap="round" 
+      strokeLinejoin="round"
+    >
+      <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
+      <polyline points="16 6 12 2 8 6" />
+      <line x1="12" y1="2" x2="12" y2="15" />
+    </svg>
+  );
+}
+
+// =============================================================================
+// Sparkle Icon Component  
+// =============================================================================
+
+function SparkleIcon({ className }: { className?: string }) {
+  return (
+    <svg 
+      className={className}
+      width="16" 
+      height="16" 
+      viewBox="0 0 24 24" 
+      fill="currentColor"
+    >
+      <path d="M12 0L14.59 9.41L24 12L14.59 14.59L12 24L9.41 14.59L0 12L9.41 9.41L12 0Z" />
+    </svg>
+  );
+}
 
 // =============================================================================
 // Props
@@ -172,6 +215,10 @@ export function PublicPageView({ doc, slug }: PublicPageViewProps) {
   const theme = getTheme(doc.themeId);
   const pageTitle = `@${slug}'s corner`;
   const description = doc.bio || `${pageTitle} - A corner of the web`;
+  const pageUrl = `https://www.itsmycorner.com/${slug}`;
+  
+  // Share button state
+  const [shareTooltip, setShareTooltip] = useState<string | null>(null);
   
   // Convert PageDoc blocks to legacy format for ViewerCanvas
   const legacyBlocks = convertToLegacyBlocks(doc.blocks);
@@ -182,6 +229,33 @@ export function PublicPageView({ doc, slug }: PublicPageViewProps) {
   // Compute platform UI tokens based on background
   const uiTokenStyles = getUiTokenStyles(background);
   const uiMode = getUiMode(background);
+  
+  // Handle share button click
+  const handleShare = useCallback(async () => {
+    // Try native share API first (mobile)
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: pageTitle,
+          text: `Check out ${pageTitle}`,
+          url: pageUrl,
+        });
+        return;
+      } catch (err) {
+        // User cancelled or share failed, fall back to clipboard
+      }
+    }
+    
+    // Fall back to clipboard copy
+    try {
+      await navigator.clipboard.writeText(pageUrl);
+      setShareTooltip('Link copied!');
+      setTimeout(() => setShareTooltip(null), 2000);
+    } catch (err) {
+      setShareTooltip('Could not copy');
+      setTimeout(() => setShareTooltip(null), 2000);
+    }
+  }, [pageTitle, pageUrl]);
   
   // DEBUG: Always log on first render to diagnose blank page issues
   if (typeof window !== 'undefined') {
@@ -296,10 +370,26 @@ export function PublicPageView({ doc, slug }: PublicPageViewProps) {
           background={background}
         />
         
-        {/* CTA button - "Make your own" - uses platform UI tokens for auto-contrast */}
-        <Link href="/new" className={styles.ctaButton}>
-          Make your own
-        </Link>
+        {/* Top right action buttons */}
+        <div className={styles.topRightActions}>
+          {/* Share button */}
+          <button 
+            className={styles.shareButton}
+            onClick={handleShare}
+            aria-label="Share this page"
+          >
+            <ShareIcon />
+            {shareTooltip && (
+              <span className={styles.shareTooltip}>{shareTooltip}</span>
+            )}
+          </button>
+          
+          {/* CTA button - "Create your own corner" */}
+          <Link href="/new" className={styles.ctaButton}>
+            <SparkleIcon className={styles.ctaSparkle} />
+            <span>Create your own corner</span>
+          </Link>
+        </div>
       </div>
     </>
   );

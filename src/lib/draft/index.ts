@@ -49,9 +49,10 @@ export function legacyBlockToPageDoc(block: LegacyBlock): PageDocBlock | null {
       try {
         const parsed = JSON.parse(block.content);
         // Legacy format uses 'name', new format uses 'label'
+        // Use nullish coalescing (??) to preserve empty strings instead of || which treats '' as falsy
         linkContent = {
-          label: String(parsed.label || parsed.name || parsed.text || 'Link'),
-          url: String(parsed.url || block.content),
+          label: parsed.label ?? parsed.name ?? parsed.text ?? 'Link',
+          url: parsed.url ?? '',
         };
       } catch {
         // Not JSON - treat as simple URL

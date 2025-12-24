@@ -126,17 +126,17 @@ const BlockContent = memo(function BlockContent({ type, content, style, effects,
     console.log('[ViewerBlock] Rendering:', { type, contentLength: content?.length, hasEffects: !!effects });
   }
   
-  // Get text styles but override fontSize with scaled version
+  // Get text styles but override fontSize with scaled version (no padding for dynamic sizing)
   const textStyles = useMemo(() => {
     const baseStyles = getTextStyles(style);
     if (scaledFontSize) {
       return {
         ...baseStyles,
         fontSize: `${scaledFontSize}px`,
-        padding: `${Math.round(scaledFontSize * 0.1)}px ${Math.round(scaledFontSize * 0.15)}px`,
+        padding: '0',
       };
     }
-    return baseStyles;
+    return { ...baseStyles, padding: '0' };
   }, [style, scaledFontSize]);
 
   switch (type) {

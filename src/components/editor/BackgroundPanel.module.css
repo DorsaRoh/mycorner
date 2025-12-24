@@ -48,13 +48,15 @@
 
 .title {
   font-weight: 600;
-  color: var(--color-text);
+  /* Platform tokens for auto-contrast */
+  color: var(--platform-text, var(--color-text));
 }
 
 .resetAllBtn {
   background: none;
   border: none;
-  color: var(--color-text-muted);
+  /* Platform tokens for auto-contrast */
+  color: var(--platform-text-muted, var(--color-text-muted));
   cursor: pointer;
   padding: 4px;
   border-radius: 4px;
@@ -63,8 +65,8 @@
 }
 
 .resetAllBtn:hover {
-  background: var(--color-accent-light);
-  color: var(--color-accent);
+  background: color-mix(in srgb, var(--platform-text, #000) 8%, transparent);
+  color: var(--platform-text, var(--color-accent));
 }
 
 /* Mode selector for solid/gradient */
@@ -77,24 +79,27 @@
 .modeButton {
   flex: 1;
   padding: 8px 12px;
-  background: var(--color-bg-pure);
-  border: 1px solid var(--color-border);
+  /* Platform-adaptive: subtle surface that works on light or dark */
+  background: color-mix(in srgb, var(--platform-text, #000) 6%, transparent);
+  border: 1px solid var(--platform-border, var(--color-border));
   border-radius: 6px;
-  color: var(--color-text-muted);
+  color: var(--platform-text-muted, var(--color-text-muted));
   cursor: pointer;
   transition: var(--transition-fast);
   font-size: 13px;
 }
 
 .modeButton:hover {
-  border-color: var(--color-accent);
-  color: var(--color-accent);
+  background: color-mix(in srgb, var(--platform-text, #000) 12%, transparent);
+  border-color: var(--platform-text-muted, var(--color-accent));
+  color: var(--platform-text, var(--color-accent));
 }
 
 .modeActive {
-  background: var(--color-accent);
-  border-color: var(--color-accent);
-  color: white;
+  /* Active state: inverted colors for clear selection */
+  background: var(--platform-text, var(--color-accent));
+  border-color: var(--platform-text, var(--color-accent));
+  color: var(--platform-surface-elevated, white);
 }
 
 /* Color picker */
@@ -107,7 +112,8 @@
 
 .colorLabel {
   font-size: 13px;
-  color: var(--color-text);
+  /* Platform tokens for auto-contrast */
+  color: var(--platform-text, var(--color-text));
   font-weight: 500;
   min-width: 50px;
 }
@@ -115,7 +121,7 @@
 .colorInput {
   width: 40px;
   height: 32px;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--platform-border, var(--color-border));
   border-radius: 4px;
   cursor: pointer;
   background: none;
@@ -131,7 +137,8 @@
 
 .typeLabel {
   font-size: 13px;
-  color: var(--color-text);
+  /* Platform tokens for auto-contrast */
+  color: var(--platform-text, var(--color-text));
   font-weight: 500;
   flex-shrink: 0;
   margin-right: 12px;
@@ -139,7 +146,8 @@
 
 .gradientTypeSelector {
   display: flex;
-  background: var(--color-border);
+  /* Platform-adaptive segmented control background */
+  background: color-mix(in srgb, var(--platform-text, #000) 8%, transparent);
   border-radius: 6px;
   padding: 2px;
   flex-wrap: wrap;
@@ -150,7 +158,7 @@
   background: transparent;
   border: none;
   border-radius: 4px;
-  color: var(--color-text-muted);
+  color: var(--platform-text-muted, var(--color-text-muted));
   cursor: pointer;
   transition: var(--transition-fast);
   font-size: 11px;
@@ -158,13 +166,13 @@
 }
 
 .typeButton:hover:not(.typeActive) {
-  color: var(--color-text);
+  color: var(--platform-text, var(--color-text));
 }
 
 .typeActive {
-  background: var(--color-bg-pure);
-  color: var(--color-text);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+  background: var(--platform-surface-elevated, var(--color-bg-pure));
+  color: var(--platform-text, var(--color-text));
+  box-shadow: var(--platform-shadow, 0 1px 2px rgba(0, 0, 0, 0.06));
 }
 
 /* Slider */
@@ -178,20 +186,22 @@
   align-items: center;
   margin-bottom: 6px;
   font-size: 13px;
-  color: var(--color-text);
+  /* Platform tokens for auto-contrast */
+  color: var(--platform-text, var(--color-text));
   font-weight: 500;
 }
 
 .sliderValue {
   font-size: 12px;
-  color: var(--color-text-muted);
+  color: var(--platform-text-muted, var(--color-text-muted));
 }
 
 .slider {
   width: 100%;
   height: 6px;
   -webkit-appearance: none;
-  background: var(--color-border);
+  /* Platform-adaptive track */
+  background: color-mix(in srgb, var(--platform-text, #000) 12%, transparent);
   border-radius: 3px;
   cursor: pointer;
   outline: none;
@@ -201,11 +211,12 @@
   -webkit-appearance: none;
   width: 16px;
   height: 16px;
-  background: white;
-  border: 2px solid var(--color-accent);
+  /* Platform-adaptive thumb */
+  background: var(--platform-surface-elevated, white);
+  border: 2px solid var(--platform-text-muted, var(--color-accent));
   border-radius: 50%;
   cursor: pointer;
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--platform-shadow, var(--shadow-sm));
 }
 
 .slider::-webkit-slider-thumb:hover {
@@ -225,16 +236,17 @@
   gap: 8px;
   width: 100%;
   height: 100px;
-  border: 2px dashed var(--color-border);
+  border: 2px dashed var(--platform-border, var(--color-border));
   border-radius: 8px;
-  background: var(--color-bg-pure);
+  /* Platform-adaptive background */
+  background: color-mix(in srgb, var(--platform-text, #000) 4%, transparent);
   cursor: pointer;
   transition: var(--transition-fast);
 }
 
 .uploadArea:hover:not(:disabled) {
-  border-color: var(--color-accent);
-  background: var(--color-accent-light);
+  border-color: var(--platform-text-muted, var(--color-accent));
+  background: color-mix(in srgb, var(--platform-text, #000) 8%, transparent);
 }
 
 .uploadArea:disabled {
@@ -248,12 +260,12 @@
 
 .uploadText {
   font-size: 12px;
-  color: var(--color-text-muted);
+  color: var(--platform-text-muted, var(--color-text-muted));
 }
 
 .uploadingText {
   font-size: 13px;
-  color: var(--color-text-muted);
+  color: var(--platform-text-muted, var(--color-text-muted));
 }
 
 .imagePreviewContainer {
@@ -269,7 +281,7 @@
   border-radius: 8px;
   background-size: cover;
   background-position: center;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--platform-border, var(--color-border));
 }
 
 .imageActions {
@@ -288,14 +300,16 @@
 }
 
 .changeImageBtn {
-  background: var(--color-bg-pure);
-  border: 1px solid var(--color-border);
-  color: var(--color-text);
+  /* Platform-adaptive button */
+  background: color-mix(in srgb, var(--platform-text, #000) 6%, transparent);
+  border: 1px solid var(--platform-border, var(--color-border));
+  color: var(--platform-text, var(--color-text));
 }
 
 .changeImageBtn:hover:not(:disabled) {
-  border-color: var(--color-accent);
-  color: var(--color-accent);
+  background: color-mix(in srgb, var(--platform-text, #000) 12%, transparent);
+  border-color: var(--platform-text-muted, var(--color-accent));
+  color: var(--platform-text, var(--color-accent));
 }
 
 .changeImageBtn:disabled {
@@ -305,21 +319,21 @@
 
 .removeImageBtn {
   background: transparent;
-  border: 1px solid #888888;
-  color: #666666;
+  border: 1px solid var(--platform-border, #888888);
+  color: var(--platform-text-muted, #666666);
 }
 
 .removeImageBtn:hover {
-  background: #666666;
-  color: white;
+  background: color-mix(in srgb, var(--platform-text, #666) 15%, transparent);
+  color: var(--platform-text, white);
 }
 
 .uploadError {
   font-size: 12px;
-  color: #666666;
+  color: var(--platform-text-muted, #666666);
   margin-top: 4px;
   padding: 6px 8px;
-  background: rgba(0, 0, 0, 0.05);
+  background: color-mix(in srgb, var(--platform-text, #000) 5%, transparent);
   border-radius: 4px;
 }
 

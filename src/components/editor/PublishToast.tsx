@@ -53,13 +53,14 @@ export function PublishToast({ isOpen, url, onClose }: PublishToastProps) {
 
   return (
     <>
-      {/* Confetti particles */}
+      {/* Confetti particles - spans entire link display */}
       {showConfetti && (
         <div className={styles.confettiContainer}>
-          {[...Array(20)].map((_, i) => (
+          {[...Array(40)].map((_, i) => (
             <div key={i} className={styles.confetti} style={{
-              '--delay': `${Math.random() * 0.5}s`,
-              '--x': `${Math.random() * 200 - 100}px`,
+              '--delay': `${Math.random() * 0.6}s`,
+              '--x-start': `${Math.random() * 400 - 200}px`,
+              '--x': `${Math.random() * 150 - 75}px`,
               '--rotation': `${Math.random() * 720 - 360}deg`,
               '--hue': `${Math.random() * 360}`,
             } as React.CSSProperties} />

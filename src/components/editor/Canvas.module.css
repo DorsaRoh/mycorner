@@ -130,11 +130,12 @@
   }
 }
 
-/* Marquee selection box */
+/* Marquee selection box - adapts to background color */
 .marquee {
   position: absolute;
-  border: 1.5px solid rgba(100, 100, 100, 0.5);
-  background: rgba(100, 100, 100, 0.08);
+  /* Platform-adaptive: uses text color which is dark on light bg, white on dark bg */
+  border: 1.5px solid color-mix(in srgb, var(--platform-text, rgba(100, 100, 100, 1)) 50%, transparent);
+  background: color-mix(in srgb, var(--platform-text, rgba(100, 100, 100, 1)) 8%, transparent);
   border-radius: 4px;
   pointer-events: none;
   z-index: 50;
@@ -150,23 +151,22 @@
   }
 }
 
-/* Drop error message */
+/* Drop error message - platform-adaptive */
 .dropError {
   position: fixed;
   bottom: 120px;
   left: 50%;
   transform: translateX(-50%);
-  background: rgba(255, 255, 255, 0.92);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(0, 0, 0, 0.06);
+  /* Platform UI tokens for auto-contrast */
+  background: var(--platform-surface-elevated, rgba(255, 255, 255, 0.92));
+  backdrop-filter: blur(var(--platform-blur, 12px));
+  -webkit-backdrop-filter: blur(var(--platform-blur, 12px));
+  border: 1px solid var(--platform-border, rgba(0, 0, 0, 0.06));
   border-radius: 20px;
   padding: 10px 20px;
   font-size: 0.8125rem;
-  color: var(--color-text-muted);
-  box-shadow: 
-    0 4px 20px -4px rgba(60, 50, 40, 0.1),
-    0 2px 6px rgba(60, 50, 40, 0.05);
+  color: var(--platform-text-muted, var(--color-text-muted));
+  box-shadow: var(--platform-shadow, 0 4px 20px -4px rgba(60, 50, 40, 0.1));
   z-index: 200;
   animation: dropErrorFadeIn 180ms cubic-bezier(0.23, 1, 0.32, 1);
 }

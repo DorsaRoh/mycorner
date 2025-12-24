@@ -36,14 +36,15 @@
   background: transparent;
   border-radius: 6px;
   cursor: pointer;
-  /* Toolbar uses elevated surface, so text adapts */
-  color: rgba(0, 0, 0, 0.5);
+  /* Platform UI tokens for auto-contrast on any background */
+  color: var(--platform-text-muted, rgba(0, 0, 0, 0.5));
   transition: all 120ms ease;
 }
 
 .toolbarBtn:hover {
-  background: rgba(0, 0, 0, 0.05);
-  color: rgba(0, 0, 0, 0.85);
+  /* Use text color at low opacity for universal contrast on any surface */
+  background: color-mix(in srgb, var(--platform-text, rgba(0, 0, 0, 0.85)) 8%, transparent);
+  color: var(--platform-text, rgba(0, 0, 0, 0.85));
 }
 
 .toolbarBtn:focus-visible {
@@ -133,13 +134,15 @@
   cursor: pointer;
   font-size: 0.75rem;
   font-weight: 400;
-  color: var(--color-text);
+  /* Platform UI tokens for auto-contrast */
+  color: var(--platform-text, var(--color-text));
   text-align: left;
-  transition: background 100ms ease;
+  transition: background 100ms ease, color 100ms ease;
 }
 
 .layerMenuItem:hover {
-  background: rgba(0, 0, 0, 0.04);
+  /* Use text color at low opacity for universal contrast */
+  background: color-mix(in srgb, var(--platform-text, rgba(0, 0, 0, 0.85)) 6%, transparent);
 }
 
 /* Responsive */

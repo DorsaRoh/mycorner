@@ -51,8 +51,17 @@ export function getBlockStyles(
 }
 
 /**
+ * Default color value - used to detect if user has customized the color
+ */
+const DEFAULT_TEXT_COLOR = 'rgba(0, 0, 0, 1)';
+
+/**
  * Get text-specific CSS styles for TEXT and LINK blocks
  * Padding scales proportionally with font size for consistent visual appearance
+ * 
+ * Note: Color is only set inline if the user has explicitly customized it.
+ * Otherwise, we let CSS variables (--platform-text) handle dynamic color
+ * based on background brightness.
  */
 export function getTextStyles(style?: BlockStyle): React.CSSProperties {
   if (!style) return {};
@@ -67,11 +76,16 @@ export function getTextStyles(style?: BlockStyle): React.CSSProperties {
     fontFamily: s.fontFamily,
     fontSize: `${fontSize}px`,
     fontWeight: s.fontWeight,
-    color: s.color,
     opacity: s.textOpacity,
     textAlign: s.textAlign,
     padding: `${paddingV}px ${paddingH}px`,
   };
+  
+  // Only set color inline if user has customized it from the default
+  // This allows CSS var(--platform-text) to provide dynamic color based on background
+  if (s.color && s.color !== DEFAULT_TEXT_COLOR) {
+    styles.color = s.color;
+  }
   
   // Add fontStyle if present (for italic)
   if (s.fontStyle) {

@@ -36,13 +36,13 @@
   pointer-events: none;
 }
 
-/* Minimal center dot */
+/* Minimal center dot - uses platform tokens for visibility on any background */
 .centerDot {
   position: absolute;
   width: 3px;
   height: 3px;
   border-radius: 50%;
-  background: var(--color-text-muted);
+  background: var(--platform-text-muted, var(--color-text-muted));
   opacity: 0.3;
 }
 
@@ -100,7 +100,7 @@
 
 .option:hover {
   background: var(--platform-surface-hover, rgba(255, 255, 255, 0.95));
-  border-color: rgba(0, 0, 0, 0.2);
+  border-color: var(--platform-border, rgba(0, 0, 0, 0.2));
   transform: translate(var(--offset-x), var(--offset-y)) scale(1.05);
 }
 
@@ -114,12 +114,13 @@
   box-shadow: 0 0 0 2px var(--platform-ring, rgba(0, 0, 0, 0.15));
 }
 
-/* Icon styling - uses elevated surface context so always dark text */
+/* Icon styling - uses platform tokens for auto-contrast */
 .optionIcon {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: rgba(0, 0, 0, 0.7);
+  /* Platform UI tokens for auto-contrast on any background */
+  color: var(--platform-text-muted, rgba(0, 0, 0, 0.7));
   transition: all 120ms ease-out;
 }
 
@@ -129,15 +130,17 @@
 }
 
 .option:hover .optionIcon {
-  color: var(--color-accent, #000);
+  color: var(--platform-text, rgba(0, 0, 0, 0.9));
   transform: scale(1.1);
 }
 
-/* Label styling - appears outside the circle */
+/* Label styling - appears outside the circle, uses platform tokens */
 .optionLabel {
   font-size: 9px;
   font-weight: 400;
-  color: var(--color-text-muted);
+  /* Platform tokens for visibility on any background */
+  color: var(--platform-text-muted, var(--color-text-muted));
+  text-shadow: var(--platform-text-shadow, none);
   opacity: 0;
   text-transform: lowercase;
   transition: opacity 120ms ease-out;

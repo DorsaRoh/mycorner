@@ -244,12 +244,13 @@ export function convertLegacyBlock(legacy: {
       case 'LINK': {
         // Legacy link content might be URL or JSON
         // Legacy format uses 'name', new format uses 'label'
+        // Use nullish coalescing (??) to preserve empty strings instead of || which treats '' as falsy
         let linkContent: { label: string; url: string };
         try {
           const parsed = JSON.parse(legacy.content);
           linkContent = { 
-            label: parsed.label || parsed.name || parsed.text || 'Link',
-            url: parsed.url || legacy.content,
+            label: parsed.label ?? parsed.name ?? parsed.text ?? 'Link',
+            url: parsed.url ?? '',
           };
         } catch {
           linkContent = { label: 'Link', url: legacy.content };
