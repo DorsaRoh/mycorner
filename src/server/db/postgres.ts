@@ -17,7 +17,16 @@ let initPromise: Promise<ReturnType<typeof drizzle>> | null = null;
 export async function initPostgres(connectionString: string) {
   if (db) return db;
   
-  pool = new Pool({ connectionString });
+  // Configure pool for serverless environments
+  // Use minimal connections to avoid exhausting database connection limits
+  pool = new Pool({ 
+    connectionString,
+    // Serverless-friendly settings
+    max: 1,                        // Only 1 connection per serverless instance
+    idleTimeoutMillis: 20000,      // Close idle connections after 20s
+    connectionTimeoutMillis: 10000, // Fail fast if can't connect in 10s
+  });
+  
   db = drizzle(pool, { schema });
   console.log('✅ PostgreSQL connected');
   
