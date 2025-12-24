@@ -145,6 +145,7 @@ export function Editor({
   // Trigger confetti and "Published!" state when publish succeeds
   useEffect(() => {
     if (state.isPublished && !prevIsPublished.current) {
+      console.log('[Editor] 🎉 Publish succeeded! Triggering confetti...');
       setShowConfetti(true);
       setJustPublished(true);
       const confettiTimer = setTimeout(() => setShowConfetti(false), 1500);
@@ -488,13 +489,16 @@ export function Editor({
 
     if (meData?.me) {
       if (needsOnboarding) {
+        console.log('[Editor] User needs onboarding, showing modal');
         state.setShowOnboarding(true);
         if (shouldPublish) {
+          console.log('[Editor] Will publish after onboarding completes');
           state.setPendingPublishAfterOnboarding(true);
         }
         authCheckCompleted.current = true;
-      } else if (shouldPublish && mode === 'draft') {
-        // Auto-publish after auth redirect
+      } else if (shouldPublish) {
+        // Auto-publish after auth redirect (works for both draft and server modes)
+        console.log('[Editor] ?publish=1 detected after auth, auto-publishing...');
         pendingPublishHandled.current = true;
         authCheckCompleted.current = true;
         // Small delay to ensure session is fully established after OAuth redirect
@@ -506,7 +510,7 @@ export function Editor({
         authCheckCompleted.current = true;
       }
     }
-  }, [meData?.me, meLoading, mode, handlePublish, state]);
+  }, [meData?.me, meLoading, handlePublish, state]);
 
   // Handle paste
   useEffect(() => {
@@ -746,6 +750,7 @@ export function Editor({
         onClose={() => state.setShowAuthGate(false)}
         draftId={pageId}
         onAuthStart={() => {}}
+        returnTo={mode === 'draft' ? '/new?publish=1' : '/edit?publish=1'}
       />
 
       <PublishToast

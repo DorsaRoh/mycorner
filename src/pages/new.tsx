@@ -4,45 +4,24 @@
  * VIRAL LOOP ENTRY POINT:
  * 1. User arrives (from CTA on another page or landing)
  * 2. Edits their corner locally (localStorage)
- * 3. Clicks Publish → triggers auth if needed
- * 4. After auth, immediately publishes (NO username step)
- * 5. Redirects to /{slug} (canonical public URL)
+ * 3. Clicks Publish → Editor handles auth gate if needed
+ * 4. After auth, Editor handles publish and shows confetti
+ * 5. User stays on editor with published URL visible
  * 
  * Draft storage: localStorage key 'yourcorner:draft:v1'
+ * 
+ * Note: All publish/auth flow is handled by the Editor component.
+ * This page just initializes the draft from localStorage and renders the Editor.
  */
 
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import { Editor } from '@/components/editor/Editor';
-import { AuthGate } from '@/components/editor/AuthGate';
-import { OnboardingModal } from '@/components/editor/OnboardingModal';
-import { clearDraft, migrateLegacyDraft, loadEditorDraft, getDraftAsPageDoc } from '@/lib/draft';
+import { migrateLegacyDraft, loadEditorDraft } from '@/lib/draft';
 import { createStarterBlocks, DEFAULT_STARTER_BACKGROUND } from '@/lib/starter';
 import type { BackgroundConfig } from '@/shared/types';
 import styles from '@/styles/EditPage.module.css';
-
-// =============================================================================
-// Types
-// =============================================================================
-
-interface MeResponse {
-  user: {
-    id: string;
-    email?: string;
-    name?: string;
-    username?: string;
-  } | null;
-}
-
-interface OnboardingResponse {
-  success: boolean;
-  error?: string;
-  user?: {
-    id: string;
-    username: string;
-  };
-}
 
 // =============================================================================
 // Page Component
@@ -51,41 +30,10 @@ interface OnboardingResponse {
 export default function NewPage() {
   const router = useRouter();
   const [draftId] = useState('draft-v1'); // Single draft ID
-  const [showAuthGate, setShowAuthGate] = useState(false);
-  const [showOnboarding, setShowOnboarding] = useState(false);
-  const [publishing, setPublishing] = useState(false);
-  const [publishError, setPublishError] = useState<string | null>(null);
   const [initialBlocks, setInitialBlocks] = useState<any[]>([]);
   const [initialTitle, setInitialTitle] = useState('');
   const [initialBackground, setInitialBackground] = useState<BackgroundConfig>(DEFAULT_STARTER_BACKGROUND);
   const [initialized, setInitialized] = useState(false);
-  
-  // Auth state
-  const [meLoading, setMeLoading] = useState(true);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [currentUser, setCurrentUser] = useState<MeResponse['user']>(null);
-  const [needsUsername, setNeedsUsername] = useState(false);
-  
-  // Fetch auth status
-  const fetchMe = useCallback(async (): Promise<MeResponse> => {
-    try {
-      const response = await fetch('/api/me');
-      const data = await response.json();
-      return data;
-    } catch {
-      return { user: null };
-    }
-  }, []);
-  
-  // Initial auth check
-  useEffect(() => {
-    fetchMe().then((data) => {
-      setIsAuthenticated(!!data.user);
-      setCurrentUser(data.user);
-      setNeedsUsername(!!data.user && !data.user.username);
-      setMeLoading(false);
-    });
-  }, [fetchMe]);
   
   // Migrate legacy drafts on first load
   const migrationDone = useRef(false);
@@ -119,117 +67,19 @@ export default function NewPage() {
     setInitialized(true);
   }, [initialized]);
   
-  // Handle publish flow
-  const handlePublishFlow = useCallback(async () => {
-    setPublishing(true);
-    setPublishError(null);
-    
-    try {
-      // Re-check auth
-      const freshMe = await fetchMe();
-      const authed = !!freshMe.user;
-      
-      if (!authed) {
-        // Need auth first
-        setShowAuthGate(true);
-        setPublishing(false);
-        return;
-      }
-      
-      // Get current draft as PageDoc format
-      const doc = getDraftAsPageDoc();
-      if (!doc) {
-        setPublishError('No draft found. Please add some content first.');
-        setPublishing(false);
-        return;
-      }
-      
-      // Call new publish API
-      const response = await fetch('/api/publish', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ doc }),
-      });
-      
-      const result = await response.json();
-      
-      if (!response.ok) {
-        setPublishError(result.error || 'Failed to publish. Please try again.');
-        setPublishing(false);
-        return;
-      }
-      
-      // Clear draft
-      clearDraft();
-      
-      // Redirect to published page using canonical url from response
-      const redirectUrl = result.url || `/${result.slug}`;
-      router.push(redirectUrl);
-      
-    } catch (error) {
-      console.error('Publish error:', error);
-      setPublishError('Network error. Please try again.');
-      setPublishing(false);
-    }
-  }, [fetchMe, router]);
-  
-  // Check for ?publish=1 query param (after auth redirect)
+  // Clean up any error params from failed auth
   useEffect(() => {
-    if (!router.isReady || meLoading) return;
+    if (!router.isReady) return;
     
-    const shouldPublish = router.query.publish === '1';
-    if (shouldPublish && isAuthenticated) {
-      // If user needs username, show onboarding modal first
-      if (needsUsername) {
-        setShowOnboarding(true);
-        return;
-      }
-      
-      // User has username, proceed with publish
-      // Clear the query param
-      router.replace('/new', undefined, { shallow: true });
-      // Immediately publish
-      handlePublishFlow();
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has('error')) {
+      urlParams.delete('error');
+      const newUrl = urlParams.toString()
+        ? `${window.location.pathname}?${urlParams.toString()}`
+        : window.location.pathname;
+      window.history.replaceState({}, '', newUrl);
     }
-  }, [router.isReady, router.query.publish, isAuthenticated, needsUsername, meLoading, router, handlePublishFlow]);
-  
-  // Handle auth gate redirect - use API route
-  const handleAuthStart = useCallback(() => {
-    window.location.href = `/api/auth/google?returnTo=/new?publish=1`;
-  }, []);
-  
-  // Handle onboarding completion
-  const handleOnboardingComplete = useCallback(async (username: string) => {
-    try {
-      const response = await fetch('/api/onboarding', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username }),
-      });
-      
-      const result: OnboardingResponse = await response.json();
-      
-      if (!response.ok || !result.success) {
-        console.error('Onboarding failed:', result.error);
-        return;
-      }
-      
-      // Update user state
-      setCurrentUser(prev => prev ? { ...prev, username } : null);
-      setNeedsUsername(false);
-      setShowOnboarding(false);
-      
-      // If we have ?publish=1, proceed with publish
-      if (router.query.publish === '1') {
-        // Clear the query param
-        router.replace('/new', undefined, { shallow: true });
-        // Immediately publish
-        handlePublishFlow();
-      }
-    } catch (error) {
-      console.error('Onboarding error:', error);
-    }
-  }, [router, handlePublishFlow]);
+  }, [router.isReady]);
   
   // Loading state
   if (!initialized) {
@@ -240,20 +90,6 @@ export default function NewPage() {
         </Head>
         <div className={styles.loading}>
           <span>Loading...</span>
-        </div>
-      </>
-    );
-  }
-  
-  // Publishing state
-  if (publishing) {
-    return (
-      <>
-        <Head>
-          <title>Publishing... – YourCorner</title>
-        </Head>
-        <div className={styles.loading}>
-          <span>Publishing your corner...</span>
         </div>
       </>
     );
@@ -272,26 +108,6 @@ export default function NewPage() {
         initialBlocks={initialBlocks}
         initialTitle={initialTitle}
         initialBackground={initialBackground}
-      />
-      
-      {publishError && (
-        <div className={styles.errorToast}>
-          {publishError}
-          <button onClick={() => setPublishError(null)}>×</button>
-        </div>
-      )}
-      
-      <AuthGate
-        isOpen={showAuthGate}
-        onClose={() => setShowAuthGate(false)}
-        onAuthStart={handleAuthStart}
-        title="Sign in to publish"
-        subtitle="Create your corner of the internet. It's free and takes 2 minutes."
-      />
-      
-      <OnboardingModal
-        isOpen={showOnboarding}
-        onComplete={handleOnboardingComplete}
       />
     </>
   );

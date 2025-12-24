@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { routes, auth } from '@/lib/routes';
+import { auth } from '@/lib/routes';
 import styles from './AuthGate.module.css';
 
 interface AuthGateProps {
@@ -12,6 +12,11 @@ interface AuthGateProps {
   title?: string;
   /** Custom subtitle for the modal */
   subtitle?: string;
+  /** 
+   * URL to return to after auth completes. 
+   * If not provided, defaults to /new?publish=1 for draft mode publish flow.
+   */
+  returnTo?: string;
 }
 
 export function AuthGate({ 
@@ -19,7 +24,8 @@ export function AuthGate({
   onClose, 
   onAuthStart,
   title = "Sign in to publish",
-  subtitle = "Your page will be saved to your account and shareable with anyone."
+  subtitle = "Your page will be saved to your account and shareable with anyone.",
+  returnTo,
 }: AuthGateProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -53,9 +59,10 @@ export function AuthGate({
     setError(null);
     onAuthStart?.();
     
-    // Always return to /edit - the editor resolves which page to load internally
-    window.location.href = auth.google(routes.edit());
-  }, [onAuthStart]);
+    // Use provided returnTo, or default to /new?publish=1 for publish flow
+    const authReturnTo = returnTo || '/new?publish=1';
+    window.location.href = auth.google(authReturnTo);
+  }, [onAuthStart, returnTo]);
 
   // Close on Escape
   useEffect(() => {
