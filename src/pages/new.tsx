@@ -47,7 +47,18 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
   
   // Check if user is authenticated (unless fresh start mode)
   // In fresh start mode, always create anonymous page
-  const userId = isFreshStart ? null : await getUserIdFromCookies(cookieHeader);
+  let userId = isFreshStart ? null : await getUserIdFromCookies(cookieHeader);
+  
+  // IMPORTANT: Verify the user actually exists in the database
+  // Session cookies can outlive deleted users, causing FK constraint violations
+  if (userId) {
+    const { getUserById } = await import('@/server/db');
+    const user = await getUserById(userId);
+    if (!user) {
+      console.log('[/new] User from session does not exist, treating as anonymous:', userId);
+      userId = null;
+    }
+  }
   
   // Get or create draft owner token for anonymous users
   // In fresh start mode, ALWAYS generate a new token (ignore existing)
