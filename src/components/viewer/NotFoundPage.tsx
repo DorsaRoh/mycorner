@@ -6,10 +6,11 @@
  * 
  * IMPORTANT: The "Create your own corner" CTA goes through /api/auth/logout
  * to ensure a completely fresh start - no auto-login to previous accounts.
+ * We use regular <a> tags (not Next.js Link) because API routes require
+ * full page navigation, not client-side routing.
  */
 
 import Head from 'next/head';
-import Link from 'next/link';
 
 interface NotFoundPageProps {
   slug: string;
@@ -72,7 +73,8 @@ export function NotFoundPage({ slug, message }: NotFoundPageProps) {
         </p>
         
         {/* CTA - Goes through logout to ensure fresh start (no auto-login) */}
-        <Link 
+        {/* Using <a> tag instead of Next.js Link because API routes need full page navigation */}
+        <a 
           href="/api/auth/logout"
           style={{
             padding: '12px 28px',
@@ -84,23 +86,25 @@ export function NotFoundPage({ slug, message }: NotFoundPageProps) {
             borderRadius: '8px',
             boxShadow: '0 2px 12px rgba(102, 126, 234, 0.4)',
             transition: 'transform 0.2s, box-shadow 0.2s',
+            cursor: 'pointer',
           }}
         >
           Create your own corner
-        </Link>
+        </a>
         
-        {/* Secondary link */}
-        <Link 
+        {/* Secondary link - also using <a> for consistency */}
+        <a 
           href="/"
           style={{
             marginTop: '16px',
             fontSize: '14px',
             color: '#666',
             textDecoration: 'none',
+            cursor: 'pointer',
           }}
         >
           ← Go to homepage
-        </Link>
+        </a>
         
         {/* Dev debug info */}
         {process.env.NODE_ENV !== 'production' && (
