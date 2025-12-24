@@ -165,7 +165,7 @@ export function createStarterBlocks(isMobile: boolean): BlockType[] {
       height: 100,
       content: 'your corner of the internet',
       rotation: 0,
-      style: { ...TEXT_STYLE, fontSize: 64, fontWeight: 400, color: 'rgba(60, 55, 50, 0.9)', textAlign: 'left' },
+      style: { ...TEXT_STYLE, fontSize: 64, fontWeight: 550, color: 'rgba(60, 55, 50, 0.9)', textAlign: 'left' },
       isStarter: true,
     },
     // Subtitle - left-aligned, subtle
