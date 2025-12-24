@@ -467,9 +467,25 @@ export function Editor({
     prevAuthRef.current = isAuthenticated;
   }, [isAuthenticated, meLoading, state]);
 
-  // Handle onboarding completion - trigger publish
+  // Show onboarding modal for new users who haven't chosen a username
+  // This triggers immediately after signup/signin if the user has no username
+  const onboardingShown = useRef(false);
+  useEffect(() => {
+    if (meLoading) return;
+    if (onboardingShown.current) return;
+    
+    // If user is authenticated but has no username, show onboarding
+    if (meData?.me && !meData.me.username) {
+      console.log('[Editor] User has no username - showing onboarding modal');
+      onboardingShown.current = true;
+      state.setShowOnboarding(true);
+    }
+  }, [meData?.me, meLoading, state]);
+
+  // Handle onboarding completion - only publish if there was a pending publish intent
   const authCheckCompleted = useRef(false);
   const handleOnboardingComplete = useCallback(async (_username: string) => {
+    const shouldPublish = state.pendingPublishAfterOnboarding;
     state.setShowOnboarding(false);
     state.setPendingPublishAfterOnboarding(false);
     
@@ -477,8 +493,10 @@ export function Editor({
       // Refetch user data to get the new username
       await refetchMe();
       
-      // Trigger publish
-      await handlePublish();
+      // Only trigger publish if user was trying to publish (not just signing up)
+      if (shouldPublish) {
+        await handlePublish();
+      }
     } catch (error) {
       console.error('[Onboarding] Failed to publish after onboarding:', error);
       state.setPublishError(error instanceof Error ? error.message : 'Failed to publish your page');

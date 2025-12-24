@@ -202,28 +202,11 @@ export default async function handler(
       avatarUrl: userInfo.picture,
     });
     
-    // ensure user has a username (generate if missing)
+    // Note: We do NOT auto-generate usernames here.
+    // Users will be prompted to choose their own username via the onboarding modal
+    // when they first try to use the app (e.g., publish their page).
     if (!user.username) {
-      console.log('[auth/callback] user has no username, generating one...');
-      const baseUsername = db.generateUsernameBase(userInfo.email, userInfo.name);
-      console.log('[auth/callback] base username:', baseUsername);
-      
-      try {
-        const uniqueUsername = await db.ensureUniqueUsername(baseUsername, db.isUsernameTaken);
-        console.log('[auth/callback] unique username:', uniqueUsername);
-        
-        const setResult = await db.setUsernameIfMissing(user.id, uniqueUsername);
-        if (setResult.success) {
-          console.log('[auth/callback] username set successfully:', uniqueUsername);
-        } else if (setResult.alreadySet) {
-          console.log('[auth/callback] username already set by another process');
-        } else {
-          console.warn('[auth/callback] failed to set username:', setResult.error);
-        }
-      } catch (usernameError) {
-        // non-fatal - user can still use the app, they'll be prompted in onboarding
-        console.error('[auth/callback] error generating username:', usernameError);
-      }
+      console.log('[auth/callback] user has no username - will be prompted to choose one');
     } else {
       console.log('[auth/callback] user already has username:', user.username);
     }
