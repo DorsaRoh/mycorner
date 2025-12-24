@@ -128,16 +128,6 @@ export function Editor({
   // Mini confetti animation state
   const [showConfetti, setShowConfetti] = useState(false);
   const prevIsPublished = useRef<boolean>(initialPublished);
-  
-  // Trigger confetti when publish succeeds
-  useEffect(() => {
-    if (state.isPublished && !prevIsPublished.current) {
-      setShowConfetti(true);
-      const timer = setTimeout(() => setShowConfetti(false), 1500);
-      return () => clearTimeout(timer);
-    }
-    prevIsPublished.current = state.isPublished;
-  }, [state.isPublished]);
 
   // Initialize state with hooks
   const state = useEditorState(
@@ -147,6 +137,16 @@ export function Editor({
     initialPublished,
     initialPublishedRevision
   );
+
+  // Trigger confetti when publish succeeds
+  useEffect(() => {
+    if (state.isPublished && !prevIsPublished.current) {
+      setShowConfetti(true);
+      const timer = setTimeout(() => setShowConfetti(false), 1500);
+      return () => clearTimeout(timer);
+    }
+    prevIsPublished.current = state.isPublished;
+  }, [state.isPublished]);
 
   // Initialize actions
   const actions = useEditorActions(
