@@ -1,4 +1,4 @@
-/* Edit button for page owners - adaptive to any background */
+/* Edit button for page owners - uses platform UI tokens for auto-contrast */
 .fab {
   position: fixed;
   bottom: 24px;
@@ -7,26 +7,33 @@
   font-size: 1rem;
   font-family: var(--font-sans);
   font-weight: 600;
-  background: rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(12px) saturate(1.2);
-  -webkit-backdrop-filter: blur(12px) saturate(1.2);
-  color: rgba(255, 255, 255, 0.95);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  
+  /* Platform UI tokens for auto-contrast */
+  background: var(--platform-surface);
+  backdrop-filter: blur(var(--platform-blur, 12px)) saturate(1.2);
+  -webkit-backdrop-filter: blur(var(--platform-blur, 12px)) saturate(1.2);
+  color: var(--platform-text);
+  text-shadow: var(--platform-text-shadow);
+  border: 1px solid var(--platform-border);
   border-radius: var(--radius);
   cursor: pointer;
   transition: all var(--transition-normal);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+  box-shadow: var(--platform-shadow);
   z-index: 100;
 }
 
 .fab:hover {
-  background: rgba(0, 0, 0, 0.85);
+  background: var(--platform-surface-hover);
   transform: translateY(-2px);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
 }
 
 .fab:active {
   transform: translateY(0);
+}
+
+.fab:focus-visible {
+  box-shadow: 0 0 0 2px var(--platform-ring);
 }
 
 /* ========================================

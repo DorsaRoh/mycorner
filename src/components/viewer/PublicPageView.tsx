@@ -16,8 +16,11 @@ import Head from 'next/head';
 import Link from 'next/link';
 import type { PageDoc, Block as PageDocBlock } from '@/lib/schema/page';
 import type { Block as LegacyBlock } from '@/shared/types';
+import type { BackgroundConfig } from '@/shared/types';
 import { ViewerCanvas } from './ViewerCanvas';
 import { getTheme, getThemeBackground } from '@/lib/themes';
+import { getUiTokenStyles, getUiMode } from '@/lib/platformUi';
+import styles from './PublicPageView.module.css';
 
 // =============================================================================
 // Props
@@ -173,6 +176,12 @@ export function PublicPageView({ doc, slug }: PublicPageViewProps) {
   // Convert PageDoc blocks to legacy format for ViewerCanvas
   const legacyBlocks = convertToLegacyBlocks(doc.blocks);
   
+  // Get background config for platform UI tokens
+  const background = doc.background as BackgroundConfig | undefined;
+  
+  // Compute platform UI tokens based on background
+  const uiTokenStyles = getUiTokenStyles(background);
+  const uiMode = getUiMode(background);
   
   // DEBUG: Always log on first render to diagnose blank page issues
   if (typeof window !== 'undefined') {
@@ -192,6 +201,7 @@ export function PublicPageView({ doc, slug }: PublicPageViewProps) {
     })));
     console.log('[PublicPageView] Theme:', doc.themeId);
     console.log('[PublicPageView] Background:', doc.background);
+    console.log('[PublicPageView] UI Mode:', uiMode);
   }
   
   // get background style from theme
@@ -220,10 +230,11 @@ export function PublicPageView({ doc, slug }: PublicPageViewProps) {
       </Head>
       
       <div 
-        className="public-page-container"
+        className={`public-page-container ${styles.container}`}
         style={{
           ...themeVars,
           ...backgroundStyle,
+          ...uiTokenStyles,
           // map theme vars to global css var names used by ViewerBlock styles
           '--color-bg-pure': theme.variables['--bg-primary'],
           '--color-text': theme.variables['--text-primary'],
@@ -282,27 +293,11 @@ export function PublicPageView({ doc, slug }: PublicPageViewProps) {
         
         <ViewerCanvas 
           blocks={legacyBlocks}
-          background={doc.background as import('@/shared/types').BackgroundConfig | undefined}
+          background={background}
         />
         
-        {/* CTA button - "Make your own" */}
-        <Link 
-          href="/new"
-          style={{
-            position: 'fixed',
-            top: '16px',
-            right: '16px',
-            zIndex: 100,
-            padding: '8px 14px',
-            background: theme.variables['--accent-primary'],
-            color: 'white',
-            textDecoration: 'none',
-            fontSize: '13px',
-            fontWeight: 500,
-            borderRadius: '6px',
-            fontFamily: 'system-ui, -apple-system, sans-serif',
-          }}
-        >
+        {/* CTA button - "Make your own" - uses platform UI tokens for auto-contrast */}
+        <Link href="/new" className={styles.ctaButton}>
           Make your own
         </Link>
       </div>

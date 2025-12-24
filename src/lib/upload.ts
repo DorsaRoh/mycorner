@@ -46,13 +46,22 @@ async function uploadViaPresignedUrl(file: File): Promise<UploadOutcome> {
     const { uploadUrl, publicUrl } = await presignResponse.json();
 
     // Step 2: Upload directly to S3/R2 using the presigned URL
-    const uploadResponse = await fetch(uploadUrl, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': file.type,
-      },
-      body: file, // Direct file upload - no base64 encoding!
-    });
+    // This may fail due to CORS if the R2 bucket isn't configured correctly
+    let uploadResponse: Response;
+    try {
+      uploadResponse = await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': file.type,
+        },
+        body: file, // Direct file upload - no base64 encoding!
+      });
+    } catch (fetchErr) {
+      // CORS errors manifest as TypeError: Failed to fetch
+      // Signal this specifically so we can fall back to server upload
+      console.warn('[upload] Direct upload fetch failed (likely CORS):', fetchErr);
+      return { success: false, error: 'CORS or network error', code: 'CORS_ERROR' };
+    }
 
     if (!uploadResponse.ok) {
       const errorText = await uploadResponse.text().catch(() => 'Upload failed');
@@ -127,15 +136,21 @@ export async function uploadAsset(file: File): Promise<UploadOutcome> {
     return presignedResult;
   }
   
-  // If presigned URL failed due to storage not configured, fall back to base64
-  // This handles local development without S3 configured
-  if (presignedResult.code === 'PRESIGN_ERROR') {
-    console.log('[upload] Presigned URL not available, falling back to base64 upload');
-    return uploadViaNextApi(file);
-  }
+  // All failure cases should fall back to server-side upload
+  // - PRESIGN_ERROR: Storage not configured (e.g., local dev)
+  // - CORS_ERROR: R2 CORS not configured for this origin
+  // - DIRECT_UPLOAD_ERROR: R2 rejected the upload
+  // - NETWORK_ERROR: General network issues
+  const fallbackReasons: Record<string, string> = {
+    'PRESIGN_ERROR': 'Presigned URL not available',
+    'CORS_ERROR': 'CORS blocked direct upload (configure R2 CORS)',
+    'DIRECT_UPLOAD_ERROR': 'Direct upload rejected',
+    'NETWORK_ERROR': 'Network error during direct upload',
+  };
   
-  // For other errors (e.g., network issues during direct upload), also try fallback
-  console.log('[upload] Direct upload failed, trying fallback:', presignedResult.error);
+  const reason = fallbackReasons[presignedResult.code] || presignedResult.error;
+  console.log(`[upload] ${reason}, falling back to server upload`);
+  
   return uploadViaNextApi(file);
 }
 

@@ -27,7 +27,8 @@ import { OnboardingModal } from './OnboardingModal';
 import { ProductFeedbackModal } from '../viewer/ProductFeedbackModal';
 import styles from './Editor.module.css';
 
-import { isImageUrl, getBackgroundBrightness } from '@/shared/utils/blockStyles';
+import { isImageUrl } from '@/shared/utils/blockStyles';
+import { getUiMode, getUiTokenStyles } from '@/lib/platformUi';
 import { useEditorState } from './useEditorState';
 import { useEditorActions } from './useEditorActions';
 import { useHistory } from './useHistory';
@@ -567,10 +568,18 @@ export function Editor({
     state.setShowBackgroundPanel(!state.showBackgroundPanel);
   };
 
-  const backgroundBrightness = getBackgroundBrightness(state.background);
+  // Compute UI mode and tokens based on current background
+  const uiMode = getUiMode(state.background);
+  const uiTokenStyles = getUiTokenStyles(state.background);
+  
+  // Map UI mode to CSS class (for any remaining legacy styles)
+  const uiModeClass = uiMode === 'dark' ? styles.darkBg : uiMode === 'glass' ? styles.glassBg : styles.lightBg;
 
   return (
-    <div className={`${styles.editor} ${backgroundBrightness === 'dark' ? styles.darkBg : styles.lightBg}`}>
+    <div 
+      className={`${styles.editor} ${uiModeClass}`}
+      style={uiTokenStyles}
+    >
       {/* Mini confetti celebration */}
       {showConfetti && (
         <div className={styles.confettiContainer}>
@@ -587,9 +596,21 @@ export function Editor({
             className={`${styles.backgroundBtn} ${state.showBackgroundPanel ? styles.backgroundBtnActive : ''}`}
             onClick={handleOpenBackgroundPanel}
             data-background-btn
-            title="Background"
+            title="Change background"
           >
-            <span className={styles.backgroundIcon} />
+            <svg 
+              width="16" 
+              height="16" 
+              viewBox="0 0 24 24" 
+              fill="none" 
+              stroke="currentColor" 
+              strokeWidth="2" 
+              strokeLinecap="round" 
+              strokeLinejoin="round"
+            >
+              <path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+              <path d="m15 5 4 4" />
+            </svg>
           </button>
           {state.showBackgroundPanel && (
             <BackgroundPanel

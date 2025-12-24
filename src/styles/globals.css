@@ -62,6 +62,34 @@
      SIZING
      =========================================== */
   --radius: 12px;
+
+  /* ===========================================
+     PLATFORM UI TOKENS - Adaptive UI System
+     These are defaults; overridden dynamically based on page background.
+     Used by platform UI elements (Publish, Share, Feedback, etc.)
+     =========================================== */
+  --platform-surface: rgba(255, 255, 255, 0.72);
+  --platform-surface-hover: rgba(255, 255, 255, 0.88);
+  --platform-surface-elevated: rgba(255, 255, 255, 0.95);
+  --platform-border: rgba(0, 0, 0, 0.08);
+  --platform-text: rgba(0, 0, 0, 0.85);
+  --platform-text-muted: rgba(0, 0, 0, 0.55);
+  --platform-text-shadow: none;
+  --platform-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  --platform-ring: rgba(0, 0, 0, 0.15);
+  --platform-blur: 12px;
+  --platform-mode: light;
+
+  /* ===========================================
+     LEGACY UI TOKENS (for backward compat)
+     Mapped from platform tokens
+     =========================================== */
+  --ui-text: var(--platform-text);
+  --ui-text-muted: var(--platform-text-muted);
+  --ui-text-shadow: var(--platform-text-shadow);
+  --ui-bg: var(--platform-surface);
+  --ui-bg-hover: var(--platform-surface-hover);
+  --ui-border: var(--platform-border);
 }
 
 *,

@@ -4,23 +4,21 @@
   overflow-x: hidden;
 }
 
-/* Background brightness classes for adaptive text colors */
-.lightBg {
-  --ui-text: rgba(0, 0, 0, 0.7);
-  --ui-text-muted: rgba(0, 0, 0, 0.5);
-  --ui-text-shadow: 0 0 8px rgba(255, 255, 255, 0.6);
-  --ui-bg: rgba(255, 255, 255, 0.2);
-  --ui-bg-hover: rgba(255, 255, 255, 0.35);
-  --ui-border: rgba(0, 0, 0, 0.1);
-}
-
-.darkBg {
-  --ui-text: rgba(255, 255, 255, 0.9);
-  --ui-text-muted: rgba(255, 255, 255, 0.7);
-  --ui-text-shadow: 0 0 8px rgba(0, 0, 0, 0.6);
-  --ui-bg: rgba(0, 0, 0, 0.2);
-  --ui-bg-hover: rgba(0, 0, 0, 0.35);
-  --ui-border: rgba(255, 255, 255, 0.15);
+/* 
+ * Platform UI Tokens - Now set dynamically via inline styles
+ * Legacy class names preserved for backward compatibility.
+ * The actual values come from --platform-* tokens applied on the container.
+ */
+.lightBg,
+.darkBg,
+.glassBg {
+  /* Map platform tokens to legacy variable names */
+  --ui-text: var(--platform-text);
+  --ui-text-muted: var(--platform-text-muted);
+  --ui-text-shadow: var(--platform-text-shadow);
+  --ui-bg: var(--platform-surface);
+  --ui-bg-hover: var(--platform-surface-hover);
+  --ui-border: var(--platform-border);
 }
 
 .header {

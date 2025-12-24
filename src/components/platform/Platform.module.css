@@ -1,0 +1,464 @@
+/**
+ * Platform UI Components Styles
+ * 
+ * All styles use --platform-* tokens for automatic contrast adaptation.
+ * These tokens are set by PlatformUiProvider based on page background.
+ */
+
+/* =============================================================================
+   BUTTONS
+   ============================================================================= */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-family: var(--font-sans);
+  font-weight: 500;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: 
+    background 150ms ease,
+    transform 120ms ease,
+    box-shadow 150ms ease;
+  outline: none;
+}
+
+.btn:focus-visible {
+  box-shadow: 0 0 0 2px var(--platform-ring);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Button Variants */
+.btnPrimary {
+  background: var(--platform-text);
+  color: var(--platform-surface-elevated);
+  border: none;
+  box-shadow: var(--platform-shadow);
+}
+
+.btnPrimary:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+}
+
+.btnPrimary:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.btnSecondary {
+  background: var(--platform-surface);
+  backdrop-filter: blur(var(--platform-blur));
+  -webkit-backdrop-filter: blur(var(--platform-blur));
+  color: var(--platform-text);
+  text-shadow: var(--platform-text-shadow);
+  border: 1px solid var(--platform-border);
+  box-shadow: var(--platform-shadow);
+}
+
+.btnSecondary:hover:not(:disabled) {
+  background: var(--platform-surface-hover);
+  transform: translateY(-1px);
+}
+
+.btnSecondary:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.btnGhost {
+  background: transparent;
+  color: var(--platform-text-muted);
+  text-shadow: var(--platform-text-shadow);
+  border: 1px solid transparent;
+}
+
+.btnGhost:hover:not(:disabled) {
+  background: var(--platform-surface);
+  color: var(--platform-text);
+  border-color: var(--platform-border);
+}
+
+/* Button Sizes */
+.btnSm {
+  padding: 6px 12px;
+  font-size: 0.75rem;
+}
+
+.btnMd {
+  padding: 9px 18px;
+  font-size: 0.8125rem;
+}
+
+.btnLg {
+  padding: 12px 24px;
+  font-size: 0.9375rem;
+}
+
+/* =============================================================================
+   ICON BUTTONS
+   ============================================================================= */
+
+.iconBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--platform-surface);
+  backdrop-filter: blur(var(--platform-blur));
+  -webkit-backdrop-filter: blur(var(--platform-blur));
+  color: var(--platform-text-muted);
+  border: 1px solid var(--platform-border);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: 
+    background 150ms ease,
+    color 150ms ease,
+    transform 120ms ease;
+  box-shadow: var(--platform-shadow);
+  outline: none;
+}
+
+.iconBtn:hover:not(:disabled) {
+  background: var(--platform-surface-hover);
+  color: var(--platform-text);
+  transform: scale(1.05);
+}
+
+.iconBtn:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.iconBtn:focus-visible {
+  box-shadow: 0 0 0 2px var(--platform-ring);
+}
+
+.iconBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.iconBtn svg {
+  width: 1em;
+  height: 1em;
+}
+
+/* Icon Button Sizes */
+.iconBtnSm {
+  width: 28px;
+  height: 28px;
+  font-size: 14px;
+}
+
+.iconBtnMd {
+  width: 36px;
+  height: 36px;
+  font-size: 16px;
+}
+
+.iconBtnLg {
+  width: 44px;
+  height: 44px;
+  font-size: 20px;
+}
+
+/* =============================================================================
+   CHIPS (Floating Action Buttons / CTAs)
+   ============================================================================= */
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  font-size: 0.8125rem;
+  font-family: var(--font-sans);
+  font-weight: 500;
+  background: var(--platform-surface);
+  backdrop-filter: blur(var(--platform-blur));
+  -webkit-backdrop-filter: blur(var(--platform-blur));
+  color: var(--platform-text);
+  text-shadow: var(--platform-text-shadow);
+  text-decoration: none;
+  border: 1px solid var(--platform-border);
+  border-radius: 24px;
+  cursor: pointer;
+  transition: 
+    background 150ms ease,
+    transform 150ms ease,
+    box-shadow 150ms ease;
+  box-shadow: var(--platform-shadow);
+  outline: none;
+}
+
+.chip:hover {
+  background: var(--platform-surface-hover);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+}
+
+.chip:active {
+  transform: translateY(0);
+}
+
+.chip:focus-visible {
+  box-shadow: 0 0 0 2px var(--platform-ring);
+}
+
+.chipAccent {
+  background: var(--platform-text);
+  color: var(--platform-surface-elevated);
+  text-shadow: none;
+  border-color: transparent;
+}
+
+.chipAccent:hover {
+  background: var(--platform-text);
+  opacity: 0.9;
+}
+
+.chipSm {
+  padding: 6px 12px;
+  font-size: 0.75rem;
+  gap: 6px;
+  border-radius: 18px;
+}
+
+.chipIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.chipIcon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.chipSm .chipIcon svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* =============================================================================
+   PANELS (Popovers, Menus)
+   ============================================================================= */
+
+.panel {
+  position: relative;
+  background: var(--platform-surface-elevated);
+  backdrop-filter: blur(calc(var(--platform-blur) + 4px));
+  -webkit-backdrop-filter: blur(calc(var(--platform-blur) + 4px));
+  border: 1px solid var(--platform-border);
+  border-radius: 12px;
+  padding: 6px;
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.12),
+    0 4px 12px rgba(0, 0, 0, 0.06);
+  animation: panelIn 150ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+@keyframes panelIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Panel Carets */
+.panelCaret {
+  position: absolute;
+  width: 0;
+  height: 0;
+}
+
+.caretTop {
+  top: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-bottom: 8px solid var(--platform-surface-elevated);
+}
+
+.caretBottom {
+  bottom: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-top: 8px solid var(--platform-surface-elevated);
+}
+
+/* Menu Items */
+.menuItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 0.8125rem;
+  font-family: var(--font-sans);
+  font-weight: 500;
+  background: transparent;
+  color: var(--platform-text);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 100ms ease;
+  text-align: left;
+}
+
+.menuItem:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.menuItemIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.7;
+}
+
+.menuItem:hover .menuItemIcon {
+  opacity: 1;
+}
+
+.menuItemIcon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.menuDivider {
+  height: 1px;
+  background: var(--platform-border);
+  margin: 4px 8px;
+}
+
+/* =============================================================================
+   MODALS
+   ============================================================================= */
+
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: modalOverlayIn 150ms ease-out;
+}
+
+@keyframes modalOverlayIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.modalContent {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 28px 32px;
+  max-width: 420px;
+  width: calc(100% - 32px);
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.25);
+  animation: modalContentIn 200ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+@keyframes modalContentIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.modalHeader {
+  margin-bottom: 16px;
+}
+
+.modalTitle {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #111;
+  margin: 0 0 4px 0;
+}
+
+.modalSubtitle {
+  font-size: 0.9375rem;
+  color: #666;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.modalBody {
+  margin-bottom: 20px;
+}
+
+.modalFooter {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+/* =============================================================================
+   RESPONSIVE
+   ============================================================================= */
+
+@media (max-width: 768px) {
+  .chip {
+    padding: 8px 14px;
+    font-size: 0.75rem;
+    border-radius: 20px;
+  }
+
+  .chipSm {
+    padding: 6px 10px;
+    font-size: 0.6875rem;
+  }
+
+  .iconBtnMd {
+    width: 34px;
+    height: 34px;
+  }
+
+  .menuItem {
+    padding: 12px 14px;
+  }
+
+  .modalContent {
+    padding: 24px;
+    margin: 16px;
+    max-width: calc(100vw - 32px);
+  }
+}
+
+@media (max-width: 480px) {
+  .chip {
+    padding: 10px 14px;
+    font-size: 0.75rem;
+    border-radius: 16px;
+  }
+
+  .modalContent {
+    padding: 20px;
+    border-radius: 12px;
+  }
+
+  .modalTitle {
+    font-size: 1.125rem;
+  }
+}
+

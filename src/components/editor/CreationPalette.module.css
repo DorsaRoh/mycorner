@@ -46,7 +46,7 @@
   opacity: 0.3;
 }
 
-/* Individual option buttons - minimal and clean */
+/* Individual option buttons - uses platform UI tokens for auto-contrast */
 .option {
   position: absolute;
   display: flex;
@@ -56,15 +56,17 @@
   gap: 2px;
   width: 40px;
   height: 40px;
-  border: 1px solid rgba(0, 0, 0, 0.1);
+  
+  /* Platform UI tokens for auto-contrast */
+  border: 1px solid var(--platform-border, rgba(0, 0, 0, 0.1));
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.9);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  background: var(--platform-surface-elevated, rgba(255, 255, 255, 0.9));
+  backdrop-filter: blur(var(--platform-blur, 8px));
+  -webkit-backdrop-filter: blur(var(--platform-blur, 8px));
   cursor: pointer;
 
   /* Subtle shadow */
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  box-shadow: var(--platform-shadow, 0 2px 8px rgba(0, 0, 0, 0.06));
 
   /* Simple transitions */
   transition:
@@ -97,7 +99,7 @@
 }
 
 .option:hover {
-  background: rgba(255, 255, 255, 0.95);
+  background: var(--platform-surface-hover, rgba(255, 255, 255, 0.95));
   border-color: rgba(0, 0, 0, 0.2);
   transform: translate(var(--offset-x), var(--offset-y)) scale(1.05);
 }
@@ -107,13 +109,17 @@
   transition-duration: 80ms;
 }
 
-/* Icon styling - clean and minimal */
+.option:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--platform-ring, rgba(0, 0, 0, 0.15));
+}
+
+/* Icon styling - uses elevated surface context so always dark text */
 .optionIcon {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--color-text);
-  opacity: 0.7;
+  color: rgba(0, 0, 0, 0.7);
   transition: all 120ms ease-out;
 }
 
@@ -123,8 +129,7 @@
 }
 
 .option:hover .optionIcon {
-  opacity: 1;
-  color: var(--color-accent);
+  color: var(--color-accent, #000);
   transform: scale(1.1);
 }
 

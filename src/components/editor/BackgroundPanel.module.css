@@ -3,10 +3,13 @@
   top: 46px;
   right: -10px;
   width: 280px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
+  /* Platform UI tokens for elevated surfaces */
+  background: var(--platform-surface-elevated, var(--color-surface));
+  backdrop-filter: blur(var(--platform-blur, 12px));
+  -webkit-backdrop-filter: blur(var(--platform-blur, 12px));
+  border: 1px solid var(--platform-border, var(--color-border));
   border-radius: var(--radius);
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--platform-shadow, var(--shadow-lg));
   z-index: 1000;
   font-size: 14px;
   padding: 16px 20px 20px;
@@ -20,7 +23,7 @@
   height: 0;
   border-left: 8px solid transparent;
   border-right: 8px solid transparent;
-  border-bottom: 8px solid var(--color-surface);
+  border-bottom: 8px solid var(--platform-surface-elevated, var(--color-surface));
 }
 
 .caret::before {
@@ -32,7 +35,7 @@
   height: 0;
   border-left: 9px solid transparent;
   border-right: 9px solid transparent;
-  border-bottom: 9px solid var(--color-border);
+  border-bottom: 9px solid var(--platform-border, var(--color-border));
   z-index: -1;
 }
 

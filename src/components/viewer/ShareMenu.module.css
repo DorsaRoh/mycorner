@@ -7,22 +7,27 @@
   font-size: 0.75rem;
   font-family: var(--font-sans);
   font-weight: 500;
-  background: var(--ui-bg);
-  backdrop-filter: blur(12px) saturate(1.2);
-  -webkit-backdrop-filter: blur(12px) saturate(1.2);
-  color: var(--ui-text-muted);
-  text-shadow: var(--ui-text-shadow);
-  border: 1px solid var(--ui-border);
+  /* Platform UI tokens for auto-contrast */
+  background: var(--platform-surface, var(--ui-bg));
+  backdrop-filter: blur(var(--platform-blur, 12px)) saturate(1.2);
+  -webkit-backdrop-filter: blur(var(--platform-blur, 12px)) saturate(1.2);
+  color: var(--platform-text-muted, var(--ui-text-muted));
+  text-shadow: var(--platform-text-shadow, var(--ui-text-shadow));
+  border: 1px solid var(--platform-border, var(--ui-border));
   border-radius: 20px;
   cursor: pointer;
   transition: all 150ms ease;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--platform-shadow, 0 2px 8px rgba(0, 0, 0, 0.08));
 }
 
 .shareBtn:hover {
-  background: var(--ui-bg-hover);
-  color: var(--ui-text);
+  background: var(--platform-surface-hover, var(--ui-bg-hover));
+  color: var(--platform-text, var(--ui-text));
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+.shareBtn:focus-visible {
+  box-shadow: 0 0 0 2px var(--platform-ring, rgba(0, 0, 0, 0.15));
 }
 
 .menu {
@@ -30,10 +35,11 @@
   top: calc(100% + 8px);
   right: 0;
   min-width: 180px;
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(16px) saturate(1.4);
-  -webkit-backdrop-filter: blur(16px) saturate(1.4);
-  border: 1px solid rgba(0, 0, 0, 0.08);
+  /* Use elevated surface for menus */
+  background: var(--platform-surface-elevated, rgba(255, 255, 255, 0.95));
+  backdrop-filter: blur(calc(var(--platform-blur, 12px) + 4px)) saturate(1.4);
+  -webkit-backdrop-filter: blur(calc(var(--platform-blur, 12px) + 4px)) saturate(1.4);
+  border: 1px solid var(--platform-border, rgba(0, 0, 0, 0.08));
   border-radius: 12px;
   padding: 6px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.08);
@@ -62,7 +68,8 @@
   font-family: var(--font-sans);
   font-weight: 500;
   background: transparent;
-  color: #333;
+  /* Menu uses elevated surface, so text is always dark for readability */
+  color: rgba(0, 0, 0, 0.85);
   border: none;
   border-radius: 8px;
   cursor: pointer;
@@ -72,7 +79,12 @@
 
 .menuItem:hover {
   background: rgba(0, 0, 0, 0.06);
-  color: #000;
+  color: rgba(0, 0, 0, 0.95);
+}
+
+.menuItem:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--platform-ring, rgba(0, 0, 0, 0.15));
 }
 
 .menuItem svg {

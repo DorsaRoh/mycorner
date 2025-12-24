@@ -1,0 +1,78 @@
+/**
+ * PublicPageView Styles
+ * 
+ * Platform UI elements on published pages use --platform-* tokens
+ * for automatic contrast adaptation to any page background.
+ */
+
+.container {
+  /* Tokens are applied via inline style from getUiTokenStyles() */
+}
+
+/* CTA Button - "Make your own" */
+.ctaButton {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 100;
+  
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  
+  font-size: 0.8125rem;
+  font-family: var(--font-sans, system-ui, -apple-system, sans-serif);
+  font-weight: 500;
+  text-decoration: none;
+  
+  /* Platform UI tokens for auto-contrast */
+  background: var(--platform-surface);
+  backdrop-filter: blur(var(--platform-blur, 12px));
+  -webkit-backdrop-filter: blur(var(--platform-blur, 12px));
+  color: var(--platform-text);
+  text-shadow: var(--platform-text-shadow);
+  border: 1px solid var(--platform-border);
+  border-radius: 24px;
+  box-shadow: var(--platform-shadow);
+  
+  transition: 
+    background 150ms ease,
+    transform 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.ctaButton:hover {
+  background: var(--platform-surface-hover);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+}
+
+.ctaButton:active {
+  transform: translateY(0);
+}
+
+/* ========================================
+   MOBILE RESPONSIVENESS
+   ======================================== */
+
+@media (max-width: 768px) {
+  .ctaButton {
+    top: 12px;
+    right: 12px;
+    padding: 8px 14px;
+    font-size: 0.75rem;
+    border-radius: 20px;
+  }
+}
+
+@media (max-width: 480px) {
+  .ctaButton {
+    top: 10px;
+    right: 10px;
+    padding: 10px 14px;
+    font-size: 0.75rem;
+    border-radius: 16px;
+  }
+}
+
