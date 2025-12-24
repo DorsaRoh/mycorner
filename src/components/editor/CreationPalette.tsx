@@ -1,12 +1,12 @@
 import { useRef, useEffect, useCallback, useState } from 'react';
 import type { BlockType } from '@/shared/types';
-import { uploadAsset, isAcceptedImageType } from '@/lib/upload';
+import { isAcceptedImageType } from '@/lib/upload';
 import styles from './CreationPalette.module.css';
 
 interface CreationPaletteProps {
   x: number;
   y: number;
-  onSelect: (type: BlockType, content?: string) => void;
+  onSelect: (type: BlockType, content?: string, file?: File) => void;
   onClose: () => void;
 }
 
@@ -110,7 +110,7 @@ export function CreationPalette({ x, y, onSelect, onClose }: CreationPaletteProp
     }
   }, [onSelect]);
 
-  const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setIsFileDialogOpen(false);
     const file = e.target.files?.[0];
     if (!file) {
@@ -125,15 +125,9 @@ export function CreationPalette({ x, y, onSelect, onClose }: CreationPaletteProp
       return;
     }
 
-    // Upload file first, then pass URL to block
-    const result = await uploadAsset(file);
-    if (result.success) {
-      onSelect('IMAGE', result.data.url);
-    } else {
-      // Log error but still close - user can try again
-      console.error('Upload failed:', result.error);
-      onClose();
-    }
+    // Pass file to parent for immediate feedback + async upload
+    // Parent will create block with loading state and handle upload
+    onSelect('IMAGE', '__loading__', file);
     e.target.value = '';
   }, [onSelect, onClose]);
   

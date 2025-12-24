@@ -487,7 +487,7 @@ export function Editor({
 
   // Handle paste
   useEffect(() => {
-    const handlePaste = async (e: ClipboardEvent) => {
+    const handlePaste = (e: ClipboardEvent) => {
       const activeTag = document.activeElement?.tagName;
       if (activeTag === 'TEXTAREA' || activeTag === 'INPUT') return;
 
@@ -499,10 +499,18 @@ export function Editor({
           e.preventDefault();
           const file = item.getAsFile();
           if (file && isAcceptedImageType(file.type)) {
-            const result = await uploadAsset(file);
-            if (result.success) {
-              actions.handleAddBlock('IMAGE', 100, 100 + state.blocks.length * 30, result.data.url);
-            }
+            // Create block immediately with loading state for instant feedback
+            const blockId = actions.handleAddBlock('IMAGE', 100, 100 + state.blocks.length * 30, '__loading__');
+            
+            // Upload in background, then update the block by ID
+            uploadAsset(file).then(result => {
+              if (result.success) {
+                actions.handleUpdateBlock(blockId, { content: result.data.url });
+              } else {
+                console.error('Paste upload failed:', result.error);
+                actions.handleDeleteBlock(blockId);
+              }
+            });
           }
           return;
         }

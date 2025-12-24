@@ -37,7 +37,7 @@ export function useEditorActions(
     }
   }, [starterMode, pageId, actions]);
 
-  const handleAddBlock = useCallback((type: BlockType, x?: number, y?: number, content?: string) => {
+  const handleAddBlock = useCallback((type: BlockType, x?: number, y?: number, content?: string): string => {
     exitStarterMode();
 
     const newId = generateBlockId();
@@ -77,7 +77,7 @@ export function useEditorActions(
         next.delete(newId);
         return next;
       });
-    }, 200);
+    }, 300); // Match animation duration (280ms) plus small buffer
 
     actions.setBlocks((prev) => [...prev, newBlock]);
     actions.setSelectedId(newBlock.id);
@@ -85,6 +85,8 @@ export function useEditorActions(
     if (type === 'TEXT' || type === 'LINK') {
       actions.setEditingId(newId);
     }
+    
+    return newId;
   }, [blocks.length, generateBlockId, exitStarterMode, actions]);
 
   const handleUpdateBlock = useCallback((id: string, updates: Partial<Block>) => {
@@ -227,7 +229,7 @@ export function useEditorActions(
         newIds.forEach(id => next.delete(id));
         return next;
       });
-    }, 200);
+    }, 300); // Match animation duration (280ms) plus small buffer
     
     // Select the pasted blocks
     if (newBlocks.length === 1) {

@@ -916,6 +916,15 @@ const BlockContent = memo(function BlockContent({
         );
       }
 
+      // Show loading state for images that are still uploading
+      if (content === '__loading__') {
+        return (
+          <div className={styles.imageLoading}>
+            <div className={styles.imageLoadingSpinner} />
+          </div>
+        );
+      }
+
       return (
         <div className={styles.imageWrapper}>
           <img

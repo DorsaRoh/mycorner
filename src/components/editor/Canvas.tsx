@@ -58,7 +58,8 @@ interface CanvasProps {
   onDragMultipleBlocks?: (ids: Set<string>, dx: number, dy: number) => void;
   onDeleteBlock: (id: string) => void;
   // Block positions are in reference coordinates (1200x800 reference canvas)
-  onAddBlock: (type: BlockType['type'], x: number, y: number, content?: string) => void;
+  // Returns the new block ID for tracking
+  onAddBlock: (type: BlockType['type'], x: number, y: number, content?: string) => string;
   onSetEditing?: (id: string | null) => void;
   onExitStarterMode?: () => void;
   // Callback to expose canvas dimensions to parent
@@ -288,7 +289,7 @@ export function Canvas({
   }, [marquee, blocks, onSelectMultiple]);
 
   // Handle palette selection - positions are in reference coordinates
-  const handlePaletteSelect = useCallback((type: BlockTypeEnum, content?: string) => {
+  const handlePaletteSelect = useCallback((type: BlockTypeEnum, content?: string, file?: File) => {
     if (palette) {
       // Exit starter mode when user adds a new block via palette
       if (starterMode) {
@@ -296,18 +297,37 @@ export function Canvas({
       }
       // Remove hint on first real interaction
       onFirstInteraction?.();
-      // Pass reference coordinates for block placement
-      onAddBlock(type, palette.refX, palette.refY, content);
-      setPalette(null);
+      
+      // For image files, create block immediately with loading state, then upload
+      if (type === 'IMAGE' && file && content === '__loading__') {
+        // Create block immediately with loading placeholder
+        const blockId = onAddBlock(type, palette.refX, palette.refY, '__loading__');
+        setPalette(null);
+        
+        // Upload in background, then update the block by ID
+        uploadAsset(file).then(result => {
+          if (result.success) {
+            onUpdateBlock(blockId, { content: result.data.url });
+          } else {
+            console.error('Upload failed:', result.error);
+            showDropError(result.error);
+            onDeleteBlock(blockId);
+          }
+        });
+      } else {
+        // Pass reference coordinates for block placement
+        onAddBlock(type, palette.refX, palette.refY, content);
+        setPalette(null);
+      }
     }
-  }, [palette, onAddBlock, starterMode, onExitStarterMode, onFirstInteraction]);
+  }, [palette, onAddBlock, onUpdateBlock, onDeleteBlock, starterMode, onExitStarterMode, onFirstInteraction, showDropError]);
 
   // Close palette
   const handlePaletteClose = useCallback(() => {
     setPalette(null);
   }, []);
 
-  const handleDrop = useCallback(async (e: React.DragEvent) => {
+  const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     // use shell's container ref for consistency with measurement
     const container = shellRef.current?.containerRef.current;
@@ -332,13 +352,18 @@ export function Canvas({
         return;
       }
       
-      // upload file first, then create block with URL
-      const result = await uploadAsset(imageFile);
-      if (result.success) {
-        onAddBlock('IMAGE', refPos.x, refPos.y, result.data.url);
-      } else {
-        showDropError(result.error);
-      }
+      // Create block immediately with loading placeholder for instant feedback
+      const blockId = onAddBlock('IMAGE', refPos.x, refPos.y, '__loading__');
+      
+      // Upload in background, then update the block by ID
+      uploadAsset(imageFile).then(result => {
+        if (result.success) {
+          onUpdateBlock(blockId, { content: result.data.url });
+        } else {
+          showDropError(result.error);
+          onDeleteBlock(blockId);
+        }
+      });
       return;
     }
 
@@ -352,7 +377,7 @@ export function Canvas({
         onAddBlock('LINK', refPos.x, refPos.y, url);
       }
     }
-  }, [onAddBlock, showDropError]);
+  }, [onAddBlock, onUpdateBlock, onDeleteBlock, showDropError]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
