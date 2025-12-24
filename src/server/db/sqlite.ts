@@ -508,6 +508,52 @@ export function createDefaultPage(userId: string, title: string): DbPage {
 }
 
 // ============================================================================
+// Anonymous Page Cleanup
+// ============================================================================
+
+/**
+ * Delete stale unclaimed anonymous pages.
+ * Anonymous pages are those where:
+ * - owner_id starts with 'anon_' (created by save-anonymous-draft)
+ * - user_id is NULL (not claimed by a user)
+ * - is_published = 0 (never published)
+ * - created_at is older than the specified age
+ * 
+ * @param maxAgeMinutes - Delete pages older than this (default: 60 minutes)
+ * @returns Number of pages deleted
+ */
+export function deleteStaleAnonymousPages(maxAgeMinutes: number = 60): number {
+  const result = db.prepare(`
+    DELETE FROM pages 
+    WHERE owner_id LIKE 'anon_%'
+      AND user_id IS NULL 
+      AND is_published = 0
+      AND created_at < datetime('now', '-' || ? || ' minutes')
+  `).run(maxAgeMinutes);
+  
+  if (result.changes > 0) {
+    console.log(`[db] Deleted ${result.changes} stale anonymous page(s) older than ${maxAgeMinutes} minutes`);
+  }
+  
+  return result.changes;
+}
+
+/**
+ * Count stale unclaimed anonymous pages (for monitoring).
+ */
+export function countStaleAnonymousPages(maxAgeMinutes: number = 60): number {
+  const result = db.prepare(`
+    SELECT COUNT(*) as count FROM pages 
+    WHERE owner_id LIKE 'anon_%'
+      AND user_id IS NULL 
+      AND is_published = 0
+      AND created_at < datetime('now', '-' || ? || ' minutes')
+  `).get(maxAgeMinutes) as { count: number };
+  
+  return result.count;
+}
+
+// ============================================================================
 // Feedback Operations
 // ============================================================================
 

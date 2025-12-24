@@ -516,6 +516,53 @@ export async function createDefaultPage(userId: string, title: string): Promise<
 }
 
 // =============================================================================
+// Anonymous Page Cleanup
+// =============================================================================
+
+/**
+ * Delete stale unclaimed anonymous pages.
+ * Anonymous pages are those where:
+ * - owner_id starts with 'anon_' (created by save-anonymous-draft)
+ * - user_id is NULL (not claimed by a user)
+ * - is_published = false (never published)
+ * - created_at is older than the specified age
+ * 
+ * @param maxAgeMinutes - Delete pages older than this (default: 60 minutes)
+ * @returns Number of pages deleted
+ */
+export async function deleteStaleAnonymousPages(maxAgeMinutes: number = 60): Promise<number> {
+  const result = await pool!.query(`
+    DELETE FROM pages 
+    WHERE owner_id LIKE 'anon_%'
+      AND user_id IS NULL 
+      AND is_published = false
+      AND created_at < NOW() - INTERVAL '${maxAgeMinutes} minutes'
+  `);
+  
+  const deleted = result.rowCount || 0;
+  if (deleted > 0) {
+    console.log(`[db] Deleted ${deleted} stale anonymous page(s) older than ${maxAgeMinutes} minutes`);
+  }
+  
+  return deleted;
+}
+
+/**
+ * Count stale unclaimed anonymous pages (for monitoring).
+ */
+export async function countStaleAnonymousPages(maxAgeMinutes: number = 60): Promise<number> {
+  const result = await pool!.query(`
+    SELECT COUNT(*) as count FROM pages 
+    WHERE owner_id LIKE 'anon_%'
+      AND user_id IS NULL 
+      AND is_published = false
+      AND created_at < NOW() - INTERVAL '${maxAgeMinutes} minutes'
+  `);
+  
+  return parseInt(result.rows[0]?.count || '0', 10);
+}
+
+// =============================================================================
 // Feedback Operations
 // =============================================================================
 

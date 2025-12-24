@@ -54,11 +54,11 @@ function useMe() {
   const [data, setData] = useState<MeData | undefined>(undefined);
   const [loading, setLoading] = useState(true);
 
-  const fetchMe = useCallback(async () => {
+  const fetchMe = useCallback(async (): Promise<MeData> => {
     try {
       const response = await fetch('/api/me');
       const result = await response.json();
-      setData({
+      const newData: MeData = {
         me: result.user ? {
           id: result.user.id,
           email: result.user.email,
@@ -66,9 +66,13 @@ function useMe() {
           username: result.user.username,
           avatarUrl: result.user.avatarUrl,
         } : null,
-      });
+      };
+      setData(newData);
+      return newData;
     } catch {
-      setData({ me: null });
+      const errorData: MeData = { me: null };
+      setData(errorData);
+      return errorData;
     } finally {
       setLoading(false);
     }
@@ -78,11 +82,11 @@ function useMe() {
     fetchMe();
   }, [fetchMe]);
 
-  const refetch = useCallback(async () => {
+  const refetch = useCallback(async (): Promise<{ data: MeData }> => {
     setLoading(true);
-    await fetchMe();
-    return { data };
-  }, [fetchMe, data]);
+    const freshData = await fetchMe();
+    return { data: freshData };
+  }, [fetchMe]);
 
   return { data, loading, refetch };
 }
@@ -327,14 +331,8 @@ export function Editor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, pageId, meLoading]);
 
-  // Check for pending publish intent on mount (from session storage)
-  const toastChecked = useRef(false);
-  useEffect(() => {
-    if (toastChecked.current) return;
-    toastChecked.current = true;
-    // Publish intent is now stored in sessionStorage by usePublish hook
-    // No toast data to check
-  }, []);
+  // State for pending auto-publish (use state instead of ref to ensure proper re-render timing)
+  const [shouldAutoPublish, setShouldAutoPublish] = useState(false);
 
   // Use viewport mode hook for responsive starter layout
   const { mode: viewportMode, isMounted: viewportMounted } = useViewportMode({
@@ -471,7 +469,6 @@ export function Editor({
 
   // Handle onboarding completion - trigger publish
   const authCheckCompleted = useRef(false);
-  const pendingAutoPublish = useRef(false);
   const handleOnboardingComplete = useCallback(async (_username: string) => {
     state.setShowOnboarding(false);
     state.setPendingPublishAfterOnboarding(false);
@@ -489,6 +486,7 @@ export function Editor({
   }, [state, refetchMe, handlePublish]);
 
   // Check for pending publish after auth (from ?publish=1 query param)
+  // This works for both /new (draft mode) and /edit (server mode)
   useEffect(() => {
     // Only run once per page load
     if (meLoading || authCheckCompleted.current) {
@@ -496,7 +494,7 @@ export function Editor({
     }
 
     const urlParams = new URLSearchParams(window.location.search);
-    const shouldPublish = urlParams.get('publish') === '1';
+    const hasPublishIntent = urlParams.get('publish') === '1';
 
     // Clean up URL params
     if (urlParams.has('publish') || urlParams.has('error')) {
@@ -511,21 +509,28 @@ export function Editor({
     authCheckCompleted.current = true;
 
     // If user just logged in and should publish, set flag for next effect
-    if (meData?.me && shouldPublish) {
+    if (meData?.me && hasPublishIntent) {
       console.log('[Editor] ?publish=1 detected, setting pending auto-publish');
-      pendingAutoPublish.current = true;
+      setShouldAutoPublish(true);
     }
   }, [meData?.me, meLoading]);
   
   // Execute pending auto-publish after blocks are ready
+  // Works for both draft mode (blocks from localStorage) and server mode (blocks from props)
   useEffect(() => {
-    if (!pendingAutoPublish.current) return;
-    if (state.blocks.length === 0) return; // Wait for blocks to load
+    if (!shouldAutoPublish) return;
     
-    pendingAutoPublish.current = false;
-    console.log('[Editor] Blocks ready, executing auto-publish');
+    // In server mode, blocks come from initialBlocks (already loaded)
+    // In draft mode, we need to wait for draft to load from localStorage
+    if (state.blocks.length === 0) {
+      console.log('[Editor] Waiting for blocks to load before auto-publish');
+      return;
+    }
+    
+    setShouldAutoPublish(false);
+    console.log('[Editor] Blocks ready, executing auto-publish with', state.blocks.length, 'blocks');
     handlePublish();
-  }, [state.blocks.length, handlePublish]);
+  }, [shouldAutoPublish, state.blocks.length, handlePublish]);
 
   // Handle paste
   useEffect(() => {
@@ -785,10 +790,12 @@ export function Editor({
         isOpen={state.showAuthGate}
         onClose={() => state.setShowAuthGate(false)}
         onAuthStart={() => {}}
-        // Different returnTo based on auth intent:
-        // - 'signin': Go to /edit (user's primary page)
-        // - 'publish': Return to /new with publish=1 to continue publishing
-        returnTo={state.authIntent === 'signin' ? '/edit' : '/new?publish=1'}
+        // Both signin and publish now go to /edit:
+        // - For signin: loads user's existing page
+        // - For publish: the draft was saved to server before showing auth gate,
+        //   and claimAnonymousPages in the auth callback will associate it with the user.
+        //   The ?publish=1 param triggers auto-publish after the page loads.
+        returnTo={state.authIntent === 'signin' ? '/edit' : '/edit?publish=1'}
         title={state.authIntent === 'signin' ? 'Sign in to your corner' : 'Sign in to publish'}
         subtitle={state.authIntent === 'signin' 
           ? 'Access your saved pages and publish updates.'

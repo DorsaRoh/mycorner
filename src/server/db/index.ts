@@ -161,6 +161,30 @@ export async function createDefaultPage(userId: string, title: string) {
   return adapter.createDefaultPage(userId, title);
 }
 
+/**
+ * Delete stale unclaimed anonymous pages.
+ * Anonymous pages are those where:
+ * - owner_id starts with 'anon_' (created by save-anonymous-draft)
+ * - user_id is NULL (not claimed by a user)
+ * - is_published = false (never published)
+ * - created_at is older than the specified age
+ * 
+ * @param maxAgeMinutes - Delete pages older than this (default: 60 minutes)
+ * @returns Number of pages deleted
+ */
+export async function deleteStaleAnonymousPages(maxAgeMinutes: number = 60) {
+  const adapter = await getAdapter();
+  return adapter.deleteStaleAnonymousPages(maxAgeMinutes);
+}
+
+/**
+ * Count stale unclaimed anonymous pages (for monitoring).
+ */
+export async function countStaleAnonymousPages(maxAgeMinutes: number = 60) {
+  const adapter = await getAdapter();
+  return adapter.countStaleAnonymousPages(maxAgeMinutes);
+}
+
 // =============================================================================
 // Feedback Operations
 // =============================================================================

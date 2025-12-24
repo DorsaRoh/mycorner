@@ -1,13 +1,15 @@
 /**
  * Publish hook for the Editor component.
  * 
- * SIMPLE FLOW:
+ * IMPROVED FLOW:
  * 1. User clicks publish
- * 2. If not logged in → show auth gate
+ * 2. If not logged in → save draft to server first, then show auth gate
+ *    (This ensures content survives the OAuth round-trip even if localStorage is cleared)
  * 3. After login, if no username → show onboarding modal
  * 4. After username set → publish page
  * 
- * No complex draft tokens or cookie management.
+ * The server-side draft is saved with a draft_owner_token cookie, which
+ * the auth callback uses to claim the page after authentication.
  */
 
 import { useCallback } from 'react';
@@ -15,6 +17,31 @@ import { useRouter } from 'next/router';
 import type { Block, BackgroundConfig } from '@/shared/types';
 import type { PageDoc } from '@/lib/schema/page';
 import { legacyBlocksToPageDoc, clearDraft } from '@/lib/draft';
+
+// =============================================================================
+// Helper: Save draft to server before auth
+// =============================================================================
+
+async function saveAnonymousDraft(doc: PageDoc): Promise<{ success: boolean; pageId?: string; error?: string }> {
+  try {
+    const response = await fetch('/api/save-anonymous-draft', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ doc }),
+    });
+    
+    const result = await response.json();
+    
+    if (!response.ok) {
+      return { success: false, error: result.error || 'Failed to save draft' };
+    }
+    
+    return { success: true, pageId: result.pageId };
+  } catch (error) {
+    console.error('[Publish] Failed to save anonymous draft:', error);
+    return { success: false, error: 'Network error saving draft' };
+  }
+}
 
 // =============================================================================
 // Types
@@ -84,9 +111,30 @@ export function usePublish({
       console.warn('[Publish] Auth refetch failed, using cached state');
     }
     
-    // Not logged in? Show auth gate
+    // Not logged in? Save draft to server first, then show auth gate
     if (!user) {
-      console.log('[Publish] Not authenticated, showing auth gate');
+      console.log('[Publish] Not authenticated, saving draft to server before auth');
+      
+      // Build the PageDoc from current state
+      const doc: PageDoc = {
+        version: 1,
+        title: title || undefined,
+        bio: undefined,
+        themeId: 'default',
+        background: background,
+        blocks: legacyBlocksToPageDoc(blocks),
+      };
+      
+      // Save to server so it survives the OAuth round-trip
+      const saveResult = await saveAnonymousDraft(doc);
+      
+      if (saveResult.success) {
+        console.log('[Publish] Draft saved to server, pageId:', saveResult.pageId);
+      } else {
+        // Non-fatal - we still have localStorage as backup
+        console.warn('[Publish] Failed to save draft to server:', saveResult.error);
+      }
+      
       setAuthIntent('publish');
       setShowAuthGate(true);
       return;

@@ -457,6 +457,9 @@ export async function getAnonymousIdFromRequest(req: NextApiRequest, res?: NextA
 /**
  * Get or create a draft owner token for anonymous users.
  * This token is used to track ownership of drafts before authentication.
+ * 
+ * Token format: anon_<uuid> - the anon_ prefix allows cleanup queries to
+ * identify anonymous pages vs claimed pages.
  */
 export async function getDraftOwnerToken(req: NextApiRequest, res?: NextApiResponse): Promise<string | null> {
   const cookies = parseCookies(req.headers.cookie);
@@ -466,7 +469,8 @@ export async function getDraftOwnerToken(req: NextApiRequest, res?: NextApiRespo
   
   // If no token exists and we have a response object, create one
   if (!draftToken && res) {
-    draftToken = `draft_${Date.now()}_${crypto.randomBytes(16).toString('hex')}`;
+    // Use anon_ prefix so cleanup can identify anonymous pages
+    draftToken = `anon_${crypto.randomUUID()}`;
     
     const isProduction = process.env.NODE_ENV === 'production';
     const cookieDomain = getCookieDomain();
