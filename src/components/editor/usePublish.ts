@@ -161,15 +161,9 @@ export function usePublish({
         sessionStorage.removeItem('publishIntent');
       }
       
-      // Navigate to the canonical public page path
-      // The publish API calls res.revalidate() which triggers ISR on-demand regeneration.
-      // The page at /{slug} will have fresh content immediately.
-      const redirectUrl = options?.redirectTo || canonicalPath;
-      
-      console.log('[Publish] navigating to:', redirectUrl);
-      
-      // Use window.location.href for a full page load to the canonical URL
-      window.location.href = redirectUrl;
+      // Success! The published URL will appear below the publish button
+      // No toast/redirect - user stays on /edit and can click the link to visit
+      console.log('[Publish] success - URL:', fullPublicUrl);
       
     } catch (error) {
       console.error('[Publish] Error:', error);

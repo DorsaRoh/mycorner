@@ -125,6 +125,20 @@ export function Editor({
   const isAuthenticated = !!meData?.me;
   const prevAuthRef = useRef<boolean | null>(null);
 
+  // Mini confetti animation state
+  const [showConfetti, setShowConfetti] = useState(false);
+  const prevIsPublished = useRef<boolean>(initialPublished);
+  
+  // Trigger confetti when publish succeeds
+  useEffect(() => {
+    if (state.isPublished && !prevIsPublished.current) {
+      setShowConfetti(true);
+      const timer = setTimeout(() => setShowConfetti(false), 1500);
+      return () => clearTimeout(timer);
+    }
+    prevIsPublished.current = state.isPublished;
+  }, [state.isPublished]);
+
   // Initialize state with hooks
   const state = useEditorState(
     initialBlocks,
@@ -557,6 +571,15 @@ export function Editor({
 
   return (
     <div className={`${styles.editor} ${backgroundBrightness === 'dark' ? styles.darkBg : styles.lightBg}`}>
+      {/* Mini confetti celebration */}
+      {showConfetti && (
+        <div className={styles.confettiContainer}>
+          {[...Array(8)].map((_, i) => (
+            <div key={i} className={styles.confetti} />
+          ))}
+        </div>
+      )}
+
       {/* Top right controls */}
       <div className={styles.topRightControls}>
         <div className={styles.backgroundBtnWrapper}>
@@ -602,7 +625,7 @@ export function Editor({
           if (state.isPublished && !hasUnpublishedChanges) {
             return (
               <button className={`${styles.inviteBtn} ${styles.publishedBtn}`} onClick={() => handlePublish()}>
-                Published ✓
+                Published!
               </button>
             );
           }
