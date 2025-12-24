@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { clearDraft } from '@/lib/draft/storage';
+import { routes } from '@/lib/routes';
 import styles from './AccountMenu.module.css';
 
 interface AccountMenuProps {
@@ -63,29 +64,63 @@ export function AccountMenu({ email, avatarUrl, name }: AccountMenuProps) {
     if (isLoggingOut) return;
     setIsLoggingOut(true);
 
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[AccountMenu] Starting logout...');
+    }
+
     try {
       // Call server logout endpoint to clear all auth cookies
-      const response = await fetch('/api/auth/logout', { method: 'POST' });
+      const response = await fetch('/api/auth/logout', { 
+        method: 'POST',
+        credentials: 'include', // Ensure cookies are sent/received
+      });
       
       if (!response.ok) {
         throw new Error(`Logout request failed with status ${response.status}`);
       }
       
+      const data = await response.json();
+      
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[AccountMenu] Server logout response:', data);
+      }
+      
       // Clear client-side draft storage to ensure fresh start
       clearDraft();
+      
+      // Clear any localStorage items that might cache user data
+      if (typeof localStorage !== 'undefined') {
+        // Clear any legacy draft keys
+        const keysToRemove: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && (key.startsWith('yourcorner:') || key.startsWith('mycorner:'))) {
+            keysToRemove.push(key);
+          }
+        }
+        keysToRemove.forEach(key => localStorage.removeItem(key));
+        
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[AccountMenu] Cleared localStorage keys:', keysToRemove);
+        }
+      }
       
       // Clear any sessionStorage items that might hold state
       if (typeof sessionStorage !== 'undefined') {
         sessionStorage.removeItem('publishIntent');
+        sessionStorage.clear(); // Clear all session storage for clean state
       }
+      
+      const redirectUrl = routes.new({ fresh: true });
       
       if (process.env.NODE_ENV === 'development') {
-        console.log('[AccountMenu] Logout successful, redirecting to /new');
+        console.log('[AccountMenu] Logout successful, redirecting to', redirectUrl);
       }
       
-      // Hard navigation to /new to ensure fresh server state
-      // Using window.location.assign for a clean navigation
-      window.location.assign('/new');
+      // Hard navigation to /new?fresh=1 to ensure completely fresh server state
+      // The fresh=1 flag tells the server to create a new page instead of returning existing
+      // Using window.location.href for a clean navigation that replaces history
+      window.location.href = redirectUrl;
     } catch (error) {
       console.error('[AccountMenu] Logout error:', error);
       setIsLoggingOut(false);

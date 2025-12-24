@@ -125,6 +125,52 @@ export async function createDraftPage(params: CreateDraftPageParams): Promise<Cr
 }
 
 // =============================================================================
+// Create Fresh Draft Page (for logout/fresh start)
+// =============================================================================
+
+/**
+ * Always creates a new draft page with fresh starter content.
+ * Used after logout to ensure users get a clean slate.
+ * Does NOT check for or return existing pages.
+ */
+export async function createFreshDraftPage(params: CreateDraftPageParams): Promise<CreateDraftPageResult> {
+  const { userId, anonToken } = params;
+  const db = await import('./db');
+  
+  const ownerId = userId || anonToken;
+  if (!ownerId) {
+    throw new Error('Either userId or anonToken is required to create a page');
+  }
+  
+  // Generate fresh starter content
+  const starterBlocks = createStarterBlocks(false); // Desktop layout for initial creation
+  const pageDocBlocks = legacyBlocksToPageDoc(starterBlocks);
+  const pageDoc: PageDoc = {
+    version: 1,
+    title: undefined,
+    bio: undefined,
+    themeId: 'default',
+    background: DEFAULT_STARTER_BACKGROUND,
+    blocks: pageDocBlocks,
+  };
+  
+  // Always create a new page
+  const page = await db.createPage(ownerId, undefined, userId || undefined);
+  
+  // Update with starter content
+  await db.updatePage(page.id, {
+    content: JSON.stringify(pageDoc),
+    background: JSON.stringify(DEFAULT_STARTER_BACKGROUND),
+  });
+  
+  if (process.env.NODE_ENV === 'development') {
+    console.log('[createFreshDraftPage] Created new page:', page.id);
+  }
+  
+  return { pageId: page.id, isNew: true };
+}
+
+// =============================================================================
 // Get User's Primary Page ID
 // =============================================================================
 

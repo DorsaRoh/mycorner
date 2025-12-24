@@ -74,6 +74,14 @@ export const RESERVED_PATHS = new Set([
 // =============================================================================
 
 /**
+ * Route options for adding query parameters
+ */
+interface RouteOptions {
+  /** Force fresh start (e.g., after logout) */
+  fresh?: boolean;
+}
+
+/**
  * Routes object - use these to generate all internal links.
  * NEVER hardcode route strings - always use these builders.
  */
@@ -81,20 +89,41 @@ export const routes = {
   /** 
    * Home page - smart redirects to /edit (logged in) or /new (logged out)
    */
-  home: () => ROUTES.HOME,
+  home: (options?: RouteOptions) => {
+    if (options?.fresh) {
+      return `${ROUTES.HOME}?fresh=1`;
+    }
+    return ROUTES.HOME;
+  },
   
   /**
    * New page - creates a draft and redirects to /edit/[pageId]
+   * @param options.fresh - Force create a new page with fresh starter content
    */
-  new: () => ROUTES.NEW,
+  new: (options?: RouteOptions) => {
+    if (options?.fresh) {
+      return `${ROUTES.NEW}?fresh=1`;
+    }
+    return ROUTES.NEW;
+  },
   
   /** 
    * Edit page - resolves user's primary page and redirects to /edit/[pageId]
    * If pageId is provided, goes directly to /edit/[pageId]
    */
-  edit: (pageId?: string) => {
-    if (pageId) {
-      return `${ROUTES.EDIT}/${pageId}`;
+  edit: (pageIdOrOptions?: string | RouteOptions) => {
+    // Handle overloaded signature
+    if (typeof pageIdOrOptions === 'object') {
+      // Called with options only
+      if (pageIdOrOptions?.fresh) {
+        return `${ROUTES.EDIT}?fresh=1`;
+      }
+      return ROUTES.EDIT;
+    }
+    
+    // Called with pageId
+    if (pageIdOrOptions) {
+      return `${ROUTES.EDIT}/${pageIdOrOptions}`;
     }
     return ROUTES.EDIT;
   },

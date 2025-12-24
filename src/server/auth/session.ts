@@ -230,9 +230,13 @@ export function clearSessionCookie(res: NextApiResponse): void {
 /**
  * Clear all auth-related cookies (for full logout).
  * This clears: session, draft owner token, and anonymous session.
+ * 
+ * IMPORTANT: Cookie clearing must match the attributes used when setting
+ * (secure, sameSite, path, domain) for browsers to properly match and delete them.
  */
 export function clearAllAuthCookies(res: NextApiResponse): void {
   const cookieDomain = getCookieDomain();
+  const isProduction = process.env.NODE_ENV === 'production';
   
   const cookiesToClear = [
     SESSION_COOKIE_NAME,
@@ -245,10 +249,16 @@ export function clearAllAuthCookies(res: NextApiResponse): void {
     serializeCookie(name, '', {
       maxAge: 0,
       httpOnly: true,
+      secure: isProduction,
+      sameSite: 'lax',
       path: '/',
       domain: cookieDomain,
     })
   );
+  
+  if (process.env.NODE_ENV === 'development') {
+    console.log('[session] Clearing auth cookies:', cookiesToClear);
+  }
   
   res.setHeader('Set-Cookie', cookies);
 }

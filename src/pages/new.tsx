@@ -7,12 +7,16 @@
  * - /new is NOT the long-term editor surface
  * 
  * For authenticated users:
- *   - If user already has a page, redirect to it
+ *   - If user already has a page, redirect to it (unless ?fresh=1)
  *   - Otherwise, create a new page with starter content
  * 
  * For anonymous users:
  *   - Create a page with owner_id = draft_token (from cookie)
  *   - On publish, force auth, then "claim" the draft
+ * 
+ * Query params:
+ *   - ?fresh=1 : Force create a new page with fresh starter content
+ *                Used after logout to ensure user gets a clean slate
  */
 
 import type { GetServerSideProps } from 'next';
@@ -22,10 +26,17 @@ import {
   buildDraftOwnerTokenCookie,
   generateDraftOwnerToken,
 } from '@/server/auth/session';
-import { createDraftPage, claimAnonymousPages } from '@/server/pages';
+import { createDraftPage, claimAnonymousPages, createFreshDraftPage } from '@/server/pages';
 
 export const getServerSideProps: GetServerSideProps = async (context) => {
   const cookieHeader = context.req.headers.cookie;
+  
+  // Check for fresh flag (used after logout)
+  const isFresh = context.query.fresh === '1';
+  
+  if (isFresh && process.env.NODE_ENV === 'development') {
+    console.log('[/new] Fresh mode: creating new page with starter content');
+  }
   
   // Check if user is authenticated
   const userId = await getUserIdFromCookies(cookieHeader);
@@ -33,24 +44,44 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
   // Get or create draft owner token for anonymous users
   let draftToken = getDraftOwnerTokenFromCookies(cookieHeader);
   
-  if (!userId && !draftToken) {
-    // Generate new draft token for anonymous user
+  // In fresh mode OR when no tokens exist, generate a new draft token
+  // This ensures logout users get a truly fresh start
+  if (!userId && (!draftToken || isFresh)) {
     draftToken = generateDraftOwnerToken();
     // Set cookie on response
     context.res.setHeader('Set-Cookie', buildDraftOwnerTokenCookie(draftToken));
+    
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[/new] Generated new draft token:', draftToken.slice(0, 20) + '...');
+    }
   }
   
   try {
     // If user is authenticated and has a draft token, claim any anonymous pages
-    if (userId && draftToken) {
+    // Skip claiming in fresh mode to avoid pulling in old pages
+    if (userId && draftToken && !isFresh) {
       await claimAnonymousPages(draftToken, userId);
     }
     
-    // Create or get existing draft page
-    const result = await createDraftPage({
-      userId: userId || null,
-      anonToken: !userId ? draftToken : null,
-    });
+    let result;
+    
+    if (isFresh) {
+      // Fresh mode: always create a new page with starter content
+      result = await createFreshDraftPage({
+        userId: userId || null,
+        anonToken: !userId ? draftToken : null,
+      });
+    } else {
+      // Normal mode: get existing page or create new one
+      result = await createDraftPage({
+        userId: userId || null,
+        anonToken: !userId ? draftToken : null,
+      });
+    }
+    
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[/new] Redirecting to page:', result.pageId, 'isNew:', result.isNew);
+    }
     
     // Redirect to editor with the page ID
     return {

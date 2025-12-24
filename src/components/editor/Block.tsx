@@ -20,21 +20,46 @@ type ResizeEdge = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw' | null;
 // Hit zone size for edge detection
 const EDGE_HIT_ZONE = 8;
 
-// Detect which edge/corner the mouse is near (uses cached rect for performance)
+// Detect which edge/corner the mouse is near (accounts for rotation)
+// For rotated elements, we need to "unrotate" the mouse position to detect edges correctly
 function detectResizeEdgeFromRect(
   clientX: number,
   clientY: number,
-  rect: DOMRect
+  rect: DOMRect,
+  rotation: number = 0,
+  actualWidth?: number,
+  actualHeight?: number
 ): ResizeEdge {
-  const x = clientX - rect.left;
-  const y = clientY - rect.top;
-  const w = rect.width;
-  const h = rect.height;
-
-  const nearLeft = x < EDGE_HIT_ZONE;
-  const nearRight = x > w - EDGE_HIT_ZONE;
-  const nearTop = y < EDGE_HIT_ZONE;
-  const nearBottom = y > h - EDGE_HIT_ZONE;
+  // Get the center of the element (bounding box center)
+  const centerX = rect.left + rect.width / 2;
+  const centerY = rect.top + rect.height / 2;
+  
+  // Calculate mouse position relative to center
+  let relX = clientX - centerX;
+  let relY = clientY - centerY;
+  
+  // If element is rotated, unrotate the mouse position
+  if (rotation !== 0) {
+    const rad = -rotation * (Math.PI / 180); // Negative to reverse the rotation
+    const cos = Math.cos(rad);
+    const sin = Math.sin(rad);
+    const unrotatedX = relX * cos - relY * sin;
+    const unrotatedY = relX * sin + relY * cos;
+    relX = unrotatedX;
+    relY = unrotatedY;
+  }
+  
+  // Use actual element dimensions if provided, otherwise fall back to bounding rect
+  // For rotated elements, the bounding rect is larger than the visual element,
+  // so we need the actual dimensions for accurate edge detection
+  const halfW = (actualWidth ?? rect.width) / 2;
+  const halfH = (actualHeight ?? rect.height) / 2;
+  
+  // Check edges using the unrotated coordinates relative to actual element size
+  const nearLeft = relX < -halfW + EDGE_HIT_ZONE;
+  const nearRight = relX > halfW - EDGE_HIT_ZONE;
+  const nearTop = relY < -halfH + EDGE_HIT_ZONE;
+  const nearBottom = relY > halfH - EDGE_HIT_ZONE;
 
   if (nearTop && nearLeft) return 'nw';
   if (nearTop && nearRight) return 'ne';
@@ -215,9 +240,9 @@ export const Block = memo(function Block({
 
     if (!blockRef.current) return;
     const rect = blockRef.current.getBoundingClientRect();
-    const edge = detectResizeEdgeFromRect(e.clientX, e.clientY, rect);
+    const edge = detectResizeEdgeFromRect(e.clientX, e.clientY, rect, block.rotation || 0, pxRect.width, pxRect.height);
     setHoveredEdge(edge);
-  }, [selected, interactionState]);
+  }, [selected, interactionState, block.rotation, pxRect.width, pxRect.height]);
 
   // Unified interaction start handler for both mouse and touch
   const handleInteractionStart = useCallback((clientX: number, clientY: number, target: HTMLElement, preventDefault: () => void) => {
@@ -239,7 +264,7 @@ export const Block = memo(function Block({
     const rect = blockRef.current?.getBoundingClientRect();
     if (!rect) return;
 
-    const edge = selected ? detectResizeEdgeFromRect(clientX, clientY, rect) : null;
+    const edge = selected ? detectResizeEdgeFromRect(clientX, clientY, rect, block.rotation || 0, pxRect.width, pxRect.height) : null;
     const isTextOrLink = block.type === 'TEXT' || block.type === 'LINK';
 
     // Check if this block is part of a multi-selection
@@ -294,7 +319,7 @@ export const Block = memo(function Block({
       if (!isPartOfMultiSelection) onSelect();
       setInteractionState('dragging');
     }
-  }, [block.x, block.y, block.width, block.height, block.style?.fontSize, block.type, block.id, selected, selectedIds, allBlocks, dims.scale, onSelect, onInteractionStart, onFirstInteraction]);
+  }, [block.x, block.y, block.width, block.height, block.style?.fontSize, block.type, block.id, block.rotation, selected, selectedIds, allBlocks, dims.scale, pxRect.width, pxRect.height, onSelect, onInteractionStart, onFirstInteraction]);
 
   // Drag/resize handling with rAF optimization
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
