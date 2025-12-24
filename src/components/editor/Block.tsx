@@ -400,42 +400,100 @@ export const Block = memo(function Block({
           const edge = ref.edge;
           const isTextOrLink = block.type === 'TEXT' || block.type === 'LINK';
           const minWidth = isTextOrLink ? 40 : 50;
-          const minHeight = isTextOrLink ? 20 : 30;
+          const minHeight = isTextOrLink ? 16 : 30;
+          const isCornerResize = edge === 'ne' || edge === 'nw' || edge === 'se' || edge === 'sw';
+          const isHorizontalResize = edge === 'e' || edge === 'w';
+          const isVerticalResize = edge === 'n' || edge === 's';
 
-          // All blocks: resize dimensions without changing font size
-          // For TEXT/LINK this allows adjusting container size for text wrapping
-          let newWidth = ref.blockWidth;
-          let newHeight = ref.blockHeight;
-          let newX = ref.blockX;
-          let newY = ref.blockY;
+          // For TEXT/LINK blocks:
+          // - Corner (diagonal) resize: changes font size only
+          // - Left/Right (e/w) resize: changes width only
+          // - Top/Bottom (n/s) resize: changes height only
+          if (isTextOrLink && isCornerResize) {
+            // Diagonal resize changes font size proportionally
+            // Use the diagonal distance for scaling
+            const diagonalDelta = (dx + dy) / 2;
+            const fontScaleFactor = 1 + (diagonalDelta / 100);
+            const newFontSize = Math.max(8, Math.min(200, Math.round(ref.fontSize * fontScaleFactor)));
+            
+            // Apply font size to text content elements
+            const textEl = blockRef.current.querySelector(`.${styles.textDisplay}, .${styles.textContent}, .${styles.linkDisplayInline}`);
+            if (textEl) {
+              (textEl as HTMLElement).style.fontSize = `${newFontSize * scale}px`;
+            }
+          } else if (isTextOrLink && isHorizontalResize) {
+            // Horizontal resize changes width only
+            let newWidth = ref.blockWidth;
+            let newX = ref.blockX;
 
-          // Calculate new dimensions based on edge (using reference deltas)
-          if (edge === 'e' || edge === 'ne' || edge === 'se') {
-            newWidth = Math.max(minWidth, ref.blockWidth + dx);
-          }
-          if (edge === 'w' || edge === 'nw' || edge === 'sw') {
-            newWidth = Math.max(minWidth, ref.blockWidth - dx);
-            const actualDx = ref.blockWidth - newWidth;
-            newX = ref.blockX - actualDx;
-          }
-          if (edge === 's' || edge === 'se' || edge === 'sw') {
-            newHeight = Math.max(minHeight, ref.blockHeight + dy);
-          }
-          if (edge === 'n' || edge === 'ne' || edge === 'nw') {
-            newHeight = Math.max(minHeight, ref.blockHeight - dy);
-            const actualDy = ref.blockHeight - newHeight;
-            newY = ref.blockY - actualDy;
-          }
+            if (edge === 'e') {
+              newWidth = Math.max(minWidth, ref.blockWidth + dx);
+            } else if (edge === 'w') {
+              newWidth = Math.max(minWidth, ref.blockWidth - dx);
+              const actualDx = ref.blockWidth - newWidth;
+              newX = ref.blockX - actualDx;
+            }
 
-          // Apply to DOM in pixels for smooth resizing (include offset for centering)
-          // Apply rotation if present
-          const rotation = block.rotation || 0;
-          blockRef.current.style.left = `${newX * scale + ref.offsetX}px`;
-          blockRef.current.style.top = `${newY * scale + ref.offsetY}px`;
-          blockRef.current.style.width = `${newWidth * scale}px`;
-          blockRef.current.style.height = `${newHeight * scale}px`;
-          if (rotation !== 0) {
-            blockRef.current.style.transform = `rotate(${rotation}deg)`;
+            const rotation = block.rotation || 0;
+            blockRef.current.style.left = `${newX * scale + ref.offsetX}px`;
+            blockRef.current.style.width = `${newWidth * scale}px`;
+            if (rotation !== 0) {
+              blockRef.current.style.transform = `rotate(${rotation}deg)`;
+            }
+          } else if (isTextOrLink && isVerticalResize) {
+            // Vertical resize changes height only
+            let newHeight = ref.blockHeight;
+            let newY = ref.blockY;
+
+            if (edge === 's') {
+              newHeight = Math.max(minHeight, ref.blockHeight + dy);
+            } else if (edge === 'n') {
+              newHeight = Math.max(minHeight, ref.blockHeight - dy);
+              const actualDy = ref.blockHeight - newHeight;
+              newY = ref.blockY - actualDy;
+            }
+
+            const rotation = block.rotation || 0;
+            blockRef.current.style.top = `${newY * scale + ref.offsetY}px`;
+            blockRef.current.style.height = `${newHeight * scale}px`;
+            if (rotation !== 0) {
+              blockRef.current.style.transform = `rotate(${rotation}deg)`;
+            }
+          } else {
+            // Non-TEXT/LINK blocks: resize dimensions normally
+            let newWidth = ref.blockWidth;
+            let newHeight = ref.blockHeight;
+            let newX = ref.blockX;
+            let newY = ref.blockY;
+
+            // Calculate new dimensions based on edge (using reference deltas)
+            if (edge === 'e' || edge === 'ne' || edge === 'se') {
+              newWidth = Math.max(minWidth, ref.blockWidth + dx);
+            }
+            if (edge === 'w' || edge === 'nw' || edge === 'sw') {
+              newWidth = Math.max(minWidth, ref.blockWidth - dx);
+              const actualDx = ref.blockWidth - newWidth;
+              newX = ref.blockX - actualDx;
+            }
+            if (edge === 's' || edge === 'se' || edge === 'sw') {
+              newHeight = Math.max(minHeight, ref.blockHeight + dy);
+            }
+            if (edge === 'n' || edge === 'ne' || edge === 'nw') {
+              newHeight = Math.max(minHeight, ref.blockHeight - dy);
+              const actualDy = ref.blockHeight - newHeight;
+              newY = ref.blockY - actualDy;
+            }
+
+            // Apply to DOM in pixels for smooth resizing (include offset for centering)
+            // Apply rotation if present
+            const rotation = block.rotation || 0;
+            blockRef.current.style.left = `${newX * scale + ref.offsetX}px`;
+            blockRef.current.style.top = `${newY * scale + ref.offsetY}px`;
+            blockRef.current.style.width = `${newWidth * scale}px`;
+            blockRef.current.style.height = `${newHeight * scale}px`;
+            if (rotation !== 0) {
+              blockRef.current.style.transform = `rotate(${rotation}deg)`;
+            }
           }
         } else if (interactionState === 'rotating') {
           // Calculate angle from center to mouse position
@@ -494,32 +552,75 @@ export const Block = memo(function Block({
         const edge = ref.edge;
         const isTextOrLink = block.type === 'TEXT' || block.type === 'LINK';
         const minWidth = isTextOrLink ? 40 : 50;
-        const minHeight = isTextOrLink ? 20 : 30;
+        const minHeight = isTextOrLink ? 16 : 30;
+        const isCornerResize = edge === 'ne' || edge === 'nw' || edge === 'se' || edge === 'sw';
+        const isHorizontalResize = edge === 'e' || edge === 'w';
+        const isVerticalResize = edge === 'n' || edge === 's';
 
-        // All blocks: resize dimensions without changing font size
         const updates: Partial<BlockType> = {};
-        let newWidth = ref.blockWidth;
-        let newHeight = ref.blockHeight;
 
-        if (edge === 'e' || edge === 'ne' || edge === 'se') {
-          newWidth = Math.max(minWidth, ref.blockWidth + dx);
-        }
-        if (edge === 'w' || edge === 'nw' || edge === 'sw') {
-          newWidth = Math.max(minWidth, ref.blockWidth - dx);
-          const actualDx = ref.blockWidth - newWidth;
-          updates.x = ref.blockX - actualDx;
-        }
-        if (edge === 's' || edge === 'se' || edge === 'sw') {
-          newHeight = Math.max(minHeight, ref.blockHeight + dy);
-        }
-        if (edge === 'n' || edge === 'ne' || edge === 'nw') {
-          newHeight = Math.max(minHeight, ref.blockHeight - dy);
-          const actualDy = ref.blockHeight - newHeight;
-          updates.y = ref.blockY - actualDy;
-        }
+        if (isTextOrLink && isCornerResize) {
+          // Diagonal resize changes font size only
+          const diagonalDelta = (dx + dy) / 2;
+          const fontScaleFactor = 1 + (diagonalDelta / 100);
+          const newFontSize = Math.max(8, Math.min(200, Math.round(ref.fontSize * fontScaleFactor)));
+          
+          updates.style = {
+            ...DEFAULT_STYLE,
+            ...block.style,
+            fontSize: newFontSize,
+          };
+        } else if (isTextOrLink && isHorizontalResize) {
+          // Horizontal resize changes width only
+          let newWidth = ref.blockWidth;
 
-        updates.width = newWidth;
-        updates.height = newHeight;
+          if (edge === 'e') {
+            newWidth = Math.max(minWidth, ref.blockWidth + dx);
+          } else if (edge === 'w') {
+            newWidth = Math.max(minWidth, ref.blockWidth - dx);
+            const actualDx = ref.blockWidth - newWidth;
+            updates.x = ref.blockX - actualDx;
+          }
+
+          updates.width = newWidth;
+        } else if (isTextOrLink && isVerticalResize) {
+          // Vertical resize changes height only
+          let newHeight = ref.blockHeight;
+
+          if (edge === 's') {
+            newHeight = Math.max(minHeight, ref.blockHeight + dy);
+          } else if (edge === 'n') {
+            newHeight = Math.max(minHeight, ref.blockHeight - dy);
+            const actualDy = ref.blockHeight - newHeight;
+            updates.y = ref.blockY - actualDy;
+          }
+
+          updates.height = newHeight;
+        } else {
+          // Non-TEXT/LINK blocks: resize dimensions normally
+          let newWidth = ref.blockWidth;
+          let newHeight = ref.blockHeight;
+
+          if (edge === 'e' || edge === 'ne' || edge === 'se') {
+            newWidth = Math.max(minWidth, ref.blockWidth + dx);
+          }
+          if (edge === 'w' || edge === 'nw' || edge === 'sw') {
+            newWidth = Math.max(minWidth, ref.blockWidth - dx);
+            const actualDx = ref.blockWidth - newWidth;
+            updates.x = ref.blockX - actualDx;
+          }
+          if (edge === 's' || edge === 'se' || edge === 'sw') {
+            newHeight = Math.max(minHeight, ref.blockHeight + dy);
+          }
+          if (edge === 'n' || edge === 'ne' || edge === 'nw') {
+            newHeight = Math.max(minHeight, ref.blockHeight - dy);
+            const actualDy = ref.blockHeight - newHeight;
+            updates.y = ref.blockY - actualDy;
+          }
+
+          updates.width = newWidth;
+          updates.height = newHeight;
+        }
 
         onUpdate(updates);
       } else if (interactionState === 'rotating') {
@@ -605,19 +706,20 @@ export const Block = memo(function Block({
     }
   }, [block.width, block.height, onUpdate]);
 
-  // Handle text measurement - dynamically resize block to fit text content
+  // Handle text measurement - ensure minimum height covers content with no padding
+  // Width is user-controlled via left/right edge resize; height is user-adjustable but has content as minimum
+  // Measurements come in pixels (scaled), convert back to reference coordinates
   const handleTextMeasure = useCallback((measuredWidth: number, measuredHeight: number) => {
-    // Dynamically resize to match content (both expand and shrink)
-    const minWidth = 40;
-    const minHeight = 20;
-    const newWidth = Math.max(minWidth, Math.ceil(measuredWidth));
-    const newHeight = Math.max(minHeight, Math.ceil(measuredHeight));
+    // Convert from pixels back to reference coordinates
+    const refHeight = measuredHeight / dims.scale;
+    const minContentHeight = Math.max(16, Math.ceil(refHeight));
     
-    // Only update if dimensions actually changed
-    if (Math.abs(newWidth - block.width) > 1 || Math.abs(newHeight - block.height) > 1) {
-      onUpdate({ width: newWidth, height: newHeight });
+    // Only update height if it's currently LESS than the minimum content height
+    // This allows users to make height larger, but ensures content always fits
+    if (block.height < minContentHeight) {
+      onUpdate({ height: minContentHeight });
     }
-  }, [block.width, block.height, onUpdate]);
+  }, [block.height, dims.scale, onUpdate]);
 
   const cursorStyle = useMemo(() => {
     const isTextOrLink = block.type === 'TEXT' || block.type === 'LINK';
@@ -685,6 +787,7 @@ export const Block = memo(function Block({
         style={block.style}
         scaledFontSize={scaledFontSize}
         canvasScale={dims.scale}
+        blockWidth={pxRect.width}
         onChange={handleContentChange}
         onImageLoad={handleImageLoad}
         onTextMeasure={handleTextMeasure}
@@ -726,6 +829,7 @@ interface BlockContentProps {
   style?: BlockStyle;
   scaledFontSize?: number;
   canvasScale?: number;
+  blockWidth?: number; // Width of block container for text wrapping measurement
   onChange: (content: string) => void;
   onImageLoad?: (e: React.SyntheticEvent<HTMLImageElement>) => void;
   onTextMeasure?: (width: number, height: number) => void;
@@ -740,6 +844,7 @@ const BlockContent = memo(function BlockContent({
   style,
   scaledFontSize,
   canvasScale = 1,
+  blockWidth,
   onChange,
   onImageLoad,
   onTextMeasure,
@@ -774,15 +879,18 @@ const BlockContent = memo(function BlockContent({
   }, [type, isEditing]);
 
   // Measure text content and report dimensions using a hidden measurement element
+  // Uses block width for text wrapping to calculate proper height
   useEffect(() => {
     if ((type === 'TEXT') && onTextMeasure) {
-      // Create a hidden measurement element
+      // Create a hidden measurement element with fixed width for text wrapping
       const measureEl = document.createElement('div');
+      // Use blockWidth if available (scaled), otherwise auto width
+      const widthStyle = blockWidth ? `width: ${blockWidth}px;` : 'width: auto;';
       measureEl.style.cssText = `
         position: absolute;
         visibility: hidden;
         height: auto;
-        width: auto;
+        ${widthStyle}
         white-space: pre-wrap;
         word-break: break-word;
         font-family: ${textStyles.fontFamily || 'inherit'};
@@ -801,7 +909,7 @@ const BlockContent = memo(function BlockContent({
       
       onTextMeasure(measuredWidth, measuredHeight);
     }
-  }, [type, content, style, textStyles, onTextMeasure]);
+  }, [type, content, style, textStyles, blockWidth, onTextMeasure]);
 
   switch (type) {
     case 'TEXT':
@@ -881,6 +989,7 @@ const BlockContent = memo(function BlockContent({
           style={style}
           scaledFontSize={scaledFontSize}
           canvasScale={canvasScale}
+          blockWidth={blockWidth}
           onChange={onChange}
           onTextMeasure={onTextMeasure}
           selected={selected}
@@ -900,6 +1009,7 @@ interface LinkBlockContentProps {
   style?: BlockStyle;
   scaledFontSize?: number;
   canvasScale?: number;
+  blockWidth?: number; // Width of block container for text wrapping measurement
   onChange: (content: string) => void;
   onTextMeasure?: (width: number, height: number) => void;
   selected: boolean;
@@ -912,6 +1022,7 @@ const LinkBlockContent = memo(function LinkBlockContent({
   style,
   scaledFontSize,
   canvasScale = 1,
+  blockWidth,
   onChange,
   onTextMeasure,
   selected,
@@ -937,15 +1048,18 @@ const LinkBlockContent = memo(function LinkBlockContent({
   }, [style, scaledFontSize]);
 
   // Measure link display and report dimensions using a hidden measurement element
+  // Uses block width for text wrapping to calculate proper height
   useEffect(() => {
     if (onTextMeasure && !isEditing) {
       const displayText = name || url || 'Add link';
       const measureEl = document.createElement('div');
+      // Use blockWidth if available (scaled), otherwise auto width
+      const widthStyle = blockWidth ? `width: ${blockWidth}px;` : 'width: auto;';
       measureEl.style.cssText = `
         position: absolute;
         visibility: hidden;
         height: auto;
-        width: auto;
+        ${widthStyle}
         white-space: pre-wrap;
         word-break: break-word;
         display: flex;
@@ -967,7 +1081,7 @@ const LinkBlockContent = memo(function LinkBlockContent({
       
       onTextMeasure(measuredWidth, measuredHeight);
     }
-  }, [content, name, url, style, textStyles, onTextMeasure, isEditing]);
+  }, [content, name, url, style, textStyles, blockWidth, onTextMeasure, isEditing]);
 
   const handleNameChange = useCallback((newName: string) => {
     onChange(serializeLinkContent(newName, url));
