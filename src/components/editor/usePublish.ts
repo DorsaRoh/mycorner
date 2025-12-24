@@ -1,13 +1,13 @@
 /**
  * Publish hook for the Editor component.
  * 
- * PRODUCTION ARCHITECTURE:
- * Uses the new /api/publish REST endpoint which:
- * 1. Validates PageDoc with Zod
- * 2. Renders static HTML
- * 3. Uploads to object storage
- * 4. Updates DB
- * 5. Purges CDN
+ * SIMPLE FLOW:
+ * 1. User clicks publish
+ * 2. If not logged in → show auth gate
+ * 3. After login, if no username → show onboarding modal
+ * 4. After username set → publish page
+ * 
+ * No complex draft tokens or cookie management.
  */
 
 import { useCallback } from 'react';
@@ -41,10 +41,8 @@ interface PublishHookProps {
   setShowPublishToast: (show: boolean) => void;
   setShowAuthGate: (show: boolean) => void;
   setAuthIntent: (intent: 'signin' | 'publish') => void;
-}
-
-interface PublishOptions {
-  redirectTo?: string;
+  setShowOnboarding: (show: boolean) => void;
+  setPendingPublishAfterOnboarding: (pending: boolean) => void;
 }
 
 // =============================================================================
@@ -57,7 +55,6 @@ export function usePublish({
   blocks,
   title,
   background,
-  initialServerRevision,
   meData,
   refetchMe,
   setPublishing,
@@ -65,42 +62,45 @@ export function usePublish({
   setIsPublished,
   setPublishedRevision,
   setPublishedUrl,
-  setShowPublishToast,
   setShowAuthGate,
   setAuthIntent,
+  setShowOnboarding,
+  setPendingPublishAfterOnboarding,
 }: PublishHookProps) {
   const router = useRouter();
 
-  const handlePublish = useCallback(async (options?: PublishOptions) => {
+  const handlePublish = useCallback(async () => {
     console.log('[Publish] === Starting publish ===');
-    console.log('[Publish] mode:', mode);
     console.log('[Publish] blocks:', blocks.length);
     
-    // Check auth
-    let isAuthenticated = !!meData?.me;
+    // Step 1: Check auth
+    let user = meData?.me;
     
+    // Always refetch to get current auth state
     try {
       const { data: freshMe } = await refetchMe();
-      isAuthenticated = !!freshMe?.me;
+      user = freshMe?.me;
     } catch (error) {
       console.warn('[Publish] Auth refetch failed, using cached state');
     }
     
-    if (!isAuthenticated) {
+    // Not logged in? Show auth gate
+    if (!user) {
       console.log('[Publish] Not authenticated, showing auth gate');
-      // Store intent for after auth
-      if (typeof window !== 'undefined') {
-        sessionStorage.setItem('publishIntent', JSON.stringify({
-          pageId,
-          timestamp: Date.now(),
-        }));
-      }
-      // Set auth intent to 'publish' so we return to current page with publish=1
       setAuthIntent('publish');
       setShowAuthGate(true);
       return;
     }
     
+    // Step 2: Check if user has username
+    if (!user.username) {
+      console.log('[Publish] User has no username, showing onboarding');
+      setPendingPublishAfterOnboarding(true);
+      setShowOnboarding(true);
+      return;
+    }
+    
+    // Step 3: Do the actual publish
     setPublishing(true);
     setPublishError(null);
     
@@ -110,16 +110,15 @@ export function usePublish({
         version: 1,
         title: title || undefined,
         bio: undefined,
-        themeId: 'default', // TODO: Add theme selection to editor
-        background: background, // Include background in published page
+        themeId: 'default',
+        background: background,
         blocks: legacyBlocksToPageDoc(blocks),
       };
       
-      console.log('[Publish] PageDoc:', JSON.stringify(doc, null, 2));
+      console.log('[Publish] Publishing to username:', user.username);
       console.log('[Publish] Blocks count:', doc.blocks.length);
-      console.log('[Publish] Block types:', doc.blocks.map(b => b.type));
       
-      // Call new publish API
+      // Call publish API
       const response = await fetch('/api/publish', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -130,44 +129,41 @@ export function usePublish({
       console.log('[Publish] API response:', result);
       
       if (!response.ok) {
-        // handle storage not configured error with helpful message
+        // Handle specific errors
         if (response.status === 503 && result.code === 'STORAGE_NOT_CONFIGURED') {
-          const missingVars = result.missingEnvVars?.join(', ') || 'unknown';
-          const requiredVars = result.requiredEnvVars?.join(', ') || 
-            'S3_ENDPOINT, S3_BUCKET, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY, S3_PUBLIC_BASE_URL';
-          
-          throw new Error(
-            `Storage not configured. Missing: ${missingVars}\n\n` +
-            `Required environment variables:\n${requiredVars}\n\n` +
-            `See docs/SHIP_CHECKLIST.md for deployment setup.`
-          );
+          throw new Error('Storage not configured. See docs/SHIP_CHECKLIST.md for setup.');
         }
-        
+        if (result.code === 'USERNAME_REQUIRED') {
+          // Shouldn't happen since we checked, but handle gracefully
+          console.log('[Publish] Username required, showing onboarding');
+          setPendingPublishAfterOnboarding(true);
+          setShowOnboarding(true);
+          setPublishing(false);
+          return;
+        }
         throw new Error(result.error || 'Failed to publish');
       }
       
-      // success!
+      // Success!
       setIsPublished(true);
-      setPublishedRevision(Date.now()); // use timestamp as revision marker
+      setPublishedRevision(Date.now());
       
-      // publicUrl from response is the full canonical URL (e.g., "https://www.itsmycorner.com/hii")
-      // This is used for the copy-to-clipboard feature in the publish toast
-      // url is the relative path for client-side navigation
       const canonicalPath = result.url || `/${result.slug}`;
       const fullPublicUrl = result.publicUrl || `${window.location.origin}${canonicalPath}`;
       setPublishedUrl(fullPublicUrl);
       
-      // clear draft
+      // Clear draft from localStorage
       clearDraft();
       
-      // clear any stored publish intent
-      if (typeof window !== 'undefined') {
-        sessionStorage.removeItem('publishIntent');
-      }
+      console.log('[Publish] Success! URL:', fullPublicUrl);
       
-      // Success! The published URL will appear below the publish button
-      // No toast/redirect - user stays on /edit and can click the link to visit
-      console.log('[Publish] success - URL:', fullPublicUrl);
+      // If we were in draft mode, redirect to /edit to load server-side page
+      // This ensures user is now editing their real page, not localStorage
+      if (mode === 'draft') {
+        console.log('[Publish] Redirecting to /edit to load server page');
+        router.push('/edit');
+        return;
+      }
       
     } catch (error) {
       console.error('[Publish] Error:', error);
@@ -177,20 +173,22 @@ export function usePublish({
       setPublishing(false);
     }
   }, [
-    pageId,
     mode,
+    router,
     blocks,
     title,
     background,
     meData?.me,
     refetchMe,
-    router,
     setPublishing,
     setPublishError,
     setIsPublished,
     setPublishedRevision,
     setPublishedUrl,
     setShowAuthGate,
+    setAuthIntent,
+    setShowOnboarding,
+    setPendingPublishAfterOnboarding,
   ]);
 
   return { handlePublish };

@@ -6,8 +6,6 @@ interface AuthGateProps {
   isOpen: boolean;
   onClose: () => void;
   onAuthStart?: () => void;
-  /** The draft ID being edited */
-  draftId?: string;
   /** URL to return to after auth (defaults to /edit) */
   returnTo?: string;
   /** Custom title for the modal (defaults to "Sign in to publish") */

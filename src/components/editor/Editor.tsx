@@ -223,6 +223,8 @@ export function Editor({
     setShowPublishToast: state.setShowPublishToast,
     setShowAuthGate: state.setShowAuthGate,
     setAuthIntent: state.setAuthIntent,
+    setShowOnboarding: state.setShowOnboarding,
+    setPendingPublishAfterOnboarding: state.setPendingPublishAfterOnboarding,
   });
 
   // Handle first interaction - removes the hint block from canvas
@@ -467,73 +469,63 @@ export function Editor({
     prevAuthRef.current = isAuthenticated;
   }, [isAuthenticated, meLoading, state]);
 
-  // Handle onboarding completion - trigger publish which handles redirect
-  const pendingPublishHandled = useRef(false);
+  // Handle onboarding completion - trigger publish
   const authCheckCompleted = useRef(false);
+  const pendingAutoPublish = useRef(false);
   const handleOnboardingComplete = useCallback(async (_username: string) => {
     state.setShowOnboarding(false);
     state.setPendingPublishAfterOnboarding(false);
-    pendingPublishHandled.current = true;
     
     try {
       // Refetch user data to get the new username
       await refetchMe();
       
-      // Trigger publish - this will create page, publish it, and redirect
+      // Trigger publish
       await handlePublish();
     } catch (error) {
       console.error('[Onboarding] Failed to publish after onboarding:', error);
-      // If publish fails, show error to user
       state.setPublishError(error instanceof Error ? error.message : 'Failed to publish your page');
     }
   }, [state, refetchMe, handlePublish]);
 
-  // Check for pending publish after auth or show onboarding
+  // Check for pending publish after auth (from ?publish=1 query param)
   useEffect(() => {
-    // Only run the auth check once per page load
-    if (meLoading || authCheckCompleted.current || pendingPublishHandled.current) {
+    // Only run once per page load
+    if (meLoading || authCheckCompleted.current) {
       return;
     }
 
     const urlParams = new URLSearchParams(window.location.search);
-    const needsOnboarding = urlParams.get('onboarding') === 'true' || (meData?.me && !meData.me.username);
     const shouldPublish = urlParams.get('publish') === '1';
 
     // Clean up URL params
-    if (urlParams.has('onboarding') || urlParams.has('error') || urlParams.has('publish')) {
-      urlParams.delete('onboarding');
-      urlParams.delete('error');
+    if (urlParams.has('publish') || urlParams.has('error')) {
       urlParams.delete('publish');
+      urlParams.delete('error');
       const newUrl = urlParams.toString()
         ? `${window.location.pathname}?${urlParams.toString()}`
         : window.location.pathname;
       window.history.replaceState({}, '', newUrl);
     }
 
-    if (meData?.me) {
-      if (needsOnboarding) {
-        console.log('[Editor] User needs onboarding, showing modal');
-        state.setShowOnboarding(true);
-        if (shouldPublish) {
-          console.log('[Editor] Will publish after onboarding completes');
-          state.setPendingPublishAfterOnboarding(true);
-        }
-        authCheckCompleted.current = true;
-      } else if (shouldPublish) {
-        // Auto-publish after auth redirect (works for both draft and server modes)
-        console.log('[Editor] ?publish=1 detected after auth, auto-publishing...');
-        pendingPublishHandled.current = true;
-        authCheckCompleted.current = true;
-        // Small delay to ensure session is fully established after OAuth redirect
-        setTimeout(() => {
-          handlePublish();
-        }, 100);
-      } else {
-        // No action needed
-        authCheckCompleted.current = true;
-      }
+    authCheckCompleted.current = true;
+
+    // If user just logged in and should publish, set flag for next effect
+    if (meData?.me && shouldPublish) {
+      console.log('[Editor] ?publish=1 detected, setting pending auto-publish');
+      pendingAutoPublish.current = true;
     }
-  }, [meData?.me, meLoading, handlePublish, state]);
+  }, [meData?.me, meLoading]);
+  
+  // Execute pending auto-publish after blocks are ready
+  useEffect(() => {
+    if (!pendingAutoPublish.current) return;
+    if (state.blocks.length === 0) return; // Wait for blocks to load
+    
+    pendingAutoPublish.current = false;
+    console.log('[Editor] Blocks ready, executing auto-publish');
+    handlePublish();
+  }, [state.blocks.length, handlePublish]);
 
   // Handle paste
   useEffect(() => {
@@ -792,12 +784,11 @@ export function Editor({
       <AuthGate
         isOpen={state.showAuthGate}
         onClose={() => state.setShowAuthGate(false)}
-        draftId={pageId}
         onAuthStart={() => {}}
         // Different returnTo based on auth intent:
-        // - 'signin': Go to /edit (user's primary page via resolver)
-        // - 'publish': Return to current page with publish=1 flag
-        returnTo={state.authIntent === 'signin' ? '/edit' : `/edit/${pageId}?publish=1`}
+        // - 'signin': Go to /edit (user's primary page)
+        // - 'publish': Return to /new with publish=1 to continue publishing
+        returnTo={state.authIntent === 'signin' ? '/edit' : '/new?publish=1'}
         title={state.authIntent === 'signin' ? 'Sign in to your corner' : 'Sign in to publish'}
         subtitle={state.authIntent === 'signin' 
           ? 'Access your saved pages and publish updates.'
