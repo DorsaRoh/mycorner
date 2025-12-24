@@ -178,9 +178,12 @@ export async function createFreshDraftPage(params: CreateDraftPageParams): Promi
  * Get the page ID that a logged-in user should land on.
  * 
  * Priority:
- * 1. Most recently updated draft (unpublished)
- * 2. Most recently published page
+ * 1. Most recently published page (this is "their" page)
+ * 2. Most recently updated unpublished draft (if no published pages)
  * 3. null if no pages exist
+ * 
+ * This ensures when a user logs back in, they're always taken to their
+ * published page, not some random claimed anonymous draft.
  */
 export async function getUserPrimaryPageId(userId: string): Promise<string | null> {
   const db = await import('./db');
@@ -190,7 +193,19 @@ export async function getUserPrimaryPageId(userId: string): Promise<string | nul
     return null;
   }
   
-  // Sort by updated_at descending
+  // First, look for published pages - these are the user's "real" pages
+  const publishedPages = pages.filter(p => p.is_published && p.published_at);
+  if (publishedPages.length > 0) {
+    // Sort by published_at descending (most recent first)
+    publishedPages.sort((a, b) => {
+      const dateA = new Date(a.published_at!).getTime();
+      const dateB = new Date(b.published_at!).getTime();
+      return dateB - dateA;
+    });
+    return publishedPages[0].id;
+  }
+  
+  // No published pages - fall back to most recently updated draft
   const sorted = pages.sort((a, b) => {
     const dateA = new Date(a.updated_at).getTime();
     const dateB = new Date(b.updated_at).getTime();
