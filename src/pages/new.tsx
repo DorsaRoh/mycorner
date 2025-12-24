@@ -39,13 +39,19 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
   }
   
   // Check if user is authenticated
-  const userId = await getUserIdFromCookies(cookieHeader);
+  // In fresh mode (after logout), we IGNORE the userId to ensure a clean anonymous start
+  const rawUserId = await getUserIdFromCookies(cookieHeader);
+  const userId = isFresh ? null : rawUserId;
+  
+  if (isFresh && rawUserId && process.env.NODE_ENV === 'development') {
+    console.log('[/new] Fresh mode: ignoring authenticated user, treating as anonymous');
+  }
   
   // Get or create draft owner token for anonymous users
   let draftToken = getDraftOwnerTokenFromCookies(cookieHeader);
   
-  // In fresh mode OR when no tokens exist, generate a new draft token
-  // This ensures logout users get a truly fresh start
+  // In fresh mode OR when no tokens exist (for anonymous users), generate a new draft token
+  // This ensures logged-out users get a truly fresh start
   if (!userId && (!draftToken || isFresh)) {
     draftToken = generateDraftOwnerToken();
     // Set cookie on response
@@ -66,10 +72,11 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
     let result;
     
     if (isFresh) {
-      // Fresh mode: always create a new page with starter content
+      // Fresh mode: always create a new anonymous page with starter content
+      // userId is already null due to isFresh check above
       result = await createFreshDraftPage({
-        userId: userId || null,
-        anonToken: !userId ? draftToken : null,
+        userId: null,
+        anonToken: draftToken,
       });
     } else {
       // Normal mode: get existing page or create new one
