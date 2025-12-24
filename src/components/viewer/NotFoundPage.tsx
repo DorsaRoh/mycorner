@@ -6,11 +6,12 @@
  * 
  * IMPORTANT: The "Create your own corner" CTA goes through /api/auth/logout
  * to ensure a completely fresh start - no auto-login to previous accounts.
- * We use regular <a> tags (not Next.js Link) because API routes require
- * full page navigation, not client-side routing.
+ * We use a button with window.location.href for the API route because
+ * Next.js Link does client-side navigation which doesn't work for API routes.
  */
 
 import Head from 'next/head';
+import Link from 'next/link';
 
 interface NotFoundPageProps {
   slug: string;
@@ -18,6 +19,11 @@ interface NotFoundPageProps {
 }
 
 export function NotFoundPage({ slug, message }: NotFoundPageProps) {
+  // Navigate to logout API (needs full page navigation, not client-side routing)
+  const handleCreateCorner = () => {
+    window.location.href = '/api/auth/logout';
+  };
+
   return (
     <>
       <Head>
@@ -73,14 +79,14 @@ export function NotFoundPage({ slug, message }: NotFoundPageProps) {
         </p>
         
         {/* CTA - Goes through logout to ensure fresh start (no auto-login) */}
-        {/* Using <a> tag instead of Next.js Link because API routes need full page navigation */}
-        <a 
-          href="/api/auth/logout"
+        {/* Using button with window.location because API routes need full page navigation */}
+        <button 
+          onClick={handleCreateCorner}
           style={{
             padding: '12px 28px',
             background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
             color: 'white',
-            textDecoration: 'none',
+            border: 'none',
             fontSize: '16px',
             fontWeight: 500,
             borderRadius: '8px',
@@ -90,10 +96,10 @@ export function NotFoundPage({ slug, message }: NotFoundPageProps) {
           }}
         >
           Create your own corner
-        </a>
+        </button>
         
-        {/* Secondary link - also using <a> for consistency */}
-        <a 
+        {/* Secondary link */}
+        <Link 
           href="/"
           style={{
             marginTop: '16px',
@@ -104,7 +110,7 @@ export function NotFoundPage({ slug, message }: NotFoundPageProps) {
           }}
         >
           ← Go to homepage
-        </a>
+        </Link>
         
         {/* Dev debug info */}
         {process.env.NODE_ENV !== 'production' && (
