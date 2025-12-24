@@ -3,10 +3,14 @@
  * 
  * Returns the currently authenticated user's page data.
  * Used by the /edit page to load existing page for editing.
+ * 
+ * IMPORTANT: Returns blocks in legacy format (uppercase types, string content)
+ * because the Editor component expects this format.
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getUserFromRequest } from '@/server/auth/session';
+import { pageDocBlocksToLegacy } from '@/lib/draft';
 
 interface BlockStyle {
   borderRadius?: number;
@@ -106,6 +110,7 @@ export default async function handler(
 
     // parse blocks - handle both legacy array format and new PageDoc format
     let blocks: Block[] = [];
+    let pageDocBackground: BackgroundConfig | undefined;
     try {
       const content = JSON.parse(page.content || '[]');
       // check if content is PageDoc format (has version and blocks) or legacy array
@@ -113,8 +118,14 @@ export default async function handler(
         // legacy format: content is directly the blocks array
         blocks = content;
       } else if (content && typeof content === 'object' && Array.isArray(content.blocks)) {
-        // PageDoc format: content is { version, blocks, title, ... }
-        blocks = content.blocks;
+        // PageDoc format: content is { version, blocks, title, background, ... }
+        // Convert to legacy format for Editor compatibility
+        blocks = pageDocBlocksToLegacy(content.blocks) as Block[];
+        // Also extract background from PageDoc if present
+        if (content.background) {
+          pageDocBackground = content.background;
+        }
+        console.log('[api/my-page] Converted PageDoc blocks to legacy format:', blocks.length);
       } else {
         console.warn('[api/my-page] unexpected content format:', typeof content);
         blocks = [];
@@ -123,9 +134,9 @@ export default async function handler(
       console.error('Failed to parse page content:', e);
     }
 
-    // Parse background
-    let background: BackgroundConfig | undefined;
-    if (page.background) {
+    // Parse background - prefer PageDoc background, fall back to DB column
+    let background: BackgroundConfig | undefined = pageDocBackground;
+    if (!background && page.background) {
       try {
         background = JSON.parse(page.background);
       } catch (e) {
