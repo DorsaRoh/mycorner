@@ -107,13 +107,47 @@ Production deployment checklist for my-corner.
 
 ## Deployment Steps
 
-### 1. Create Supabase Project
+### 1. Configure Object Storage (Cloudflare R2)
+
+The app uses S3-compatible object storage for:
+- Published static pages (`pages/{slug}/index.html`)
+- User-uploaded images (`assets/{userId}/{uuid}.{ext}`)
+
+**Required Environment Variables:**
+- `S3_ENDPOINT` - R2 endpoint (e.g., `https://xxx.r2.cloudflarestorage.com`)
+- `S3_BUCKET` - Bucket name
+- `S3_ACCESS_KEY_ID` - R2 API token ID
+- `S3_SECRET_ACCESS_KEY` - R2 API token secret
+- `S3_PUBLIC_BASE_URL` - Public CDN URL (e.g., `https://cdn.yourdomain.com`)
+
+**CORS Configuration (Required for Direct Uploads):**
+
+The app uses presigned URLs for fast direct-to-R2 uploads from the browser.
+Configure CORS on your R2 bucket to allow PUT requests:
+
+```json
+[
+  {
+    "AllowedOrigins": ["https://yourdomain.com"],
+    "AllowedMethods": ["GET", "PUT", "HEAD"],
+    "AllowedHeaders": ["Content-Type", "x-amz-*"],
+    "MaxAgeSeconds": 3600
+  }
+]
+```
+
+In Cloudflare R2 dashboard:
+1. Go to R2 → Your Bucket → Settings → CORS Policy
+2. Add the above policy (replace `yourdomain.com` with your actual domain)
+3. For development, add `http://localhost:3000` to AllowedOrigins
+
+### 2. Create Supabase Project (Database)
 
 1. Go to https://supabase.com and create a new project
 2. Copy the project URL and service role key
-3. Create a storage bucket named `uploads` (set to public)
+3. Get the PostgreSQL connection string from Database Settings
 
-### 2. Create Render Web Service
+### 3. Create Render Web Service
 
 1. Go to https://render.com and create a new Web Service
 2. Connect to your GitHub repo
@@ -122,12 +156,15 @@ Production deployment checklist for my-corner.
    - `DATABASE_URL` - Supabase PostgreSQL connection string
    - `GOOGLE_CLIENT_ID` - From Google Cloud Console
    - `GOOGLE_CLIENT_SECRET` - From Google Cloud Console
-   - `SUPABASE_URL` - Your Supabase project URL
-   - `SUPABASE_SERVICE_KEY` - Supabase service role key
+   - `S3_ENDPOINT` - Cloudflare R2 endpoint
+   - `S3_BUCKET` - R2 bucket name
+   - `S3_ACCESS_KEY_ID` - R2 API token ID
+   - `S3_SECRET_ACCESS_KEY` - R2 API token secret
+   - `S3_PUBLIC_BASE_URL` - Public CDN URL for assets
    - `PUBLIC_URL` - Your Render URL (e.g., https://my-corner.onrender.com)
    - `CORS_ORIGIN` - Same as PUBLIC_URL
 
-### 3. Configure Google OAuth
+### 4. Configure Google OAuth
 
 1. Go to https://console.cloud.google.com/apis/credentials
 2. Create OAuth 2.0 Client ID
@@ -135,13 +172,13 @@ Production deployment checklist for my-corner.
    - `https://your-domain.com/auth/google/callback`
    - `http://localhost:3000/auth/google/callback` (for dev)
 
-### 4. Deploy
+### 5. Deploy
 
 1. Push to your main branch
 2. Render will automatically deploy
 3. Check the health endpoint: `https://your-domain.com/health`
 
-### 5. Custom Domain (Optional)
+### 6. Custom Domain (Optional)
 
 1. In Render, go to Settings → Custom Domains
 2. Add your domain

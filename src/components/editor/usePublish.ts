@@ -162,14 +162,20 @@ export function usePublish({
       }
       
       // Navigate to the canonical public page path
-      // ISR with on-demand revalidation ensures fresh content without cache busters.
-      // The publish API calls res.revalidate() which regenerates the page immediately.
-      const redirectUrl = options?.redirectTo || canonicalPath;
+      // Add a cache-busting timestamp to ensure the browser fetches fresh content.
+      // Without this, the browser's HTTP cache may serve the stale pre-publish version.
+      // The publish API calls res.revalidate() which regenerates the page on the server,
+      // but the browser cache is independent and may still have the old response.
+      const baseRedirectUrl = options?.redirectTo || canonicalPath;
+      const cacheBuster = `_cb=${Date.now()}`;
+      const redirectUrl = baseRedirectUrl.includes('?') 
+        ? `${baseRedirectUrl}&${cacheBuster}`
+        : `${baseRedirectUrl}?${cacheBuster}`;
       
       console.log('[Publish] navigating to:', redirectUrl);
       
       // Use window.location.href for a full page load
-      // This ensures we get the freshly revalidated ISR page
+      // The cache buster ensures we bypass browser cache and get fresh content
       window.location.href = redirectUrl;
       
     } catch (error) {
