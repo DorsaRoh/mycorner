@@ -90,11 +90,18 @@ export function AccountMenu({ email, avatarUrl, name }: AccountMenuProps) {
       
       // Clear any localStorage items that might cache user data
       if (typeof localStorage !== 'undefined') {
-        // Clear any legacy draft keys
+        // Clear any legacy draft keys and user-related data
         const keysToRemove: string[] = [];
         for (let i = 0; i < localStorage.length; i++) {
           const key = localStorage.key(i);
-          if (key && (key.startsWith('yourcorner:') || key.startsWith('mycorner:'))) {
+          if (key && (
+            key.startsWith('yourcorner:') || 
+            key.startsWith('mycorner:') ||
+            key.includes('draft') ||
+            key.includes('user') ||
+            key.includes('session') ||
+            key.includes('auth')
+          )) {
             keysToRemove.push(key);
           }
         }
@@ -105,10 +112,9 @@ export function AccountMenu({ email, avatarUrl, name }: AccountMenuProps) {
         }
       }
       
-      // Clear any sessionStorage items that might hold state
+      // Clear ALL sessionStorage to ensure completely fresh state
       if (typeof sessionStorage !== 'undefined') {
-        sessionStorage.removeItem('publishIntent');
-        sessionStorage.clear(); // Clear all session storage for clean state
+        sessionStorage.clear();
       }
       
       const redirectUrl = routes.new({ fresh: true });
@@ -118,9 +124,8 @@ export function AccountMenu({ email, avatarUrl, name }: AccountMenuProps) {
       }
       
       // Hard navigation to /new?fresh=1 to ensure completely fresh server state
-      // The fresh=1 flag tells the server to create a new page instead of returning existing
-      // Using window.location.href for a clean navigation that replaces history
-      window.location.href = redirectUrl;
+      // Using window.location.replace to not keep logout in history
+      window.location.replace(redirectUrl);
     } catch (error) {
       console.error('[AccountMenu] Logout error:', error);
       setIsLoggingOut(false);

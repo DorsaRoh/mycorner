@@ -1,22 +1,20 @@
 /**
- * /new - Draft creator + redirector
+ * /new - Fresh starter page creator + redirector
  * 
  * ROUTING MODEL:
- * - Creates a draft page in the database
+ * - ALWAYS creates a NEW draft page with fresh starter content
  * - Redirects to /edit/[pageId]
  * - /new is NOT the long-term editor surface
  * 
  * For authenticated users:
- *   - If user already has a page, redirect to it (unless ?fresh=1)
- *   - Otherwise, create a new page with starter content
+ *   - Create a new page with starter content (owned by user)
  * 
  * For anonymous users:
  *   - Create a page with owner_id = draft_token (from cookie)
  *   - On publish, force auth, then "claim" the draft
  * 
- * Query params:
- *   - ?fresh=1 : Force create a new page with fresh starter content
- *                Used after logout to ensure user gets a clean slate
+ * NOTE: /new ALWAYS creates a fresh page. To resume editing an existing page,
+ * go directly to /edit/[pageId].
  */
 
 import type { GetServerSideProps } from 'next';
@@ -26,33 +24,23 @@ import {
   buildDraftOwnerTokenCookie,
   generateDraftOwnerToken,
 } from '@/server/auth/session';
-import { createDraftPage, claimAnonymousPages, createFreshDraftPage } from '@/server/pages';
+import { createFreshDraftPage } from '@/server/pages';
 
 export const getServerSideProps: GetServerSideProps = async (context) => {
   const cookieHeader = context.req.headers.cookie;
   
-  // Check for fresh flag (used after logout)
-  const isFresh = context.query.fresh === '1';
-  
-  if (isFresh && process.env.NODE_ENV === 'development') {
-    console.log('[/new] Fresh mode: creating new page with starter content');
+  if (process.env.NODE_ENV === 'development') {
+    console.log('[/new] Creating fresh page with starter content');
   }
   
   // Check if user is authenticated
-  // In fresh mode (after logout), we IGNORE the userId to ensure a clean anonymous start
-  const rawUserId = await getUserIdFromCookies(cookieHeader);
-  const userId = isFresh ? null : rawUserId;
-  
-  if (isFresh && rawUserId && process.env.NODE_ENV === 'development') {
-    console.log('[/new] Fresh mode: ignoring authenticated user, treating as anonymous');
-  }
+  const userId = await getUserIdFromCookies(cookieHeader);
   
   // Get or create draft owner token for anonymous users
   let draftToken = getDraftOwnerTokenFromCookies(cookieHeader);
   
-  // In fresh mode OR when no tokens exist (for anonymous users), generate a new draft token
-  // This ensures logged-out users get a truly fresh start
-  if (!userId && (!draftToken || isFresh)) {
+  // For anonymous users, generate a new draft token if none exists
+  if (!userId && !draftToken) {
     draftToken = generateDraftOwnerToken();
     // Set cookie on response
     context.res.setHeader('Set-Cookie', buildDraftOwnerTokenCookie(draftToken));
@@ -63,31 +51,14 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
   }
   
   try {
-    // If user is authenticated and has a draft token, claim any anonymous pages
-    // Skip claiming in fresh mode to avoid pulling in old pages
-    if (userId && draftToken && !isFresh) {
-      await claimAnonymousPages(draftToken, userId);
-    }
-    
-    let result;
-    
-    if (isFresh) {
-      // Fresh mode: always create a new anonymous page with starter content
-      // userId is already null due to isFresh check above
-      result = await createFreshDraftPage({
-        userId: null,
-        anonToken: draftToken,
-      });
-    } else {
-      // Normal mode: get existing page or create new one
-      result = await createDraftPage({
-        userId: userId || null,
-        anonToken: !userId ? draftToken : null,
-      });
-    }
+    // Always create a fresh page with starter content
+    const result = await createFreshDraftPage({
+      userId: userId || null,
+      anonToken: !userId ? draftToken : null,
+    });
     
     if (process.env.NODE_ENV === 'development') {
-      console.log('[/new] Redirecting to page:', result.pageId, 'isNew:', result.isNew);
+      console.log('[/new] Created fresh page:', result.pageId);
     }
     
     // Redirect to editor with the page ID

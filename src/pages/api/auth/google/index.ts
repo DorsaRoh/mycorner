@@ -86,8 +86,11 @@ export default async function handler(
     state,
     // Request offline access if we need refresh tokens in the future
     access_type: 'online',
-    // Prompt select_account to allow switching accounts
-    prompt: 'select_account',
+    // IMPORTANT: Use both 'consent' and 'select_account' to force:
+    // 1. The account picker to always show (even if user has only one account)
+    // 2. A fresh authorization (no auto-login from cached browser sessions)
+    // This ensures users can sign in with a different account after logout.
+    prompt: 'consent select_account',
   });
   
   const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;

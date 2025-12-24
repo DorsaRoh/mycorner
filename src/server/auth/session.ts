@@ -233,6 +233,8 @@ export function clearSessionCookie(res: NextApiResponse): void {
  * 
  * IMPORTANT: Cookie clearing must match the attributes used when setting
  * (secure, sameSite, path, domain) for browsers to properly match and delete them.
+ * 
+ * We use both maxAge=0 AND expires in the past for maximum browser compatibility.
  */
 export function clearAllAuthCookies(res: NextApiResponse): void {
   const cookieDomain = getCookieDomain();
@@ -245,19 +247,31 @@ export function clearAllAuthCookies(res: NextApiResponse): void {
     OAUTH_STATE_COOKIE_NAME,
   ];
   
-  const cookies = cookiesToClear.map(name => 
-    serializeCookie(name, '', {
-      maxAge: 0,
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: 'lax',
-      path: '/',
-      domain: cookieDomain,
-    })
-  );
+  // Use a date far in the past to ensure cookie deletion
+  const expiredDate = new Date(0).toUTCString();
+  
+  const cookies = cookiesToClear.map(name => {
+    // Build cookie with both maxAge=0 and expires for maximum compatibility
+    const parts = [
+      `${name}=`,
+      `Max-Age=0`,
+      `Expires=${expiredDate}`,
+      `Path=/`,
+      `HttpOnly`,
+    ];
+    if (isProduction) {
+      parts.push('Secure');
+    }
+    parts.push('SameSite=Lax');
+    if (cookieDomain) {
+      parts.push(`Domain=${cookieDomain}`);
+    }
+    return parts.join('; ');
+  });
   
   if (process.env.NODE_ENV === 'development') {
     console.log('[session] Clearing auth cookies:', cookiesToClear);
+    console.log('[session] Cookie headers:', cookies);
   }
   
   res.setHeader('Set-Cookie', cookies);
