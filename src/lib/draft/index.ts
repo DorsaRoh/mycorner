@@ -21,6 +21,18 @@ export type { DraftDoc };
  * Convert legacy block format (used by Editor) to PageDoc block format.
  */
 export function legacyBlockToPageDoc(block: LegacyBlock): PageDocBlock | null {
+  const convertedStyle = convertLegacyStyle(block.style);
+  
+  // Log fontSize conversion for debugging
+  if (process.env.NODE_ENV === 'development' && (block.type === 'TEXT' || block.type === 'LINK')) {
+    console.log('[legacyBlockToPageDoc] Converting block:', {
+      id: block.id,
+      type: block.type,
+      originalFontSize: block.style?.fontSize,
+      convertedFontSize: convertedStyle?.fontSize,
+    });
+  }
+  
   const base = {
     id: block.id,
     x: block.x,
@@ -28,7 +40,7 @@ export function legacyBlockToPageDoc(block: LegacyBlock): PageDocBlock | null {
     width: block.width,
     height: block.height,
     rotation: block.rotation,
-    style: convertLegacyStyle(block.style),
+    style: convertedStyle,
   };
   
   switch (block.type) {

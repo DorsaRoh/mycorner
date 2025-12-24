@@ -17,7 +17,7 @@
       "@/shared/*": ["src/shared/*"]
     }
   },
-  "include": ["src/server/**/*", "src/shared/**/*", "src/lib/config.ts", "src/lib/themes.ts", "src/lib/schema/**/*"],
+  "include": ["src/server/**/*", "src/shared/**/*", "src/lib/config.ts", "src/lib/themes.ts", "src/lib/routes.ts", "src/lib/schema/**/*"],
   "exclude": ["node_modules"]
 }
 

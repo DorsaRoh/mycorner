@@ -565,11 +565,23 @@ export const Block = memo(function Block({
           const fontScaleFactor = 1 + (diagonalDelta / 100);
           const newFontSize = Math.max(8, Math.min(200, Math.round(ref.fontSize * fontScaleFactor)));
           
-          updates.style = {
+          // Build complete style object with new fontSize
+          const newStyle: BlockStyle = {
             ...DEFAULT_STYLE,
             ...block.style,
             fontSize: newFontSize,
           };
+          
+          updates.style = newStyle;
+          
+          if (process.env.NODE_ENV === 'development') {
+            console.log('[Block] Diagonal resize fontSize:', {
+              original: ref.fontSize,
+              newFontSize,
+              fontScaleFactor,
+              diagonalDelta,
+            });
+          }
         } else if (isTextOrLink && isHorizontalResize) {
           // Horizontal resize changes width only
           let newWidth = ref.blockWidth;
@@ -622,6 +634,16 @@ export const Block = memo(function Block({
           updates.height = newHeight;
         }
 
+        // Ensure updates are applied - log for debugging
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[Block] Resize update:', {
+            blockId: block.id,
+            blockType: block.type,
+            edge: edge,
+            updates: JSON.stringify(updates),
+          });
+        }
+        
         onUpdate(updates);
       } else if (interactionState === 'rotating') {
         // Calculate final rotation angle

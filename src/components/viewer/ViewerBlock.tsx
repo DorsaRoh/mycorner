@@ -62,8 +62,21 @@ export const ViewerBlock = memo(function ViewerBlock({ block, canvasDimensions }
   // Scale font size for rendering
   const scaledFontSize = useMemo(() => {
     const baseFontSize = block.style?.fontSize || DEFAULT_STYLE.fontSize || 16;
-    return scaleFontSize(baseFontSize, dims.scale);
-  }, [block.style?.fontSize, dims.scale]);
+    const scaled = scaleFontSize(baseFontSize, dims.scale);
+    
+    // Log fontSize for debugging
+    if (process.env.NODE_ENV !== 'production' && (block.type === 'TEXT' || block.type === 'LINK')) {
+      console.log('[ViewerBlock] fontSize:', {
+        id: block.id,
+        type: block.type,
+        baseFontSize,
+        scale: dims.scale,
+        scaledFontSize: scaled,
+      });
+    }
+    
+    return scaled;
+  }, [block.id, block.type, block.style?.fontSize, dims.scale]);
   
   const blockStyles = useMemo(() => {
     const { outer, inner } = getBlockStyles(block.style, pxRect.width, pxRect.height);

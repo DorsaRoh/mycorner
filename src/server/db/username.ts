@@ -4,7 +4,7 @@
  * used during oauth login to auto-generate usernames for new users.
  */
 
-import { isReservedUsername } from '@/lib/routes';
+import { isReservedUsername } from '../../lib/routes';
 
 // =============================================================================
 // constants

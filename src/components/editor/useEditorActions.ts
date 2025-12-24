@@ -90,12 +90,31 @@ export function useEditorActions(
   }, [blocks.length, generateBlockId, exitStarterMode, actions]);
 
   const handleUpdateBlock = useCallback((id: string, updates: Partial<Block>) => {
+    // Log style updates in development for debugging
+    if (process.env.NODE_ENV === 'development' && updates.style) {
+      console.log('[useEditorActions] handleUpdateBlock with style:', {
+        id,
+        fontSize: updates.style.fontSize,
+        updates: JSON.stringify(updates.style),
+      });
+    }
+    
     actions.setBlocks((prev) =>
       prev.map((block) => {
         if (block.id === id) {
           // Clear isStarter flag when block is modified - makes it behave like a regular block
           const { isStarter, ...rest } = block;
-          return { ...rest, ...updates };
+          const updated = { ...rest, ...updates };
+          
+          // Log the result for debugging
+          if (process.env.NODE_ENV === 'development' && updates.style) {
+            console.log('[useEditorActions] Block updated:', {
+              id,
+              newFontSize: updated.style?.fontSize,
+            });
+          }
+          
+          return updated;
         }
         return block;
       })
