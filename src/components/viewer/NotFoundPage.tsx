@@ -3,6 +3,9 @@
  * 
  * This provides a user-friendly message instead of a blank page.
  * Includes a CTA to create their own corner.
+ * 
+ * IMPORTANT: The "Create your own corner" CTA goes through /api/auth/logout
+ * to ensure a completely fresh start - no auto-login to previous accounts.
  */
 
 import Head from 'next/head';
@@ -68,9 +71,9 @@ export function NotFoundPage({ slug, message }: NotFoundPageProps) {
           {message || <>The page <strong>/{slug}</strong> hasn&apos;t been created or isn&apos;t published yet.</>}
         </p>
         
-        {/* CTA */}
+        {/* CTA - Goes through logout to ensure fresh start (no auto-login) */}
         <Link 
-          href="/new"
+          href="/api/auth/logout"
           style={{
             padding: '12px 28px',
             background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',

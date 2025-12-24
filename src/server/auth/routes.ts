@@ -34,6 +34,10 @@ router.get('/google', (req, res, next) => {
   
   passport.authenticate('google', {
     scope: ['profile', 'email'],
+    // IMPORTANT: Force account selection every time.
+    // This ensures users see the Google account picker and are not
+    // automatically signed in to their previous account after logout.
+    prompt: 'select_account',
   })(req, res, next);
 });
 

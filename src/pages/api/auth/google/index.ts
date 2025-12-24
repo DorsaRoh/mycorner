@@ -86,11 +86,13 @@ export default async function handler(
     state,
     // Request offline access if we need refresh tokens in the future
     access_type: 'online',
-    // IMPORTANT: Use both 'consent' and 'select_account' to force:
-    // 1. The account picker to always show (even if user has only one account)
-    // 2. A fresh authorization (no auto-login from cached browser sessions)
-    // This ensures users can sign in with a different account after logout.
-    prompt: 'consent select_account',
+    // IMPORTANT: Force account selection every time.
+    // 'select_account' ensures the Google account picker ALWAYS appears,
+    // even if only one account is signed in. This prevents auto-login
+    // to the previously used account after logout.
+    // Note: Using only 'select_account' (not 'consent select_account') is more
+    // reliable for showing the picker without forcing re-consent.
+    prompt: 'select_account',
   });
   
   const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;

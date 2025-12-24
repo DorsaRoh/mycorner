@@ -13,6 +13,11 @@
  *   - Create a page with owner_id = draft_token (from cookie)
  *   - On publish, force auth, then "claim" the draft
  * 
+ * FRESH START MODE (?fresh=1):
+ *   - When fresh=1 query param is present, ignore any existing session
+ *   - Always create an anonymous page (as if not logged in)
+ *   - This ensures users can start fresh without auto-login to previous accounts
+ * 
  * NOTE: /new ALWAYS creates a fresh page. To resume editing an existing page,
  * go directly to /edit/[pageId].
  */
@@ -29,17 +34,26 @@ import { createFreshDraftPage } from '@/server/pages';
 export const getServerSideProps: GetServerSideProps = async (context) => {
   const cookieHeader = context.req.headers.cookie;
   
+  // Check for fresh=1 flag - if present, ignore any existing session
+  // This ensures a completely fresh start without auto-login
+  const isFreshStart = context.query.fresh === '1';
+  
   if (process.env.NODE_ENV === 'development') {
     console.log('[/new] Creating fresh page with starter content');
+    if (isFreshStart) {
+      console.log('[/new] Fresh start mode - ignoring existing session');
+    }
   }
   
-  // Check if user is authenticated
-  const userId = await getUserIdFromCookies(cookieHeader);
+  // Check if user is authenticated (unless fresh start mode)
+  // In fresh start mode, always create anonymous page
+  const userId = isFreshStart ? null : await getUserIdFromCookies(cookieHeader);
   
   // Get or create draft owner token for anonymous users
-  let draftToken = getDraftOwnerTokenFromCookies(cookieHeader);
+  // In fresh start mode, always generate a new token
+  let draftToken = isFreshStart ? null : getDraftOwnerTokenFromCookies(cookieHeader);
   
-  // For anonymous users, generate a new draft token if none exists
+  // For anonymous users (or fresh start), generate a new draft token if none exists
   if (!userId && !draftToken) {
     draftToken = generateDraftOwnerToken();
     // Set cookie on response
