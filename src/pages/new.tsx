@@ -1,44 +1,31 @@
 /**
  * /new - Fresh starting page for new users
  * 
- * SIMPLE MODEL:
- * - Renders the Editor directly with localStorage draft (no database)
- * - User edits locally, nothing is saved to server
- * - When they publish: login → username → publish
- * - That's it. No cookies, no tokens, no complexity.
+ * EPHEMERAL MODEL:
+ * - ALWAYS shows a fresh default page on load/refresh
+ * - Changes exist only in memory (not saved to localStorage or DB)
+ * - When they publish: login → username → create page in DB
+ * - Refresh = lose changes (intentional - encourages publishing)
  * 
- * ?fresh=1 query param: Clears localStorage draft before rendering
- * (used after logout to ensure clean slate)
+ * This creates urgency: "publish to save your work!"
  */
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/router';
 import Head from 'next/head';
 import { Editor } from '@/components/editor/Editor';
 import { clearDraft } from '@/lib/draft';
 
 export default function NewPage() {
-  const router = useRouter();
   const [ready, setReady] = useState(false);
   
-  // Handle ?fresh=1 to clear all state
+  // ALWAYS clear draft on mount - /new is always a fresh start
   useEffect(() => {
-    const { fresh, publish } = router.query;
-    
-    // If fresh=1, clear the draft
-    if (fresh === '1') {
-      console.log('[/new] Fresh start - clearing draft');
-      clearDraft();
-      
-      // Clean up URL (remove fresh param, keep publish if present)
-      const newQuery = publish ? `?publish=1` : '';
-      window.history.replaceState({}, '', `/new${newQuery}`);
-    }
-    
+    console.log('[/new] Clearing draft - starting fresh');
+    clearDraft();
     setReady(true);
-  }, [router.query]);
+  }, []);
   
-  // Show loading while handling fresh param
+  // Show loading while clearing draft
   if (!ready) {
     return (
       <div style={{ 
@@ -61,6 +48,7 @@ export default function NewPage() {
       <Editor
         pageId="draft"
         mode="draft"
+        ephemeral={true}
       />
     </>
   );

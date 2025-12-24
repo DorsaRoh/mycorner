@@ -101,6 +101,12 @@ interface EditorProps {
   initialServerRevision?: number;
   initialPublishedRevision?: number | null;
   initialSlug?: string | null;
+  /** 
+   * Ephemeral mode: don't persist to localStorage.
+   * Used for /new where we want a fresh start on every refresh.
+   * Changes exist only in memory until user publishes.
+   */
+  ephemeral?: boolean;
 }
 
 export function Editor({
@@ -113,6 +119,7 @@ export function Editor({
   initialServerRevision = 1,
   initialPublishedRevision = null,
   initialSlug = null,
+  ephemeral = false,
 }: EditorProps) {
   const router = useRouter();
 
@@ -315,9 +322,12 @@ export function Editor({
     enabled: mode === 'server',
   });
 
-  // Initialize draft from localStorage for draft mode
+  // Initialize draft from localStorage for draft mode (skip if ephemeral)
   const draftLoaded = useRef(false);
   useEffect(() => {
+    // Skip loading draft in ephemeral mode - always start fresh
+    if (ephemeral) return;
+    
     if (mode === 'draft' && !draftLoaded.current && !meLoading) {
       draftLoaded.current = true;
       
@@ -329,7 +339,7 @@ export function Editor({
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, pageId, meLoading]);
+  }, [mode, pageId, meLoading, ephemeral]);
 
   // State for pending auto-publish (use state instead of ref to ensure proper re-render timing)
   const [shouldAutoPublish, setShouldAutoPublish] = useState(false);
@@ -360,8 +370,14 @@ export function Editor({
     if (!viewportMounted) return;
     
     if (mode === 'draft' && state.blocks.length === 0 && !starterBlockAdded.current) {
-      const draft = getDraft();
-      if (!draft || !draft.doc || draft.doc.blocks.length === 0) {
+      // In ephemeral mode, always add starter blocks (no localStorage check)
+      // In normal draft mode, check if there's a saved draft
+      const shouldAddStarter = ephemeral || (() => {
+        const draft = getDraft();
+        return !draft || !draft.doc || draft.doc.blocks.length === 0;
+      })();
+      
+      if (shouldAddStarter) {
         starterBlockAdded.current = true;
         const isMobile = viewportMode === 'mobile';
         const starterBlocks = createStarterBlocks(isMobile);
@@ -373,7 +389,7 @@ export function Editor({
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, pageId, state.blocks.length, viewportMounted, viewportMode]);
+  }, [mode, pageId, state.blocks.length, viewportMounted, viewportMode, ephemeral]);
 
   // Handle viewport mode change - swap starter layout if still pristine
   useEffect(() => {
@@ -406,9 +422,11 @@ export function Editor({
     }
   }, [mode, state.blocks, state.title, state.background, markDirty]);
 
-  // Auto-save to localStorage for draft mode
+  // Auto-save to localStorage for draft mode (skip if ephemeral)
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   useEffect(() => {
+    // Skip saving in ephemeral mode - changes only exist in memory
+    if (ephemeral) return;
     if (mode !== 'draft') return;
     if (isFirstRender.current) {
       isFirstRender.current = false;
@@ -428,7 +446,7 @@ export function Editor({
         clearTimeout(saveTimeoutRef.current);
       }
     };
-  }, [mode, state.title, state.blocks, state.background]);
+  }, [mode, state.title, state.blocks, state.background, ephemeral]);
 
   // Handle logout transition: clear editor and draft
   useEffect(() => {
