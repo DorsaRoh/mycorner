@@ -25,12 +25,13 @@
  * - On publish: revalidate() is called immediately for fresh content
  */
 
+import { useEffect } from 'react';
+import { useRouter } from 'next/router';
 import type { GetStaticPaths, GetStaticProps, InferGetStaticPropsType } from 'next';
 import { RESERVED_PATHS } from '@/lib/routes';
 import { getPublishedPageBySlug, isValidSlug } from '@/lib/pages';
 import type { PageDoc } from '@/lib/schema/page';
 import { PublicPageView } from '@/components/viewer/PublicPageView';
-import { NotFoundPage } from '@/components/viewer/NotFoundPage';
 
 // =============================================================================
 // Types
@@ -51,9 +52,29 @@ export default function PublicPage({
   slug,
   notFound,
 }: InferGetStaticPropsType<typeof getStaticProps>) {
-  // Show 404 UI if page not found or not published
+  const router = useRouter();
+  
+  // Redirect to /new?fresh=1 if page not found
+  useEffect(() => {
+    if (notFound || !doc) {
+      // Use window.location for hard redirect to ensure fresh state
+      window.location.href = '/new?fresh=1';
+    }
+  }, [notFound, doc]);
+  
+  // Show loading while redirecting (or if page not found)
   if (notFound || !doc) {
-    return <NotFoundPage slug={slug} />;
+    return (
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: '100vh',
+        fontFamily: 'system-ui, sans-serif',
+      }}>
+        <p>Loading...</p>
+      </div>
+    );
   }
   
   // Render the published page

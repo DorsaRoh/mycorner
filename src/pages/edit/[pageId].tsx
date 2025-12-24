@@ -5,12 +5,13 @@
  * - Loads a specific page by ID for editing
  * - Validates ownership (user_id or anon token)
  * - Renders the Editor component with page data
+ * - If page not found or not authorized → redirect to /new?fresh=1
  * 
  * Access control:
  * - Authenticated user: must own the page (user_id matches)
  * - Anonymous user: must have valid draft_owner_token matching owner_id
  * 
- * Never shows a blank page - always loading/error/content states.
+ * Never shows a blank page - always redirects or renders content.
  */
 
 import type { GetServerSideProps } from 'next';
@@ -21,8 +22,6 @@ import {
   getDraftOwnerTokenFromCookies 
 } from '@/server/auth/session';
 import { getPageForEdit } from '@/server/pages';
-import { NotFoundPage } from '@/components/viewer/NotFoundPage';
-// Editor renders its own styles
 
 interface EditorPageProps {
   pageId: string;
@@ -34,7 +33,6 @@ interface EditorPageProps {
   publishedRevision: number | null;
   slug: string | null;
   isAuthenticated: boolean;
-  error?: 'not_found' | 'not_authorized';
 }
 
 export const getServerSideProps: GetServerSideProps<EditorPageProps> = async (context) => {
@@ -64,20 +62,12 @@ export const getServerSideProps: GetServerSideProps<EditorPageProps> = async (co
     });
     
     if (!result) {
-      // Page not found or not authorized
-      console.log('[/edit/[pageId]] Page not found or not authorized:', pageId);
+      // Page not found or not authorized - redirect to fresh start
+      console.log('[/edit/[pageId]] Page not found or not authorized, redirecting to /new?fresh=1:', pageId);
       return {
-        props: {
-          pageId,
-          title: null,
-          blocks: [],
-          background: null,
-          isPublished: false,
-          serverRevision: 1,
-          publishedRevision: null,
-          slug: null,
-          isAuthenticated: !!userId,
-          error: 'not_found',
+        redirect: {
+          destination: '/new?fresh=1',
+          permanent: false,
         },
       };
     }
@@ -98,18 +88,11 @@ export const getServerSideProps: GetServerSideProps<EditorPageProps> = async (co
   } catch (error) {
     console.error('[/edit/[pageId]] Error fetching page:', error);
     
+    // On error, redirect to fresh start
     return {
-      props: {
-        pageId,
-        title: null,
-        blocks: [],
-        background: null,
-        isPublished: false,
-        serverRevision: 1,
-        publishedRevision: null,
-        slug: null,
-        isAuthenticated: !!userId,
-        error: 'not_found',
+      redirect: {
+        destination: '/new?fresh=1',
+        permanent: false,
       },
     };
   }
@@ -124,27 +107,8 @@ export default function EditPageById({
   serverRevision,
   publishedRevision,
   slug,
-  error,
 }: EditorPageProps) {
-  // Error state - page not found or not authorized
-  if (error) {
-    return (
-      <>
-        <Head>
-          <title>Page not found – my corner</title>
-        </Head>
-        <NotFoundPage 
-          slug={pageId} 
-          message={error === 'not_authorized' 
-            ? "You don't have permission to edit this page." 
-            : "This page doesn't exist or you don't have access to it."
-          }
-        />
-      </>
-    );
-  }
-  
-  // Render the editor
+  // Render the editor (errors redirect via SSR, so we always have valid data here)
   return (
     <>
       <Head>
