@@ -427,6 +427,7 @@ export function Canvas({
         className={styles.canvas}
         showDebug={false}
         data-testid="editor-canvas"
+        data-starter-mode={starterMode ? 'true' : 'false'}
       >
         {/* Left margin overlay - blocks cannot be placed here */}
         <div 
