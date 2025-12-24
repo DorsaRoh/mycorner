@@ -702,6 +702,8 @@ export const Block = memo(function Block({
     selected ? styles.selected : '',
     multiSelected ? styles.multiSelected : '',
     interactionState === 'dragging' ? styles.dragging : '',
+    interactionState === 'rotating' ? styles.rotating : '',
+    interactionState === 'resizing' && !isFontScaling ? styles.resizing : '',
     isFontScaling ? styles.fontScaling : '',
     isNew ? styles.entering : '',
     isEditing ? styles.editing : '',

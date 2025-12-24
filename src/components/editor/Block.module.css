@@ -3,9 +3,9 @@
   border: none;
   border-radius: var(--radius);
   cursor: grab;
-  transition: 
-    box-shadow 180ms cubic-bezier(0.23, 1, 0.32, 1),
-    transform 180ms cubic-bezier(0.23, 1, 0.32, 1);
+  /* Only transition box-shadow for selection states, NOT transform
+     Transform transitions cause "bounce" on resize/drag release */
+  transition: box-shadow 180ms cubic-bezier(0.23, 1, 0.32, 1);
   background: transparent;
 }
 
@@ -111,11 +111,24 @@
   cursor: grabbing;
   box-shadow: 0 12px 32px -8px rgba(60, 50, 40, 0.15);
   z-index: 101;
-  transform: scale(1.01);
+  /* Disable all transitions during drag for instant response */
+  transition: none;
 }
 
 /* Font scaling state for text/link blocks */
 .block.fontScaling {
+  z-index: 101;
+  transition: none;
+}
+
+/* Rotating state */
+.block.rotating {
+  z-index: 101;
+  transition: none;
+}
+
+/* General resizing state (for non-text/link blocks) */
+.block.resizing {
   z-index: 101;
   transition: none;
 }

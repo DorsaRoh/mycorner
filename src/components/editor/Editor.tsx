@@ -129,6 +129,9 @@ export function Editor({
   // Mini confetti animation state
   const [showConfetti, setShowConfetti] = useState(false);
   const prevIsPublished = useRef<boolean>(initialPublished);
+  
+  // Track "just published" state for button text (shows "Published!" for 5s, then "Update")
+  const [justPublished, setJustPublished] = useState(false);
 
   // Initialize state with hooks
   const state = useEditorState(
@@ -139,12 +142,17 @@ export function Editor({
     initialPublishedRevision
   );
 
-  // Trigger confetti when publish succeeds
+  // Trigger confetti and "Published!" state when publish succeeds
   useEffect(() => {
     if (state.isPublished && !prevIsPublished.current) {
       setShowConfetti(true);
-      const timer = setTimeout(() => setShowConfetti(false), 1500);
-      return () => clearTimeout(timer);
+      setJustPublished(true);
+      const confettiTimer = setTimeout(() => setShowConfetti(false), 1500);
+      const publishedTimer = setTimeout(() => setJustPublished(false), 5000);
+      return () => {
+        clearTimeout(confettiTimer);
+        clearTimeout(publishedTimer);
+      };
     }
     prevIsPublished.current = state.isPublished;
   }, [state.isPublished]);
@@ -646,7 +654,7 @@ export function Editor({
           if (state.isPublished && !hasUnpublishedChanges) {
             return (
               <button className={`${styles.inviteBtn} ${styles.publishedBtn}`} onClick={() => handlePublish()}>
-                Published!
+                {justPublished ? 'Published!' : 'Update'}
               </button>
             );
           }
