@@ -138,47 +138,67 @@ export function clearClientStateOnLogout(options?: { verbose?: boolean }): void 
  * 
  * This is the canonical way to log out a user.
  * 
- * @returns Promise that resolves when logout is complete (or rejects on error)
+ * BULLETPROOF DESIGN:
+ * 1. Always clears client state (even if server call fails)
+ * 2. Always redirects to /new (using both replace() and assign() as fallback)
+ * 3. Never throws - errors are logged but user is always redirected
+ * 
+ * @returns Promise that resolves when logout is complete
  */
 export async function performFullLogout(): Promise<void> {
   const verbose = process.env.NODE_ENV === 'development';
+  const redirectUrl = '/new?fresh=1';
   
   if (verbose) {
     console.log('[logout] Starting full logout...');
   }
   
+  // STEP 1: Clear client-side state FIRST
+  // This ensures even if the server call fails, client is cleaned up
   try {
-    // 1. Call server logout endpoint to clear cookies
+    clearClientStateOnLogout({ verbose });
+  } catch (error) {
+    // Log but don't stop - we still need to redirect
+    console.error('[logout] Error clearing client state:', error);
+  }
+  
+  // STEP 2: Call server to clear cookies
+  try {
     const response = await fetch('/api/auth/logout', {
       method: 'POST',
       credentials: 'include', // Ensure cookies are sent/received
     });
     
-    if (!response.ok) {
-      throw new Error(`Logout request failed with status ${response.status}`);
-    }
-    
-    const data = await response.json();
-    
     if (verbose) {
-      console.log('[logout] Server response:', data);
+      if (response.ok) {
+        const data = await response.json().catch(() => ({}));
+        console.log('[logout] Server response:', data);
+      } else {
+        console.log('[logout] Server returned:', response.status);
+      }
     }
-    
-    // 2. Clear all client-side state
-    clearClientStateOnLogout({ verbose });
-    
-    // 3. Hard redirect to fresh new page
-    // Using replace() so logout doesn't stay in history
-    const redirectUrl = '/new?fresh=1';
-    
-    if (verbose) {
-      console.log('[logout] Redirecting to:', redirectUrl);
-    }
-    
-    window.location.replace(redirectUrl);
   } catch (error) {
-    console.error('[logout] Error during logout:', error);
-    throw error;
+    // Log but don't stop - we still need to redirect
+    console.error('[logout] Error calling logout endpoint:', error);
+  }
+  
+  // STEP 3: Hard redirect to fresh new page
+  // Using multiple methods to ensure redirect happens
+  if (verbose) {
+    console.log('[logout] Redirecting to:', redirectUrl);
+  }
+  
+  try {
+    // Method 1: replace() - doesn't add to history
+    window.location.replace(redirectUrl);
+  } catch {
+    try {
+      // Method 2: assign() - fallback
+      window.location.assign(redirectUrl);
+    } catch {
+      // Method 3: href - last resort
+      window.location.href = redirectUrl;
+    }
   }
 }
 
